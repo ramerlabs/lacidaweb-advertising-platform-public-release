@@ -89,7 +89,9 @@ export default function AdminUsersPage() {
   }
 
   useEffect(() => {
-    refresh();
+    void refresh();
+    // intentionally load once on mount; search uses the Search button
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -101,7 +103,7 @@ export default function AdminUsersPage() {
     setIntervalBilling((selected.subscription?.interval as "MONTHLY" | "YEARLY") || "MONTHLY");
     setBanReason(selected.banReason || "");
     setNewPassword("");
-  }, [selectedId]);
+  }, [selected]);
 
   async function save(patch: Record<string, unknown>, userId = selectedId) {
     if (!userId) return;

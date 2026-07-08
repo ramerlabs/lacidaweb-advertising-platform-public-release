@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getZernio, withZernioRetry } from "@/lib/zernio";
-import type { PublishStatus } from "@prisma/client";
+import type { Prisma, PublishStatus } from "@prisma/client";
 import { notifyAdminPostActivity } from "@/services/admin-notify";
 
 export type CreatePostInput = {
@@ -73,7 +73,7 @@ export async function createAndPublishPost(input: CreatePostInput) {
       publishNow: Boolean(input.publishNow),
       scheduledFor: input.scheduledFor ? new Date(input.scheduledFor) : null,
       timezone: input.timezone || "UTC",
-      platformOptions: input.platformOptions ?? {},
+      platformOptions: (input.platformOptions ?? {}) as Prisma.InputJsonValue,
       targets: {
         create: accounts.map((account) => ({
           connectedAccountId: account.id,
@@ -162,7 +162,7 @@ export async function publishPostToZernio(postId: string, userId?: string) {
     const result = await withZernioRetry(
       async () =>
         zernio.posts.createPost({
-          // @ts-expect-error body nesting differs across SDK versions
+          // @ts-ignore SDK version variance
           body,
           ...body,
         }),
@@ -267,7 +267,7 @@ export async function getMediaPresignedUrl(input: {
   const result = await withZernioRetry(
     async () =>
       zernio.media.getMediaPresignedUrl({
-        // @ts-expect-error body nesting differs
+        // @ts-ignore SDK version variance
         body: {
           filename: input.filename,
           contentType: input.contentType,

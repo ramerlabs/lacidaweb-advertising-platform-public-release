@@ -13,7 +13,7 @@ export async function ensureTeamZernioProfile(teamId: string): Promise<string> {
     async () =>
       zernio.profiles.createProfile({
         // SDK shapes vary slightly across versions; support common patterns.
-        // @ts-expect-error body optional depending on SDK version
+        // @ts-ignore SDK version variance
         body: {
           name: team.name,
           description: `Profile for team ${team.slug}`,

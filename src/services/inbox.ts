@@ -252,7 +252,7 @@ async function maybeAutoReply(input: {
       await withZernioRetry(
         async () =>
           zernio.comments.sendPrivateReplyToComment({
-            // @ts-expect-error SDK path/body variance
+            // @ts-ignore SDK version variance
             path: { commentId },
             body: { text: matched.replyTemplate },
             commentId,
@@ -264,7 +264,7 @@ async function maybeAutoReply(input: {
       await withZernioRetry(
         async () =>
           zernio.comments.replyToInboxPost({
-            // @ts-expect-error SDK path/body variance
+            // @ts-ignore SDK version variance
             path: { commentId },
             body: { text: matched.replyTemplate },
             commentId,
@@ -324,7 +324,7 @@ export async function replyToInboxItem(input: {
     await withZernioRetry(
       async () =>
         zernio.comments.replyToInboxPost({
-          // @ts-expect-error SDK variance
+          // @ts-ignore SDK version variance
           path: { commentId: item.externalId },
           body: { text: input.text },
           commentId: item.externalId,
@@ -337,7 +337,7 @@ export async function replyToInboxItem(input: {
     await withZernioRetry(
       async () =>
         zernio.messages.sendInboxMessage({
-          // @ts-expect-error SDK variance
+          // @ts-ignore SDK version variance
           path: { conversationId: item.conversationId },
           body: { text: input.text },
           conversationId: item.conversationId,

@@ -3,7 +3,11 @@ import { z } from "zod";
 import { requirePlatformAdmin, requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateTemporaryPassword, hashPassword, verifyPassword } from "@/lib/password";
-import { sendPasswordChangedEmail, sendPasswordResetEmail } from "@/services/email";
+import {
+  sendPasswordChangedEmail,
+  sendPasswordResetEmail,
+  type SendEmailResult,
+} from "@/services/email";
 
 const resetSchema = z.object({
   email: z.string().email(),
@@ -40,7 +44,7 @@ export async function POST(req: Request) {
       data: { passwordHash },
     });
 
-    let emailResult = { ok: false, method: "log-fallback" as const };
+    let emailResult: SendEmailResult = { ok: false, method: "log-fallback" };
     if (body.sendEmail !== false) {
       emailResult = await sendPasswordResetEmail({
         to: user.email,

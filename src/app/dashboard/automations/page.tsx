@@ -44,7 +44,8 @@ export default function AutomationsPage() {
   }
 
   useEffect(() => {
-    load();
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId]);
 
   async function createRule() {

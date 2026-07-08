@@ -17,7 +17,7 @@ export async function startAccountConnect(input: {
       zernio.connect.getConnectUrl({
         platform: input.platform,
         profileId,
-        // @ts-expect-error SDK version differences for nested params
+        // @ts-ignore SDK version variance
         path: { platform: input.platform },
         query: {
           profileId,
@@ -60,7 +60,7 @@ export async function syncConnectedAccounts(teamId: string) {
   const result = await withZernioRetry(
     async () =>
       zernio.accounts.listAccounts({
-        // @ts-expect-error query optional across SDK versions
+        // @ts-ignore SDK version variance
         query: { profileId: team.zernioProfileId },
       }),
     { label: "accounts.listAccounts" },
@@ -130,7 +130,7 @@ export async function disconnectAccount(teamId: string, connectedAccountId: stri
     await withZernioRetry(
       async () =>
         zernio.accounts.deleteAccount({
-          // @ts-expect-error path shape varies
+          // @ts-ignore SDK version variance
           path: { accountId: account.zernioAccountId },
           accountId: account.zernioAccountId,
         }),

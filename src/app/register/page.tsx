@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,7 +12,7 @@ import { getPlanById } from "@/lib/pricing";
 import { useSiteBranding } from "@/hooks/use-site-branding";
 import { ThemeToggle } from "@/components/theme-toggle";
 
-export default function RegisterPage() {
+function RegisterPageContent() {
   const router = useRouter();
   const { branding } = useSiteBranding();
   const params = useSearchParams();
@@ -66,7 +65,7 @@ export default function RegisterPage() {
         <CardHeader>
           <CardTitle>Join {branding.title}</CardTitle>
           <CardDescription>
-            Create your free workspace — explore the dashboard, then upgrade when you're ready.
+            Create your free workspace — explore the dashboard, then upgrade when you&apos;re ready.
             {plan ? (
               <>
                 {" "}
@@ -130,5 +129,13 @@ export default function RegisterPage() {
         </CardContent>
       </Card>
     </main>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<main className="p-8 text-center text-sm text-muted-foreground">Loading...</main>}>
+      <RegisterPageContent />
+    </Suspense>
   );
 }

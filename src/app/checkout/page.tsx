@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -21,7 +21,7 @@ type PaymentMethodOption = "USDT" | "PAYPAL" | "GCASH";
 
 type EnabledMethods = Record<PaymentMethodOption, boolean>;
 
-export default function CheckoutPage() {
+function CheckoutPageContent() {
   const search = useSearchParams();
   const plan = useMemo(() => getPlanById(search.get("plan")), [search]);
   const [teamId, setTeamId] = useState<string | null>(null);
@@ -195,5 +195,13 @@ export default function CheckoutPage() {
         </CardContent>
       </Card>
     </main>
+  );
+}
+
+export default function CheckoutPage() {
+  return (
+    <Suspense fallback={<main className="p-8 text-center text-sm text-muted-foreground">Loading checkout...</main>}>
+      <CheckoutPageContent />
+    </Suspense>
   );
 }

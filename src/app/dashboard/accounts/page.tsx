@@ -31,7 +31,8 @@ export default function AccountsPage() {
   }
 
   useEffect(() => {
-    load();
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId]);
 
   async function connect(platform: string) {

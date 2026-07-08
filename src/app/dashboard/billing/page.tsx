@@ -57,7 +57,8 @@ export default function BillingPage() {
   }
 
   useEffect(() => {
-    load();
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId]);
 
   async function verifyUsdtPayment(paymentId: string) {

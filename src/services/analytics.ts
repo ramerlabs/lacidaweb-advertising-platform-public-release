@@ -65,7 +65,7 @@ export async function getTeamAnalytics(teamId: string): Promise<AnalyticsSummary
       const followerStats = await withZernioRetry(
         async () =>
           zernio.accounts.getFollowerStats({
-            // @ts-expect-error SDK path variance
+            // @ts-ignore SDK version variance
             path: { accountId: account.zernioAccountId },
             accountId: account.zernioAccountId,
           }),
@@ -93,7 +93,7 @@ export async function getTeamAnalytics(teamId: string): Promise<AnalyticsSummary
         const analytics = await withZernioRetry(
           async () =>
             zernio.analytics.getAnalytics({
-              // @ts-expect-error query variance
+              // @ts-ignore SDK version variance
               query: { postId: post.zernioPostId },
               postId: post.zernioPostId,
             }),
