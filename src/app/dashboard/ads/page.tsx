@@ -567,7 +567,7 @@ export default function AdsPage() {
                     {pricing ? (
                       <p className="text-xs text-muted-foreground">
                         Ad spend ${pricing.platformBudgetUsd.toFixed(2)} · Your charge ${pricing.clientChargeUsd.toFixed(2)}{" "}
-                        (includes {pricing.marginPercent}% platform margin)
+                        (includes platform fee)
                       </p>
                     ) : null}
                   </div>
