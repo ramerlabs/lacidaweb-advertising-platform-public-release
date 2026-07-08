@@ -19,6 +19,7 @@ export function OnboardingChecklist() {
   const [accounts, setAccounts] = useState(0);
   const [posts, setPosts] = useState(0);
   const [aiEnabled, setAiEnabled] = useState(false);
+  const [businessComplete, setBusinessComplete] = useState(false);
   const [scheduled, setScheduled] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
@@ -31,23 +32,32 @@ export function OnboardingChecklist() {
       fetch(`/api/accounts?teamId=${teamId}`).then((r) => r.json()),
       fetch(`/api/posts?teamId=${teamId}`).then((r) => r.json()),
       fetch(`/api/ai/generate?teamId=${teamId}`).then((r) => r.json()),
-    ]).then(([acc, postData, ai]) => {
+      fetch(`/api/teams/business?teamId=${teamId}`).then((r) => r.json()),
+    ]).then(([acc, postData, ai, business]) => {
       setAccounts((acc.accounts || []).length);
       const list = postData.posts || [];
       setPosts(list.length);
       setScheduled(list.some((p: { status: string }) => p.status === "SCHEDULED"));
       setAiEnabled(Boolean(ai.teamAiEnabled));
+      const p = business.profile;
+      setBusinessComplete(
+        Boolean(
+          p?.businessDescription?.trim() &&
+            (p?.businessName?.trim() || p?.businessIndustry?.trim()),
+        ),
+      );
     });
   }, [teamId]);
 
   const steps: Step[] = useMemo(
     () => [
       { id: "account", label: "Connect a social account", href: "/dashboard/accounts", done: accounts > 0 },
+      { id: "business", label: "Add your business details", href: "/dashboard/settings", done: businessComplete },
       { id: "ai", label: "Enable AI in Settings", href: "/dashboard/settings", done: aiEnabled },
       { id: "compose", label: "Create your first post", href: "/dashboard/compose", done: posts > 0 },
       { id: "schedule", label: "Schedule a post", href: "/dashboard/compose", done: scheduled },
     ],
-    [accounts, aiEnabled, posts, scheduled],
+    [accounts, businessComplete, aiEnabled, posts, scheduled],
   );
 
   const completed = steps.filter((s) => s.done).length;

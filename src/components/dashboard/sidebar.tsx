@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   Link2,
   LogOut,
+  Megaphone,
   PenSquare,
   Settings,
   Shield,
@@ -25,6 +26,7 @@ import { ThemeSelect } from "@/components/theme-toggle";
 const links = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/dashboard/compose", label: "Compose", icon: PenSquare },
+  { href: "/dashboard/ads", label: "Ads", icon: Megaphone },
   { href: "/dashboard/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/dashboard/accounts", label: "Accounts", icon: Link2 },
   { href: "/dashboard/inbox", label: "Inbox", icon: Inbox },

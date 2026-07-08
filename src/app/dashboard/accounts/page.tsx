@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTeam } from "@/components/dashboard/team-provider";
 import { PLATFORMS } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -15,11 +16,20 @@ type ConnectedAccount = {
   avatarUrl: string | null;
 };
 
-export default function AccountsPage() {
+function AccountsPageContent() {
+  const searchParams = useSearchParams();
   const { teamId } = useTeam();
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (searchParams.get("connected") === "1") {
+      setMessage("Account connected successfully.");
+    } else if (searchParams.get("error")) {
+      setMessage(decodeURIComponent(searchParams.get("error") || "Connection failed"));
+    }
+  }, [searchParams]);
 
   async function load(sync = false) {
     if (!teamId) return;
@@ -69,7 +79,15 @@ export default function AccountsPage() {
         </Button>
       </div>
 
-      {message ? <p className="text-sm text-rose-600">{message}</p> : null}
+      {message ? (
+        <p
+          className={`text-sm ${
+            searchParams.get("error") ? "text-rose-600" : "text-emerald-600"
+          }`}
+        >
+          {message}
+        </p>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -114,5 +132,13 @@ export default function AccountsPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function AccountsPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-muted-foreground">Loading accounts...</p>}>
+      <AccountsPageContent />
+    </Suspense>
   );
 }

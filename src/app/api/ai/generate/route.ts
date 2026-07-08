@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSession, requireTeamAccess } from "@/lib/auth";
 import { generatePostImage, generatePostText, transformPostText } from "@/lib/ai-service";
 import { getAiSettings, toPublicAiSettings } from "@/lib/ai-settings";
+import { isBusinessProfileComplete, toBusinessProfile, BUSINESS_PROFILE_SELECT } from "@/lib/team-business";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { prisma } from "@/lib/prisma";
 
@@ -34,14 +35,16 @@ export async function GET(req: Request) {
     await requireTeamAccess(teamId, session.user.id);
     const team = await prisma.team.findUnique({
       where: { id: teamId },
-      select: { aiEnabled: true, aiTokenBalance: true },
+      select: { aiEnabled: true, aiTokenBalance: true, ...BUSINESS_PROFILE_SELECT },
     });
     const settings = await getAiSettings();
+    const profile = team ? toBusinessProfile(team) : null;
 
     return NextResponse.json({
       aiEnabled: settings.aiEnabled,
       teamAiEnabled: team?.aiEnabled ?? false,
       tokenBalance: team?.aiTokenBalance ?? 0,
+      businessProfileComplete: profile ? isBusinessProfileComplete(profile) : false,
       pricing: toPublicAiSettings(settings).clientPricing,
     });
   } catch (error) {

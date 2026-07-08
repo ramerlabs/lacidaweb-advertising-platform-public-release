@@ -22,8 +22,10 @@ export async function startAccountConnect(input: {
         query: {
           profileId,
           redirect_url: redirectUrl,
+          headless: true,
         },
         redirect_url: redirectUrl,
+        headless: true,
       }),
     { label: "connect.getConnectUrl" },
   );

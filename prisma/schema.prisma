@@ -135,6 +135,13 @@ model Team {
   aiBalanceCents   Int      @default(0)
   aiTokenBalance   Int      @default(0)
   lowTokenAlertAt  DateTime?
+  businessName        String?
+  businessDescription String?  @db.Text
+  businessIndustry    String?
+  businessAudience    String?  @db.Text
+  businessWebsite     String?
+  businessLocation    String?
+  brandVoice          String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -150,6 +157,7 @@ model Team {
   supportTickets      SupportTicket[]
   aiUsageLogs         AiUsageLog[]
   postTemplates       PostTemplate[]
+  adCampaigns         AdCampaign[]
 }
 
 model TeamMember {
@@ -183,6 +191,7 @@ model ConnectedAccount {
   team         Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
   postTargets  PostTarget[]
   inboxItems   InboxItem[]
+  adCampaigns  AdCampaign[]
 
   @@index([teamId, platform])
   @@index([zernioProfileId])
@@ -451,7 +460,43 @@ model IntegrationSettings {
   aiCreditsPerPackCents   Int     @default(1000)
   aiTrialTokens             Int     @default(50000)
   aiLowTokenThreshold       Int     @default(50000)
+  adsEnabled                Boolean @default(true)
+  adsProfitMarginPercent    Int     @default(80)
   updatedAt           DateTime @updatedAt
+}
+
+model AdCampaign {
+  id                 String   @id @default(cuid())
+  teamId             String
+  connectedAccountId String?
+  zernioAdId         String?  @unique
+  platformCampaignId String?
+  platform           String
+  adAccountId        String
+  name               String
+  goal               String
+  adType             String   @default("standalone")
+  status             String   @default("pending_review")
+  budgetAmount       Float
+  budgetType         String
+  platformBudgetUsd  Float
+  clientChargeUsd    Float
+  currency           String   @default("USD")
+  headline           String?
+  body               String?  @db.Text
+  linkUrl            String?
+  imageUrl           String?
+  countries          String[] @default([])
+  metrics            Json?
+  metadata           Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  team             Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  connectedAccount ConnectedAccount? @relation(fields: [connectedAccountId], references: [id], onDelete: SetNull)
+
+  @@index([teamId, status])
+  @@index([platformCampaignId])
 }
 
 model PostTemplate {

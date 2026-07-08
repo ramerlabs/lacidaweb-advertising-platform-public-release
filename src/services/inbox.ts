@@ -85,6 +85,9 @@ export async function processWebhookEvent(payload: WebhookPayload) {
       await handleMessageReceived(payload, connected?.id ?? null, teamId);
     } else if (eventType.startsWith("post.")) {
       await handlePostLifecycle(payload, teamId);
+    } else if (eventType === "ad.status_changed") {
+      const { handleAdStatusChanged } = await import("@/services/ads");
+      await handleAdStatusChanged(payload as Record<string, unknown>);
     }
 
     await prisma.webhookEvent.update({

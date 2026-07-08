@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { applyProfitMargin, imageCostInTokens, usdToCents } from "@/lib/ai-pricing";
 import { getAiSettings, getOpenAiApiKey } from "@/lib/ai-settings";
+import { getTeamBusinessContext } from "@/lib/team-business";
 import { getMediaPresignedUrl } from "@/services/publisher";
 import { maybeNotifyLowTokens } from "@/services/client-notify";
 
@@ -108,6 +109,30 @@ async function billTextUsage(
   return { ...billing, providerCostUsd, promptTokens, completionTokens };
 }
 
+function buildTextSystemPrompt(input: {
+  tone?: string;
+  platform?: string;
+  businessContext: string;
+  brandVoice?: string | null;
+}) {
+  const tone = input.tone || input.brandVoice || "professional and friendly";
+  const lines = [
+    "You write concise, engaging social media post captions.",
+    `Tone: ${tone}.`,
+    `Platform: ${input.platform || "general social media"}.`,
+    "Return only the caption text, no quotes unless requested.",
+  ];
+  if (input.businessContext) {
+    lines.push("", "Business context (stay on-brand):", input.businessContext);
+  }
+  return lines.join("\n");
+}
+
+function buildImagePrompt(userPrompt: string, businessContext: string) {
+  if (!businessContext) return userPrompt;
+  return `${userPrompt}\n\nBrand context: ${businessContext.replace(/\n/g, "; ")}`;
+}
+
 export async function generatePostText(input: {
   teamId: string;
   prompt: string;
@@ -125,7 +150,14 @@ export async function generatePostText(input: {
   });
   if (!team?.aiEnabled) throw new Error("Enable AI in your workspace settings first");
 
-  const systemPrompt = `You write concise, engaging social media post captions. Tone: ${input.tone || "professional and friendly"}. Platform: ${input.platform || "general social media"}. Return only the caption text, no quotes or hashtags unless requested.`;
+  const { context, profile } = await getTeamBusinessContext(input.teamId);
+
+  const systemPrompt = buildTextSystemPrompt({
+    tone: input.tone,
+    platform: input.platform,
+    businessContext: context,
+    brandVoice: profile.brandVoice,
+  });
   const userPrompt = input.prompt.trim();
   if (!userPrompt) throw new Error("Prompt is required");
 
@@ -157,6 +189,7 @@ export async function transformPostText(input: {
   });
   if (!team?.aiEnabled) throw new Error("Enable AI in your workspace settings first");
 
+  const { context, profile } = await getTeamBusinessContext(input.teamId);
   const content = input.content.trim();
   if (!content) throw new Error("Content is required");
 
@@ -166,9 +199,15 @@ export async function transformPostText(input: {
     regenerate: "Rewrite this social post caption to be fresher and more engaging. Return only the caption.",
   };
 
+  const tone = input.tone || profile.brandVoice || "professional";
+  const systemParts = [`${modePrompts[input.mode]} Tone: ${tone}.`];
+  if (context) {
+    systemParts.push("", "Business context:", context);
+  }
+
   const { text, promptTokens, completionTokens } = await callOpenAiText(
     apiKey,
-    `${modePrompts[input.mode]} Tone: ${input.tone || "professional"}.`,
+    systemParts.join("\n"),
     content,
     400,
   );
@@ -190,7 +229,8 @@ export async function generatePostImage(input: { teamId: string; prompt: string 
   });
   if (!team?.aiEnabled) throw new Error("Enable AI in your workspace settings first");
 
-  const userPrompt = input.prompt.trim();
+  const { context } = await getTeamBusinessContext(input.teamId);
+  const userPrompt = buildImagePrompt(input.prompt.trim(), context);
   if (!userPrompt) throw new Error("Image prompt is required");
 
   const clientInputPerMillion = settings.clientPricing.textInputPerMillionUsd;
