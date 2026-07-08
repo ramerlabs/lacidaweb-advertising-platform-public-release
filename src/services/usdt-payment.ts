@@ -52,7 +52,7 @@ export async function verifyAndActivateUsdtPayment(paymentId: string, txHash: st
     alreadyPaid: false,
     message:
       payment.purpose === "AI_CREDITS"
-        ? `Payment verified. $${((payment.aiCreditsCents || 0) / 100).toFixed(2)} AI credits added to your balance.`
+        ? `Payment verified. ${(payment.aiTokensGranted || 0).toLocaleString()} AI tokens added to your balance.`
         : "Payment verified and subscription activated",
   };
 }

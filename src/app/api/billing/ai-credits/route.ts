@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { formatCheckoutInstructions } from "@/lib/billing";
 import { assertPaymentMethodEnabled } from "@/lib/payment-settings";
 import { getAiSettings } from "@/lib/ai-settings";
+import { formatTokenCount } from "@/lib/ai-pricing";
 import { getUsdtWalletAddress, usdToUsdt, usdtPaymentInstructions } from "@/services/crypto-verify";
 import { notifyAdminPaymentCreated } from "@/services/admin-notify";
 
@@ -24,17 +25,17 @@ export async function POST(req: Request) {
 
     const aiSettings = await getAiSettings();
     if (!aiSettings.aiEnabled) {
-      return NextResponse.json({ error: "AI credits are not available" }, { status: 400 });
+      return NextResponse.json({ error: "AI tokens are not available" }, { status: 400 });
     }
 
     const amount = Math.round(aiSettings.aiCreditPackUsd);
-    const aiCreditsCents = aiSettings.aiCreditsPerPackCents;
+    const aiTokensGranted = aiSettings.clientPricing.tokensPerPack;
     const isUsdt = body.method === "USDT";
 
     let usdtAmount: number | undefined;
     let instructions = await formatCheckoutInstructions(body.method as PaymentMethod, {
       amountUsd: amount,
-      aiCreditsCents,
+      aiTokensGranted,
     });
 
     if (isUsdt) {
@@ -53,7 +54,7 @@ export async function POST(req: Request) {
         interval: "MONTHLY" as BillingInterval,
         currency: "USD",
         purpose: "AI_CREDITS",
-        aiCreditsCents,
+        aiTokensGranted,
         proofUrl: body.proofUrl,
         notes: instructions,
       },
@@ -63,7 +64,7 @@ export async function POST(req: Request) {
       teamId: body.teamId,
       method: body.method,
       amount,
-      planId: "ai-credits",
+      planId: "ai-tokens",
       paymentId: payment.id,
     });
 
@@ -71,7 +72,8 @@ export async function POST(req: Request) {
       payment,
       instructions,
       usdtAmount,
-      aiCreditsCents,
+      aiTokensGranted,
+      tokensLabel: formatTokenCount(aiTokensGranted),
       walletAddress: isUsdt ? await getUsdtWalletAddress() : undefined,
     });
   } catch (error) {

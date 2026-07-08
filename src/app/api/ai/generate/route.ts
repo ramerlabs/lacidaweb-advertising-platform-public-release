@@ -26,14 +26,14 @@ export async function GET(req: Request) {
     await requireTeamAccess(teamId, session.user.id);
     const team = await prisma.team.findUnique({
       where: { id: teamId },
-      select: { aiEnabled: true, aiBalanceCents: true },
+      select: { aiEnabled: true, aiTokenBalance: true },
     });
     const settings = await getAiSettings();
 
     return NextResponse.json({
       aiEnabled: settings.aiEnabled,
       teamAiEnabled: team?.aiEnabled ?? false,
-      balanceCents: team?.aiBalanceCents ?? 0,
+      tokenBalance: team?.aiTokenBalance ?? 0,
       pricing: toPublicAiSettings(settings).clientPricing,
     });
   } catch (error) {

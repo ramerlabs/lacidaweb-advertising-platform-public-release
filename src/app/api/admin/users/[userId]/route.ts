@@ -13,6 +13,8 @@ const updateSchema = z.object({
   planId: z.enum(["starter", "growth", "scale"]).optional(),
   aiBalanceCents: z.number().int().min(0).optional(),
   addAiCreditsCents: z.number().int().min(0).optional(),
+  aiTokenBalance: z.number().int().min(0).optional(),
+  addAiTokens: z.number().int().min(0).optional(),
   subscriptionStatus: z.enum(["TRIAL", "ACTIVE", "PAST_DUE", "CANCELED"]).optional(),
   interval: z.enum(["MONTHLY", "YEARLY"]).optional(),
   banned: z.boolean().optional(),
@@ -154,22 +156,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ userId
       }
     }
 
-    let aiBalanceCents: number | undefined;
-    if (team && (body.aiBalanceCents !== undefined || body.addAiCreditsCents !== undefined)) {
+    let aiTokenBalance: number | undefined;
+    if (team && (body.aiTokenBalance !== undefined || body.addAiTokens !== undefined)) {
       const current = await prisma.team.findUnique({
         where: { id: team.id },
-        select: { aiBalanceCents: true },
+        select: { aiTokenBalance: true },
       });
       const nextBalance =
-        body.aiBalanceCents !== undefined
-          ? body.aiBalanceCents
-          : (current?.aiBalanceCents || 0) + (body.addAiCreditsCents || 0);
+        body.aiTokenBalance !== undefined
+          ? body.aiTokenBalance
+          : (current?.aiTokenBalance || 0) + (body.addAiTokens || 0);
       const updatedTeam = await prisma.team.update({
         where: { id: team.id },
-        data: { aiBalanceCents: nextBalance },
-        select: { aiBalanceCents: true },
+        data: { aiTokenBalance: nextBalance },
+        select: { aiTokenBalance: true },
       });
-      aiBalanceCents = updatedTeam.aiBalanceCents;
+      aiTokenBalance = updatedTeam.aiTokenBalance;
     }
 
     let emailResult: { ok: boolean; method?: string } | null = null;
@@ -192,7 +194,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ userId
         banReason: updated.banReason,
       },
       subscription,
-      aiBalanceCents,
+      aiTokenBalance,
       newPassword:
         generatedPassword && (body.sendPasswordEmail === false || !emailResult?.ok)
           ? generatedPassword

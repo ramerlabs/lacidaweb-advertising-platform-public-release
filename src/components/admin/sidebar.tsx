@@ -31,7 +31,7 @@ const links = [
   { href: "/admin/support", label: "Support", icon: Headset, countKey: "openTickets" as const },
   { href: "/admin/settings/payments", label: "Payment details", icon: Wallet },
   { href: "/admin/settings/branding", label: "Branding", icon: Palette },
-  { href: "/admin/settings/ai", label: "AI & credits", icon: Sparkles },
+  { href: "/admin/settings/ai", label: "AI & tokens", icon: Sparkles },
   { href: "/admin/settings/faqs", label: "FAQs", icon: HelpCircle },
   { href: "/admin/settings/security", label: "Security", icon: Shield },
   { href: "/admin/settings/integrations", label: "Integrations", icon: Plug },

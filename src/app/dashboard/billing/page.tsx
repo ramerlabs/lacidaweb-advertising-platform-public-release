@@ -19,13 +19,15 @@ type Subscription = {
   amount: number;
 };
 
+import { formatTokenCount } from "@/lib/ai-pricing";
+
 type Payment = {
   id: string;
   method: string;
   status: string;
   amount: number;
   purpose?: string;
-  aiCreditsCents?: number | null;
+  aiTokensGranted?: number | null;
   usdtAmount?: number | null;
   txHash?: string | null;
   notes?: string | null;
@@ -35,7 +37,7 @@ type Payment = {
 type AiUsage = {
   id: string;
   type: string;
-  chargedCents: number;
+  tokensUsed: number | null;
   promptTokens: number | null;
   completionTokens: number | null;
   createdAt: string;
@@ -49,15 +51,15 @@ export default function BillingPage() {
   const [status, setStatus] = useState("");
   const [txHashes, setTxHashes] = useState<Record<string, string>>({});
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
-  const [aiBalanceCents, setAiBalanceCents] = useState(0);
+  const [tokenBalance, setTokenBalance] = useState(0);
   const [aiPackUsd, setAiPackUsd] = useState(10);
-  const [aiCreditsCents, setAiCreditsCents] = useState(1000);
+  const [tokensPerPack, setTokensPerPack] = useState(0);
   const [aiEnabled, setAiEnabled] = useState(false);
-  const [buyingCredits, setBuyingCredits] = useState(false);
+  const [buyingTokens, setBuyingTokens] = useState(false);
   const [pendingManual, setPendingManual] = useState<{
     method: "PAYPAL" | "GCASH";
     amountUsd: number;
-    creditsUsd: number;
+    tokensGranted: number;
     instructions: string;
   } | null>(null);
   const [aiUsage, setAiUsage] = useState<AiUsage[]>([]);
@@ -85,12 +87,12 @@ export default function BillingPage() {
     setPayments(payData.payments || []);
     if (methodsRes.ok) setUsdtWallet(methodsData.usdtWallet || "");
     if (aiRes.ok) {
-      setAiBalanceCents(aiData.balanceCents || 0);
+      setTokenBalance(aiData.tokenBalance || 0);
       setAiEnabled(aiData.aiEnabled);
     }
     if (pricingRes.ok && pricingData.settings) {
-      setAiPackUsd(pricingData.settings.creditPackUsd || 10);
-      setAiCreditsCents(pricingData.settings.creditsPerPackCents || 1000);
+      setAiPackUsd(pricingData.settings.packPriceUsd || 10);
+      setTokensPerPack(pricingData.settings.tokensPerPack || 0);
     }
     if (usageRes.ok) setAiUsage(usageData.usage || []);
   }
@@ -123,15 +125,15 @@ export default function BillingPage() {
     setStatus(
       data.message ||
         (data.payment?.purpose === "AI_CREDITS"
-          ? "Payment verified. AI credits added to your balance."
+          ? "Payment verified. AI tokens added to your balance."
           : "Payment verified. Your subscription is now active."),
     );
     await load();
   }
 
-  async function buyAiCredits(method: "USDT" | "PAYPAL" | "GCASH") {
+  async function buyAiTokens(method: "USDT" | "PAYPAL" | "GCASH") {
     if (!teamId) return;
-    setBuyingCredits(true);
+    setBuyingTokens(true);
     setStatus("");
     const res = await fetch("/api/billing/ai-credits", {
       method: "POST",
@@ -139,20 +141,22 @@ export default function BillingPage() {
       body: JSON.stringify({ teamId, method }),
     });
     const data = await res.json();
-    setBuyingCredits(false);
+    setBuyingTokens(false);
     if (!res.ok) {
-      setStatus(data.error || "Could not start AI credit purchase");
+      setStatus(data.error || "Could not start AI token purchase");
       return;
     }
-    const creditsUsd = (data.aiCreditsCents || aiCreditsCents) / 100;
+    const granted = data.aiTokensGranted || tokensPerPack;
     if (method === "USDT") {
       setPendingManual(null);
-      setStatus(`Pay ${data.usdtAmount} USDT — see payment details below. You will receive $${creditsUsd.toFixed(2)} in credits after verification.`);
+      setStatus(
+        `Pay ${data.usdtAmount} USDT — see below. You will receive ${granted.toLocaleString()} tokens after verification.`,
+      );
     } else {
       setPendingManual({
         method,
         amountUsd: data.payment?.amount || aiPackUsd,
-        creditsUsd,
+        tokensGranted: granted,
         instructions: data.instructions || data.payment?.notes || "",
       });
       setStatus("");
@@ -190,24 +194,25 @@ export default function BillingPage() {
       {aiEnabled ? (
         <Card>
           <CardHeader>
-            <CardTitle>AI credits</CardTitle>
+            <CardTitle>AI tokens</CardTitle>
             <CardDescription>
-              Balance: ${(aiBalanceCents / 100).toFixed(2)} — used for AI caption and image generation in Compose
+              Balance: {tokenBalance.toLocaleString()} tokens ({formatTokenCount(tokenBalance)}) — used
+              for AI generation in Compose
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm">
               Pay <strong>${aiPackUsd.toFixed(2)}</strong> → receive{" "}
-              <strong>${(aiCreditsCents / 100).toFixed(2)}</strong> in AI credits (usable in Compose).
+              <strong>{tokensPerPack.toLocaleString()}</strong> tokens ({formatTokenCount(tokensPerPack)}).
             </p>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" disabled={buyingCredits} onClick={() => buyAiCredits("USDT")}>
+              <Button size="sm" disabled={buyingTokens} onClick={() => buyAiTokens("USDT")}>
                 Buy with USDT
               </Button>
-              <Button size="sm" variant="secondary" disabled={buyingCredits} onClick={() => buyAiCredits("PAYPAL")}>
+              <Button size="sm" variant="secondary" disabled={buyingTokens} onClick={() => buyAiTokens("PAYPAL")}>
                 Buy with PayPal
               </Button>
-              <Button size="sm" variant="outline" disabled={buyingCredits} onClick={() => buyAiCredits("GCASH")}>
+              <Button size="sm" variant="outline" disabled={buyingTokens} onClick={() => buyAiTokens("GCASH")}>
                 Buy with GCash
               </Button>
             </div>
@@ -219,7 +224,7 @@ export default function BillingPage() {
         <ManualPaymentHighlight
           method={pendingManual.method}
           amountUsd={pendingManual.amountUsd}
-          creditsUsd={pendingManual.creditsUsd}
+          tokensGranted={pendingManual.tokensGranted}
           instructions={pendingManual.instructions}
         />
       ) : null}
@@ -238,11 +243,13 @@ export default function BillingPage() {
                   <p className="text-xs text-muted-foreground">
                     {new Date(row.createdAt).toLocaleString()}
                     {row.type === "text" && row.promptTokens
-                      ? ` · ${row.promptTokens + (row.completionTokens || 0)} tokens`
-                      : ""}
+                      ? ` · ${(row.tokensUsed || row.promptTokens + (row.completionTokens || 0)).toLocaleString()} tokens`
+                      : row.tokensUsed
+                        ? ` · ${row.tokensUsed.toLocaleString()} tokens`
+                        : ""}
                   </p>
                 </div>
-                <p className="font-medium">-${(row.chargedCents / 100).toFixed(2)}</p>
+                <p className="font-medium">-{row.tokensUsed?.toLocaleString() || "—"} tokens</p>
               </div>
             ))}
           </CardContent>
@@ -280,10 +287,10 @@ export default function BillingPage() {
               <div key={payment.id} className="space-y-2 rounded border p-3 text-sm">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p>{payment.method} - ${payment.amount}{payment.purpose === "AI_CREDITS" ? " (AI credits)" : ""}</p>
-                    {payment.purpose === "AI_CREDITS" && payment.aiCreditsCents ? (
+                    <p>{payment.method} - ${payment.amount}{payment.purpose === "AI_CREDITS" ? " (AI tokens)" : ""}</p>
+                    {payment.purpose === "AI_CREDITS" && payment.aiTokensGranted ? (
                       <p className="text-muted-foreground">
-                        Credits: ${(payment.aiCreditsCents / 100).toFixed(2)}
+                        Tokens: {payment.aiTokensGranted.toLocaleString()}
                         {payment.status === "PAID" ? " — added to your balance" : " — pending approval"}
                       </p>
                     ) : null}

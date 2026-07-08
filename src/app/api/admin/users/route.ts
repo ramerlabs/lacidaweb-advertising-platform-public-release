@@ -62,7 +62,7 @@ export async function GET(req: Request) {
                 id: team.id,
                 name: team.name,
                 slug: team.slug,
-                aiBalanceCents: team.aiBalanceCents,
+                aiTokenBalance: team.aiTokenBalance,
                 connectedAccounts: team._count.connectedAccounts,
                 posts: team._count.posts,
               }

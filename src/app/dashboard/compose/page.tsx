@@ -21,10 +21,12 @@ type ConnectedAccount = {
 type AiState = {
   aiEnabled: boolean;
   teamAiEnabled: boolean;
-  balanceCents: number;
+  tokenBalance: number;
   pricing: {
     estimatedTextPostUsd: number;
     estimatedImageUsd: number;
+    estimatedTextPostTokens: number;
+    imageTokenCost: number;
   };
 };
 
@@ -55,7 +57,7 @@ export default function ComposePage() {
     fetch(`/api/ai/generate?teamId=${teamId}`)
       .then((r) => r.json())
       .then((data) => {
-        if (data.balanceCents !== undefined) setAiState(data);
+        if (data.tokenBalance !== undefined) setAiState(data);
       });
   }, [teamId]);
 
@@ -103,8 +105,8 @@ export default function ComposePage() {
       return;
     }
     setContent(data.text);
-    setAiState((s) => (s ? { ...s, balanceCents: data.balanceCents } : s));
-    setStatus(`Caption generated ($${(data.chargedCents / 100).toFixed(2)} charged)`);
+    setAiState((s) => (s ? { ...s, tokenBalance: data.tokenBalance } : s));
+    setStatus(`Caption generated (${data.tokensUsed?.toLocaleString() || 0} tokens used)`);
   }
 
   async function generateImage() {
@@ -123,8 +125,8 @@ export default function ComposePage() {
       return;
     }
     setMediaUrl(data.imageUrl);
-    setAiState((s) => (s ? { ...s, balanceCents: data.balanceCents } : s));
-    setStatus(`Image generated ($${(data.chargedCents / 100).toFixed(2)} charged)`);
+    setAiState((s) => (s ? { ...s, tokenBalance: data.tokenBalance } : s));
+    setStatus(`Image generated (${data.tokensUsed?.toLocaleString() || 0} tokens used)`);
   }
 
   async function onUpload(file: File) {
@@ -242,9 +244,9 @@ export default function ComposePage() {
                   <CardDescription>
                     {aiReady ? (
                       <>
-                        Balance: <strong>${(aiState.balanceCents / 100).toFixed(2)}</strong> · Est. caption ~$
-                        {aiState.pricing.estimatedTextPostUsd.toFixed(3)} · image ~$
-                        {aiState.pricing.estimatedImageUsd.toFixed(2)}
+                        Balance: <strong>{aiState.tokenBalance.toLocaleString()} tokens</strong> · Est.
+                        caption ~{aiState.pricing.estimatedTextPostTokens} tokens · image ~{" "}
+                        {aiState.pricing.imageTokenCost.toLocaleString()} tokens
                       </>
                     ) : (
                       <>
@@ -301,15 +303,15 @@ export default function ComposePage() {
                   {!aiReady ? (
                     <p className="text-xs text-muted-foreground">
                       <Link href="/dashboard/billing" className="text-primary underline">
-                        Buy AI credits
+                        Buy AI tokens
                       </Link>{" "}
                       in Billing when your balance runs low.
                     </p>
-                  ) : aiState.balanceCents < 50 ? (
+                  ) : aiState.tokenBalance < 500 ? (
                     <p className="text-xs text-amber-700">
                       Low balance.{" "}
                       <Link href="/dashboard/billing" className="underline">
-                        Buy AI credits
+                        Buy AI tokens
                       </Link>
                     </p>
                   ) : null}

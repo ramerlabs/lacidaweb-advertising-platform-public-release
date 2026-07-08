@@ -20,7 +20,7 @@ export async function getPaymentInstructions(method: PaymentMethod): Promise<str
 
 type CheckoutContext = {
   amountUsd: number;
-  aiCreditsCents?: number;
+  aiTokensGranted?: number;
   planName?: string;
 };
 
@@ -32,9 +32,9 @@ export async function formatCheckoutInstructions(
   const amount = context.amountUsd.toFixed(2);
   const lines: string[] = [];
 
-  if (context.aiCreditsCents) {
+  if (context.aiTokensGranted) {
     lines.push(
-      `AI credit pack: pay $${amount} → receive $${(context.aiCreditsCents / 100).toFixed(2)} in AI credits after approval.`,
+      `AI token pack: pay $${amount} → receive ${context.aiTokensGranted.toLocaleString()} tokens after payment is confirmed.`,
     );
   } else if (context.planName) {
     lines.push(`Subscription: ${context.planName} — pay $${amount}.`);
@@ -49,7 +49,7 @@ export async function formatCheckoutInstructions(
       lines.push("PayPal email not configured — contact the platform admin.");
     }
     if (settings.paypalInstructions) lines.push(settings.paypalInstructions);
-    lines.push("Payment is reviewed manually. Credits or subscription activate after admin confirms.");
+    lines.push("Payment is reviewed manually. Tokens or subscription activate after admin confirms.");
   } else if (method === "GCASH") {
     if (settings.gcashNumber) {
       lines.push(`Send $${amount} (or PHP equivalent) to GCash: ${settings.gcashNumber}`);
@@ -57,7 +57,7 @@ export async function formatCheckoutInstructions(
       lines.push("GCash number not configured — contact the platform admin.");
     }
     if (settings.gcashInstructions) lines.push(settings.gcashInstructions);
-    lines.push("Payment is reviewed manually. Credits or subscription activate after admin confirms.");
+    lines.push("Payment is reviewed manually. Tokens or subscription activate after admin confirms.");
   } else if (method === "USDT") {
     if (settings.usdtInstructions) lines.push(settings.usdtInstructions);
   }

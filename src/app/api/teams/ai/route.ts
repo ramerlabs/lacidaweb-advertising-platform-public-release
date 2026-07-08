@@ -17,10 +17,15 @@ export async function PATCH(req: Request) {
     const team = await prisma.team.update({
       where: { id: body.teamId },
       data: { aiEnabled: body.aiEnabled },
-      select: { aiEnabled: true, aiBalanceCents: true },
+      select: { aiEnabled: true, aiTokenBalance: true },
     });
 
-    return NextResponse.json({ team });
+    return NextResponse.json({
+      team: {
+        aiEnabled: team.aiEnabled,
+        aiTokenBalance: team.aiTokenBalance,
+      },
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed";
     const status = message === "UNAUTHORIZED" ? 401 : message === "FORBIDDEN" ? 403 : 400;

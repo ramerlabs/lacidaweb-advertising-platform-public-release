@@ -18,7 +18,7 @@ export default function SettingsPage() {
   const [passwordStatus, setPasswordStatus] = useState("");
   const [changing, setChanging] = useState(false);
   const [aiEnabled, setAiEnabled] = useState(false);
-  const [aiBalanceCents, setAiBalanceCents] = useState(0);
+  const [tokenBalance, setTokenBalance] = useState(0);
   const [platformAiEnabled, setPlatformAiEnabled] = useState(false);
   const [aiSaving, setAiSaving] = useState(false);
   const [aiStatus, setAiStatus] = useState("");
@@ -29,7 +29,7 @@ export default function SettingsPage() {
       .then((r) => r.json())
       .then((data) => {
         if (data.teamAiEnabled !== undefined) setAiEnabled(data.teamAiEnabled);
-        if (data.balanceCents !== undefined) setAiBalanceCents(data.balanceCents);
+        if (data.tokenBalance !== undefined) setTokenBalance(data.tokenBalance);
         if (data.aiEnabled !== undefined) setPlatformAiEnabled(data.aiEnabled);
       });
   }, [teamId]);
@@ -127,7 +127,7 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle>AI generation</CardTitle>
           <CardDescription>
-            Allow AI to auto-generate post captions and images using your credit balance
+            Allow AI to auto-generate post captions and images using your token balance
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -136,7 +136,7 @@ export default function SettingsPage() {
           ) : (
             <>
               <p className="text-sm">
-                Credit balance: <strong>${(aiBalanceCents / 100).toFixed(2)}</strong>
+                Token balance: <strong>{tokenBalance.toLocaleString()} tokens</strong>
               </p>
               <label className="flex items-center gap-2 text-sm">
                 <input

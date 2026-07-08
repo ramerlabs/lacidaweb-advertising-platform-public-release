@@ -1,30 +1,37 @@
 import { prisma } from "@/lib/prisma";
-import { applyProfitMargin, usdToCents } from "@/lib/ai-pricing";
+import { applyProfitMargin, imageCostInTokens, usdToCents } from "@/lib/ai-pricing";
 import { getAiSettings, getOpenAiApiKey } from "@/lib/ai-settings";
 import { getMediaPresignedUrl } from "@/services/publisher";
 
-async function chargeTeam(
+async function chargeTeamTokens(
   teamId: string,
+  tokensToDeduct: number,
   providerCostUsd: number,
   marginPercent: number,
-  meta: { type: string; promptTokens?: number; completionTokens?: number },
+  meta: {
+    type: string;
+    promptTokens?: number;
+    completionTokens?: number;
+  },
 ) {
   const chargedCents = usdToCents(applyProfitMargin(providerCostUsd, marginPercent));
   const providerCostCents = usdToCents(providerCostUsd);
 
   const team = await prisma.team.findUnique({
     where: { id: teamId },
-    select: { aiBalanceCents: true },
+    select: { aiTokenBalance: true },
   });
   if (!team) throw new Error("Team not found");
-  if (team.aiBalanceCents < chargedCents) {
-    throw new Error(`Insufficient AI credits. Need $${(chargedCents / 100).toFixed(2)}, have $${(team.aiBalanceCents / 100).toFixed(2)}`);
+  if (team.aiTokenBalance < tokensToDeduct) {
+    throw new Error(
+      `Insufficient AI tokens. Need ${tokensToDeduct.toLocaleString()}, have ${team.aiTokenBalance.toLocaleString()}`,
+    );
   }
 
   await prisma.$transaction([
     prisma.team.update({
       where: { id: teamId },
-      data: { aiBalanceCents: { decrement: chargedCents } },
+      data: { aiTokenBalance: { decrement: tokensToDeduct } },
     }),
     prisma.aiUsageLog.create({
       data: {
@@ -32,13 +39,18 @@ async function chargeTeam(
         type: meta.type,
         providerCostCents,
         chargedCents,
+        tokensUsed: tokensToDeduct,
         promptTokens: meta.promptTokens,
         completionTokens: meta.completionTokens,
       },
     }),
   ]);
 
-  return { chargedCents, balanceCents: team.aiBalanceCents - chargedCents };
+  return {
+    tokensUsed: tokensToDeduct,
+    tokenBalance: team.aiTokenBalance - tokensToDeduct,
+    chargedCents,
+  };
 }
 
 export async function generatePostText(input: {
@@ -88,17 +100,20 @@ export async function generatePostText(input: {
 
   const promptTokens = data.usage?.prompt_tokens || 0;
   const completionTokens = data.usage?.completion_tokens || 0;
+  const totalTokens = promptTokens + completionTokens;
   const providerCostUsd =
     (promptTokens * settings.aiTextInputCostPerMillion) / 1_000_000 +
     (completionTokens * settings.aiTextOutputCostPerMillion) / 1_000_000;
 
-  const billing = await chargeTeam(input.teamId, providerCostUsd, settings.aiProfitMarginPercent, {
-    type: "text",
-    promptTokens,
-    completionTokens,
-  });
+  const billing = await chargeTeamTokens(
+    input.teamId,
+    totalTokens,
+    providerCostUsd,
+    settings.aiProfitMarginPercent,
+    { type: "text", promptTokens, completionTokens },
+  );
 
-  return { text, ...billing, providerCostUsd };
+  return { text, ...billing, providerCostUsd, promptTokens, completionTokens };
 }
 
 export async function generatePostImage(input: { teamId: string; prompt: string }) {
@@ -115,6 +130,9 @@ export async function generatePostImage(input: { teamId: string; prompt: string 
 
   const userPrompt = input.prompt.trim();
   if (!userPrompt) throw new Error("Image prompt is required");
+
+  const clientInputPerMillion = settings.clientPricing.textInputPerMillionUsd;
+  const tokensToDeduct = imageCostInTokens(settings.aiImageCostUsd, clientInputPerMillion);
 
   const res = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
@@ -154,8 +172,9 @@ export async function generatePostImage(input: { teamId: string; prompt: string 
   });
   if (!put.ok) throw new Error("Failed to store generated image");
 
-  const billing = await chargeTeam(
+  const billing = await chargeTeamTokens(
     input.teamId,
+    tokensToDeduct,
     settings.aiImageCostUsd,
     settings.aiProfitMarginPercent,
     { type: "image" },

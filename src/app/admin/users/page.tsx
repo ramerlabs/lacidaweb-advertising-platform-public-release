@@ -19,7 +19,7 @@ type AdminUser = {
     id: string;
     name: string;
     slug: string;
-    aiBalanceCents: number;
+    aiTokenBalance: number;
     connectedAccounts: number;
     posts: number;
   } | null;
@@ -55,8 +55,8 @@ export default function AdminUsersPage() {
   const [newPassword, setNewPassword] = useState("");
   const [sendPasswordEmail, setSendPasswordEmail] = useState(true);
   const [banReason, setBanReason] = useState("");
-  const [aiBalance, setAiBalance] = useState("");
-  const [addAiCredits, setAddAiCredits] = useState("");
+  const [aiTokenBalance, setAiTokenBalance] = useState("");
+  const [addAiTokens, setAddAiTokens] = useState("");
 
   const selected = useMemo(
     () => users.find((u) => u.id === selectedId) || bannedUsers.find((u) => u.id === selectedId) || null,
@@ -106,12 +106,12 @@ export default function AdminUsersPage() {
     setIntervalBilling((selected.subscription?.interval as "MONTHLY" | "YEARLY") || "MONTHLY");
     setBanReason(selected.banReason || "");
     setNewPassword("");
-    setAiBalance(
-      selected.team?.aiBalanceCents !== undefined
-        ? (selected.team.aiBalanceCents / 100).toFixed(2)
-        : "0.00",
+    setAiTokenBalance(
+      selected.team?.aiTokenBalance !== undefined
+        ? String(selected.team.aiTokenBalance)
+        : "0",
     );
-    setAddAiCredits("");
+    setAddAiTokens("");
   }, [selected]);
 
   async function save(patch: Record<string, unknown>, userId = selectedId) {
@@ -157,15 +157,15 @@ export default function AdminUsersPage() {
     await refresh();
   }
 
-  async function saveAiCredits() {
-    const balance = Number(aiBalance);
-    const add = Number(addAiCredits);
-    if (!Number.isNaN(balance) && aiBalance.trim() !== "") {
-      await save({ aiBalanceCents: Math.round(balance * 100) });
+  async function saveAiTokens() {
+    const balance = Number(aiTokenBalance);
+    const add = Number(addAiTokens);
+    if (!Number.isNaN(balance) && aiTokenBalance.trim() !== "") {
+      await save({ aiTokenBalance: Math.round(balance) });
       return;
     }
     if (!Number.isNaN(add) && add > 0) {
-      await save({ addAiCreditsCents: Math.round(add * 100) });
+      await save({ addAiTokens: Math.round(add) });
     }
   }
 
@@ -394,7 +394,7 @@ export default function AdminUsersPage() {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>AI credits</CardTitle>
+                    <CardTitle>AI tokens</CardTitle>
                     <CardDescription>
                       Manually set or add AI token balance for this client&apos;s workspace
                     </CardDescription>
@@ -402,40 +402,36 @@ export default function AdminUsersPage() {
                   <CardContent className="space-y-4">
                     <p className="text-sm">
                       Current balance:{" "}
-                      <strong>
-                        ${((selected.team?.aiBalanceCents || 0) / 100).toFixed(2)}
-                      </strong>
+                      <strong>{(selected.team?.aiTokenBalance || 0).toLocaleString()} tokens</strong>
                     </p>
                     <div className="space-y-2">
-                      <Label>Set balance (USD)</Label>
+                      <Label>Set token balance</Label>
                       <Input
                         type="number"
-                        step="0.01"
                         min={0}
-                        value={aiBalance}
-                        onChange={(e) => setAiBalance(e.target.value)}
-                        placeholder="e.g. 10.00"
+                        value={aiTokenBalance}
+                        onChange={(e) => setAiTokenBalance(e.target.value)}
+                        placeholder="e.g. 13333333"
                       />
                       <p className="text-xs text-muted-foreground">
-                        Replaces the current balance with this exact amount.
+                        Replaces the current balance with this exact token count.
                       </p>
                     </div>
                     <div className="space-y-2">
-                      <Label>Or add credits (USD)</Label>
+                      <Label>Or add tokens</Label>
                       <Input
                         type="number"
-                        step="0.01"
                         min={0}
-                        value={addAiCredits}
-                        onChange={(e) => setAddAiCredits(e.target.value)}
-                        placeholder="e.g. 5.00"
+                        value={addAiTokens}
+                        onChange={(e) => setAddAiTokens(e.target.value)}
+                        placeholder="e.g. 1000000"
                       />
                       <p className="text-xs text-muted-foreground">
                         Adds to the current balance instead of replacing it.
                       </p>
                     </div>
-                    <Button variant="outline" onClick={saveAiCredits} disabled={saving}>
-                      {saving ? "Saving..." : "Update AI credits"}
+                    <Button variant="outline" onClick={saveAiTokens} disabled={saving}>
+                      {saving ? "Saving..." : "Update AI tokens"}
                     </Button>
                   </CardContent>
                 </Card>

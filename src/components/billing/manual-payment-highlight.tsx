@@ -1,16 +1,17 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatTokenCount } from "@/lib/ai-pricing";
 
 export function ManualPaymentHighlight({
   method,
   amountUsd,
-  creditsUsd,
+  tokensGranted,
   instructions,
 }: {
   method: "PAYPAL" | "GCASH";
   amountUsd: number;
-  creditsUsd?: number;
+  tokensGranted?: number;
   instructions: string;
 }) {
   return (
@@ -21,10 +22,11 @@ export function ManualPaymentHighlight({
         </CardTitle>
         <CardDescription>
           Pay <strong>${amountUsd.toFixed(2)}</strong>
-          {creditsUsd !== undefined ? (
+          {tokensGranted !== undefined ? (
             <>
               {" "}
-              → receive <strong>${creditsUsd.toFixed(2)}</strong> AI credits after approval
+              → receive <strong>{tokensGranted.toLocaleString()}</strong> AI tokens (
+              {formatTokenCount(tokensGranted)}) after approval
             </>
           ) : null}
         </CardDescription>

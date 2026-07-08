@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import type { AiClientPricing } from "@/lib/ai-pricing";
-import { getClientPricing } from "@/lib/ai-pricing";
+import { getClientPricing, formatTokenCount } from "@/lib/ai-pricing";
 
 type AiSettings = {
   aiEnabled: boolean;
@@ -90,10 +90,10 @@ export default function AdminAiSettingsPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">AI & credits</h1>
+        <h1 className="text-3xl font-bold tracking-tight">AI & tokens</h1>
         <p className="text-muted-foreground">
-          OpenAI is configured here only. Clients use AI credits — your profit margin is applied to
-          provider costs automatically.
+          OpenAI is configured here only. Clients buy and spend AI tokens. Your profit margin applies
+          to generation pricing automatically.
         </p>
       </div>
 
@@ -193,11 +193,10 @@ export default function AdminAiSettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Credit packs</CardTitle>
+          <CardTitle>Token packs</CardTitle>
           <CardDescription>
-            Set how much clients pay per pack. They receive the same dollar amount in AI credits (e.g. pay
-            $10 → $10 credits). Your {settings.aiProfitMarginPercent}% profit applies when they generate
-            text/images — see the price preview above. PayPal/GCash numbers are in{" "}
+            Clients pay the pack price and receive tokens priced at your input-token rate (with{" "}
+            {settings.aiProfitMarginPercent}% margin). PayPal/GCash are in{" "}
             <a href="/admin/settings/payments" className="text-primary underline">
               Payment details
             </a>
@@ -211,21 +210,24 @@ export default function AdminAiSettingsPage() {
               type="number"
               min={1}
               value={settings.aiCreditPackUsd}
-              onChange={(e) => {
-                const price = Number(e.target.value) || 1;
-                update("aiCreditPackUsd", price);
-                update("aiCreditsPerPackCents", Math.round(price * 100));
-              }}
+              onChange={(e) => update("aiCreditPackUsd", Number(e.target.value) || 1)}
             />
           </div>
           <div className="rounded-lg border bg-muted/40 p-4 text-sm">
-            <p className="font-medium">What clients see at checkout</p>
-            <p className="mt-2 text-muted-foreground">
-              Pay <strong>${settings.aiCreditPackUsd.toFixed(2)}</strong> → receive{" "}
-              <strong>${(settings.aiCreditsPerPackCents / 100).toFixed(2)}</strong> AI credits
+            <p className="font-medium">What clients get for ${settings.aiCreditPackUsd.toFixed(2)}</p>
+            <p className="mt-2 text-2xl font-bold text-primary">
+              {preview?.tokensPerPack.toLocaleString()} tokens
+            </p>
+            <p className="text-muted-foreground">({formatTokenCount(preview?.tokensPerPack || 0)})</p>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Formula: ${settings.aiCreditPackUsd} ÷ ${preview?.textInputPerMillionUsd.toFixed(2)} per 1M
+              input tokens × 1,000,000. Text usage deducts actual API tokens (input + output). Images
+              cost ~{preview?.imageTokenCost.toLocaleString()} tokens each.
             </p>
             <p className="mt-2 text-xs text-muted-foreground">
-              Example usage from balance: ~{Math.floor((settings.aiCreditsPerPackCents / 100) / (preview?.estimatedTextPostUsd || 0.01))} captions or ~{Math.floor((settings.aiCreditsPerPackCents / 100) / (preview?.imageUsd || 0.2))} images at current prices.
+              ~{Math.floor((preview?.tokensPerPack || 0) / (preview?.estimatedTextPostTokens || 800))}{" "}
+              captions or ~{Math.floor((preview?.tokensPerPack || 0) / (preview?.imageTokenCost || 1))}{" "}
+              images per pack at current rates.
             </p>
           </div>
         </CardContent>

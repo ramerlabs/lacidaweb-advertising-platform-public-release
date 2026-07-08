@@ -139,7 +139,7 @@ export function toPublicAiSettings(settings: AiSettingsData) {
     aiEnabled: settings.aiEnabled,
     hasOpenaiApiKey: settings.hasOpenaiApiKey,
     clientPricing: settings.clientPricing,
-    creditPackUsd: settings.aiCreditPackUsd,
-    creditsPerPackCents: settings.aiCreditsPerPackCents,
+    packPriceUsd: settings.aiCreditPackUsd,
+    tokensPerPack: settings.clientPricing.tokensPerPack,
   };
 }

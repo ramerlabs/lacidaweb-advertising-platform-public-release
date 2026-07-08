@@ -12,6 +12,24 @@ export function centsToUsd(cents: number): string {
   return (cents / 100).toFixed(2);
 }
 
+/** Tokens granted when client pays for a pack (priced at client input-token rate). */
+export function packUsdToTokens(packUsd: number, clientInputPerMillionUsd: number): number {
+  if (clientInputPerMillionUsd <= 0) return 0;
+  return Math.floor((packUsd / clientInputPerMillionUsd) * 1_000_000);
+}
+
+/** Image generation cost expressed in tokens at the input-token rate. */
+export function imageCostInTokens(imageUsd: number, clientInputPerMillionUsd: number): number {
+  if (clientInputPerMillionUsd <= 0) return 0;
+  return Math.max(1, Math.ceil((imageUsd / clientInputPerMillionUsd) * 1_000_000));
+}
+
+export function formatTokenCount(tokens: number): string {
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(2)}M`;
+  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}K`;
+  return tokens.toLocaleString();
+}
+
 export type AiPricingConfig = {
   profitMarginPercent: number;
   textInputCostPerMillion: number;
@@ -27,9 +45,11 @@ export type AiClientPricing = {
   textOutputPerMillionUsd: number;
   imageUsd: number;
   creditPackUsd: number;
-  creditsPerPackCents: number;
+  tokensPerPack: number;
   estimatedTextPostUsd: number;
   estimatedImageUsd: number;
+  estimatedTextPostTokens: number;
+  imageTokenCost: number;
 };
 
 export function getClientPricing(config: AiPricingConfig): AiClientPricing {
@@ -42,6 +62,8 @@ export function getClientPricing(config: AiPricingConfig): AiClientPricing {
       (300 * config.textOutputCostPerMillion) / 1_000_000,
     margin,
   );
+  const tokensPerPack = packUsdToTokens(config.creditPackUsd, textInputPerMillionUsd);
+  const imageTokenCost = imageCostInTokens(imageUsd, textInputPerMillionUsd);
 
   return {
     profitMarginPercent: margin,
@@ -49,8 +71,10 @@ export function getClientPricing(config: AiPricingConfig): AiClientPricing {
     textOutputPerMillionUsd,
     imageUsd,
     creditPackUsd: config.creditPackUsd,
-    creditsPerPackCents: config.creditsPerPackCents,
+    tokensPerPack,
     estimatedTextPostUsd,
     estimatedImageUsd: imageUsd,
+    estimatedTextPostTokens: 800,
+    imageTokenCost,
   };
 }
