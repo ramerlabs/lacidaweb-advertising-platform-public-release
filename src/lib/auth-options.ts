@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/utils";
 import { ensureTeamZernioProfile } from "@/services/profiles";
+import { getAiSettings } from "@/lib/ai-settings";
 
 const useSecureCookies = process.env.NODE_ENV === "production";
 const cookieDomain = process.env.NEXTAUTH_COOKIE_DOMAIN?.trim() || undefined;
@@ -125,6 +126,8 @@ export async function registerUser(input: {
     slug = `${baseSlug}-${i++}`;
   }
 
+  const trialTokens = (await getAiSettings()).aiTrialTokens || 50_000;
+
   const user = await prisma.user.create({
     data: {
       name: input.name,
@@ -137,6 +140,7 @@ export async function registerUser(input: {
             create: {
               name: input.teamName,
               slug,
+              aiTokenBalance: trialTokens,
             },
           },
         },

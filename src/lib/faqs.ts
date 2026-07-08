@@ -41,6 +41,12 @@ const DEFAULT_FAQS: Array<{ question: string; answer: string; sortOrder: number 
       "Open a support ticket from your dashboard at any time. Our team will respond as quickly as possible based on your plan priority.",
     sortOrder: 4,
   },
+  {
+    question: "How do AI tokens work?",
+    answer:
+      "New workspaces receive free trial tokens. Buy more from Billing (pay with USDT, PayPal, or GCash). Tokens are used when you generate captions or images in Compose — text uses actual API token counts; images use a fixed token cost. Enable AI in Settings first.",
+    sortOrder: 5,
+  },
 ];
 
 function hasFaqModel() {
@@ -52,16 +58,34 @@ export async function ensureDefaultFaqs() {
   if (!hasFaqModel()) return;
 
   const count = await prisma.faq.count();
-  if (count > 0) return;
+  if (count === 0) {
+    await prisma.faq.createMany({
+      data: DEFAULT_FAQS.map((faq) => ({
+        question: faq.question,
+        answer: faq.answer,
+        sortOrder: faq.sortOrder,
+        isPublished: true,
+      })),
+    });
+    return;
+  }
 
-  await prisma.faq.createMany({
-    data: DEFAULT_FAQS.map((faq) => ({
-      question: faq.question,
-      answer: faq.answer,
-      sortOrder: faq.sortOrder,
-      isPublished: true,
-    })),
-  });
+  const aiFaq = DEFAULT_FAQS.find((f) => f.question === "How do AI tokens work?");
+  if (aiFaq) {
+    const exists = await prisma.faq.findFirst({
+      where: { question: aiFaq.question },
+    });
+    if (!exists) {
+      await prisma.faq.create({
+        data: {
+          question: aiFaq.question,
+          answer: aiFaq.answer,
+          sortOrder: aiFaq.sortOrder,
+          isPublished: true,
+        },
+      });
+    }
+  }
 }
 
 export async function getPublishedFaqs(): Promise<FaqRecord[]> {

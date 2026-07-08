@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  CalendarDays,
   CreditCard,
   Headset,
   Inbox,
@@ -24,6 +25,7 @@ import { ThemeSelect } from "@/components/theme-toggle";
 const links = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/dashboard/compose", label: "Compose", icon: PenSquare },
+  { href: "/dashboard/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/dashboard/accounts", label: "Accounts", icon: Link2 },
   { href: "/dashboard/inbox", label: "Inbox", icon: Inbox },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
@@ -33,7 +35,7 @@ const links = [
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
-export function Sidebar() {
+export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { branding } = useSiteBranding();
 
@@ -50,6 +52,7 @@ export function Sidebar() {
             <Link
               key={link.href}
               href={link.href}
+              onClick={onNavigate}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
                 active

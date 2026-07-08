@@ -1,15 +1,23 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSession, requireTeamAccess } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { generatePostImage, generatePostText } from "@/lib/ai-service";
+import { generatePostImage, generatePostText, transformPostText } from "@/lib/ai-service";
 import { getAiSettings, toPublicAiSettings } from "@/lib/ai-settings";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { prisma } from "@/lib/prisma";
 
 const textSchema = z.object({
   teamId: z.string().min(1),
   prompt: z.string().min(1).max(2000),
   tone: z.string().max(100).optional(),
   platform: z.string().max(50).optional(),
+});
+
+const transformSchema = z.object({
+  teamId: z.string().min(1),
+  content: z.string().min(1).max(4000),
+  mode: z.enum(["shorten", "hashtags", "regenerate"]),
+  tone: z.string().max(100).optional(),
 });
 
 const imageSchema = z.object({
@@ -46,6 +54,10 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const session = await requireSession();
+    if (!checkRateLimit(`ai:${session.user.id}`, 30, 60_000)) {
+      return NextResponse.json({ error: "Too many AI requests. Try again in a minute." }, { status: 429 });
+    }
+
     const url = new URL(req.url);
     const action = url.searchParams.get("action");
 
@@ -53,6 +65,13 @@ export async function POST(req: Request) {
       const body = textSchema.parse(await req.json());
       await requireTeamAccess(body.teamId, session.user.id);
       const result = await generatePostText(body);
+      return NextResponse.json(result);
+    }
+
+    if (action === "transform") {
+      const body = transformSchema.parse(await req.json());
+      await requireTeamAccess(body.teamId, session.user.id);
+      const result = await transformPostText(body);
       return NextResponse.json(result);
     }
 

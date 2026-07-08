@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTeam } from "@/components/dashboard/team-provider";
+import { OnboardingChecklist } from "@/components/dashboard/onboarding-checklist";
 import { PlanPricingGrid } from "@/components/dashboard/plan-pricing-grid";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -72,6 +73,8 @@ export default function DashboardPage() {
           <Link href="/dashboard/compose">New post</Link>
         </Button>
       </div>
+
+      <OnboardingChecklist />
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>

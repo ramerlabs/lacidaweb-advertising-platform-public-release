@@ -48,6 +48,10 @@ export default function ComposePage() {
   const [aiState, setAiState] = useState<AiState | null>(null);
   const [generatingText, setGeneratingText] = useState(false);
   const [generatingImage, setGeneratingImage] = useState(false);
+  const [aiTone, setAiTone] = useState("professional");
+  const [transforming, setTransforming] = useState(false);
+  const [templates, setTemplates] = useState<Array<{ id: string; name: string; prompt: string; tone: string | null }>>([]);
+  const [templateName, setTemplateName] = useState("");
 
   useEffect(() => {
     if (!teamId) return;
@@ -59,6 +63,9 @@ export default function ComposePage() {
       .then((data) => {
         if (data.tokenBalance !== undefined) setAiState(data);
       });
+    fetch(`/api/post-templates?teamId=${teamId}`)
+      .then((r) => r.json())
+      .then((data) => setTemplates(data.templates || []));
   }, [teamId]);
 
   const selectedAccounts = useMemo(
@@ -96,7 +103,7 @@ export default function ComposePage() {
     const res = await fetch("/api/ai/generate?action=text", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ teamId, prompt: aiPrompt, platform }),
+      body: JSON.stringify({ teamId, prompt: aiPrompt, platform, tone: aiTone }),
     });
     const data = await res.json();
     setGeneratingText(false);
@@ -127,6 +134,41 @@ export default function ComposePage() {
     setMediaUrl(data.imageUrl);
     setAiState((s) => (s ? { ...s, tokenBalance: data.tokenBalance } : s));
     setStatus(`Image generated (${data.tokensUsed?.toLocaleString() || 0} tokens used)`);
+  }
+
+  async function transformContent(mode: "shorten" | "hashtags" | "regenerate") {
+    if (!teamId || !content.trim()) return;
+    setTransforming(true);
+    setStatus("");
+    const res = await fetch("/api/ai/generate?action=transform", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ teamId, content, mode, tone: aiTone }),
+    });
+    const data = await res.json();
+    setTransforming(false);
+    if (!res.ok) {
+      setStatus(data.error || "AI transform failed");
+      return;
+    }
+    setContent(data.text);
+    setAiState((s) => (s ? { ...s, tokenBalance: data.tokenBalance } : s));
+    setStatus(`${mode} applied (${data.tokensUsed?.toLocaleString() || 0} tokens)`);
+  }
+
+  async function saveTemplate() {
+    if (!teamId || !templateName.trim() || !aiPrompt.trim()) return;
+    const res = await fetch("/api/post-templates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ teamId, name: templateName, prompt: aiPrompt, tone: aiTone }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setTemplates((t) => [data.template, ...t]);
+      setTemplateName("");
+      setStatus("Template saved");
+    }
   }
 
   async function onUpload(file: File) {
@@ -232,6 +274,19 @@ export default function ComposePage() {
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="Write your marketing copy..."
               />
+              {content && aiReady ? (
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="outline" disabled={transforming} onClick={() => transformContent("shorten")}>
+                    Shorten
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" disabled={transforming} onClick={() => transformContent("hashtags")}>
+                    Add hashtags
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" disabled={transforming} onClick={() => transformContent("regenerate")}>
+                    Regenerate
+                  </Button>
+                </div>
+              ) : null}
             </div>
 
             {aiState?.aiEnabled ? (
@@ -260,6 +315,21 @@ export default function ComposePage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="ai-tone">Tone</Label>
+                    <select
+                      id="ai-tone"
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={aiTone}
+                      onChange={(e) => setAiTone(e.target.value)}
+                      disabled={!aiReady}
+                    >
+                      <option value="professional">Professional</option>
+                      <option value="casual">Casual</option>
+                      <option value="promotional">Promotional</option>
+                      <option value="educational">Educational</option>
+                    </select>
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="ai-prompt">Generate caption</Label>
                     <Textarea
@@ -298,6 +368,39 @@ export default function ComposePage() {
                       onClick={generateImage}
                     >
                       {generatingImage ? "Generating..." : "Generate image"}
+                    </Button>
+                  </div>
+                  {templates.length > 0 ? (
+                    <div className="space-y-2">
+                      <Label>Saved templates</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {templates.map((t) => (
+                          <Button
+                            key={t.id}
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={!aiReady}
+                            onClick={() => {
+                              setAiPrompt(t.prompt);
+                              if (t.tone) setAiTone(t.tone);
+                            }}
+                          >
+                            {t.name}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Template name"
+                      value={templateName}
+                      onChange={(e) => setTemplateName(e.target.value)}
+                      disabled={!aiReady}
+                    />
+                    <Button type="button" size="sm" variant="outline" disabled={!aiReady || !aiPrompt.trim()} onClick={saveTemplate}>
+                      Save template
                     </Button>
                   </div>
                   {!aiReady ? (

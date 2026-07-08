@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { applyProfitMargin, imageCostInTokens, usdToCents } from "@/lib/ai-pricing";
 import { getAiSettings, getOpenAiApiKey } from "@/lib/ai-settings";
 import { getMediaPresignedUrl } from "@/services/publisher";
+import { maybeNotifyLowTokens } from "@/services/client-notify";
 
 async function chargeTeamTokens(
   teamId: string,
@@ -53,6 +54,60 @@ async function chargeTeamTokens(
   };
 }
 
+async function callOpenAiText(
+  apiKey: string,
+  systemPrompt: string,
+  userPrompt: string,
+  maxTokens = 500,
+) {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      max_tokens: maxTokens,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || "OpenAI request failed");
+  const text = data.choices?.[0]?.message?.content?.trim();
+  if (!text) throw new Error("No text returned from OpenAI");
+  return {
+    text,
+    promptTokens: data.usage?.prompt_tokens || 0,
+    completionTokens: data.usage?.completion_tokens || 0,
+  };
+}
+
+async function billTextUsage(
+  teamId: string,
+  settings: Awaited<ReturnType<typeof getAiSettings>>,
+  promptTokens: number,
+  completionTokens: number,
+  meta: { type: string },
+) {
+  const totalTokens = promptTokens + completionTokens;
+  const providerCostUsd =
+    (promptTokens * settings.aiTextInputCostPerMillion) / 1_000_000 +
+    (completionTokens * settings.aiTextOutputCostPerMillion) / 1_000_000;
+  const billing = await chargeTeamTokens(
+    teamId,
+    totalTokens,
+    providerCostUsd,
+    settings.aiProfitMarginPercent,
+    { type: meta.type, promptTokens, completionTokens },
+  );
+  await maybeNotifyLowTokens(teamId, billing.tokenBalance);
+  return { ...billing, providerCostUsd, promptTokens, completionTokens };
+}
+
 export async function generatePostText(input: {
   teamId: string;
   prompt: string;
@@ -74,46 +129,53 @@ export async function generatePostText(input: {
   const userPrompt = input.prompt.trim();
   if (!userPrompt) throw new Error("Prompt is required");
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      max_tokens: 500,
-    }),
-  });
-
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error?.message || "OpenAI text generation failed");
-  }
-
-  const text = data.choices?.[0]?.message?.content?.trim();
-  if (!text) throw new Error("No text returned from OpenAI");
-
-  const promptTokens = data.usage?.prompt_tokens || 0;
-  const completionTokens = data.usage?.completion_tokens || 0;
-  const totalTokens = promptTokens + completionTokens;
-  const providerCostUsd =
-    (promptTokens * settings.aiTextInputCostPerMillion) / 1_000_000 +
-    (completionTokens * settings.aiTextOutputCostPerMillion) / 1_000_000;
-
-  const billing = await chargeTeamTokens(
-    input.teamId,
-    totalTokens,
-    providerCostUsd,
-    settings.aiProfitMarginPercent,
-    { type: "text", promptTokens, completionTokens },
+  const { text, promptTokens, completionTokens } = await callOpenAiText(
+    apiKey,
+    systemPrompt,
+    userPrompt,
   );
+  const billing = await billTextUsage(input.teamId, settings, promptTokens, completionTokens, {
+    type: "text",
+  });
+  return { text, ...billing };
+}
 
-  return { text, ...billing, providerCostUsd, promptTokens, completionTokens };
+export async function transformPostText(input: {
+  teamId: string;
+  content: string;
+  mode: "shorten" | "hashtags" | "regenerate";
+  tone?: string;
+}) {
+  const settings = await getAiSettings();
+  if (!settings.aiEnabled) throw new Error("AI generation is disabled by the platform admin");
+  const apiKey = await getOpenAiApiKey();
+  if (!apiKey) throw new Error("OpenAI is not configured");
+
+  const team = await prisma.team.findUnique({
+    where: { id: input.teamId },
+    select: { aiEnabled: true },
+  });
+  if (!team?.aiEnabled) throw new Error("Enable AI in your workspace settings first");
+
+  const content = input.content.trim();
+  if (!content) throw new Error("Content is required");
+
+  const modePrompts: Record<typeof input.mode, string> = {
+    shorten: "Shorten this social post caption while keeping the core message. Return only the caption.",
+    hashtags: "Add 5-8 relevant hashtags to the end of this caption. Return the full caption with hashtags.",
+    regenerate: "Rewrite this social post caption to be fresher and more engaging. Return only the caption.",
+  };
+
+  const { text, promptTokens, completionTokens } = await callOpenAiText(
+    apiKey,
+    `${modePrompts[input.mode]} Tone: ${input.tone || "professional"}.`,
+    content,
+    400,
+  );
+  const billing = await billTextUsage(input.teamId, settings, promptTokens, completionTokens, {
+    type: input.mode,
+  });
+  return { text, ...billing };
 }
 
 export async function generatePostImage(input: { teamId: string; prompt: string }) {
@@ -179,6 +241,8 @@ export async function generatePostImage(input: { teamId: string; prompt: string 
     settings.aiProfitMarginPercent,
     { type: "image" },
   );
+
+  await maybeNotifyLowTokens(input.teamId, billing.tokenBalance);
 
   return { imageUrl: presign.publicUrl, ...billing, providerCostUsd: settings.aiImageCostUsd };
 }

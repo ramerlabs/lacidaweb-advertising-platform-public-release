@@ -11,6 +11,8 @@ export type AiSettingsData = {
   aiImageCostUsd: number;
   aiCreditPackUsd: number;
   aiCreditsPerPackCents: number;
+  aiTrialTokens: number;
+  aiLowTokenThreshold: number;
   clientPricing: AiClientPricing;
 };
 
@@ -22,6 +24,8 @@ const DEFAULTS = {
   aiImageCostUsd: 0.04,
   aiCreditPackUsd: 10,
   aiCreditsPerPackCents: 1000,
+  aiTrialTokens: 50_000,
+  aiLowTokenThreshold: 50_000,
 };
 
 function maskSecret(value: string): string {
@@ -39,6 +43,8 @@ type Row = {
   aiImageCostUsd: number;
   aiCreditPackUsd: number;
   aiCreditsPerPackCents: number;
+  aiTrialTokens?: number;
+  aiLowTokenThreshold?: number;
 };
 
 function mergeRow(row: Row | null, openaiApiKey: string): AiSettingsData {
@@ -62,6 +68,8 @@ function mergeRow(row: Row | null, openaiApiKey: string): AiSettingsData {
     aiImageCostUsd: config.imageCostUsd,
     aiCreditPackUsd: config.creditPackUsd,
     aiCreditsPerPackCents: config.creditsPerPackCents,
+    aiTrialTokens: row?.aiTrialTokens ?? DEFAULTS.aiTrialTokens,
+    aiLowTokenThreshold: row?.aiLowTokenThreshold ?? DEFAULTS.aiLowTokenThreshold,
     clientPricing: getClientPricing(config),
   };
 }
@@ -95,6 +103,8 @@ export async function updateAiSettings(input: {
   aiImageCostUsd?: number;
   aiCreditPackUsd?: number;
   aiCreditsPerPackCents?: number;
+  aiTrialTokens?: number;
+  aiLowTokenThreshold?: number;
 }): Promise<AiSettingsData> {
   const current = await getAiSettings();
   const currentKeyRow = await prisma.integrationSettings.findUnique({
@@ -123,6 +133,8 @@ export async function updateAiSettings(input: {
       (input.aiCreditPackUsd !== undefined
         ? Math.round((input.aiCreditPackUsd ?? current.aiCreditPackUsd) * 100)
         : current.aiCreditsPerPackCents),
+    aiTrialTokens: input.aiTrialTokens ?? current.aiTrialTokens,
+    aiLowTokenThreshold: input.aiLowTokenThreshold ?? current.aiLowTokenThreshold,
   };
 
   const row = await prisma.integrationSettings.upsert({

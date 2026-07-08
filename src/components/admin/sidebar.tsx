@@ -11,6 +11,7 @@ import {
   Palette,
   Plug,
   HelpCircle,
+  ScrollText,
   Shield,
   Settings,
   Users,
@@ -32,12 +33,13 @@ const links = [
   { href: "/admin/settings/payments", label: "Payment details", icon: Wallet },
   { href: "/admin/settings/branding", label: "Branding", icon: Palette },
   { href: "/admin/settings/ai", label: "AI & tokens", icon: Sparkles },
+  { href: "/admin/audit", label: "Audit log", icon: ScrollText },
   { href: "/admin/settings/faqs", label: "FAQs", icon: HelpCircle },
   { href: "/admin/settings/security", label: "Security", icon: Shield },
   { href: "/admin/settings/integrations", label: "Integrations", icon: Plug },
 ];
 
-export function AdminSidebar() {
+export function AdminSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { branding } = useSiteBranding();
   const [counts, setCounts] = useState({ openTickets: 0, pendingPayments: 0 });
@@ -80,6 +82,7 @@ export function AdminSidebar() {
             <Link
               key={link.href}
               href={link.href}
+              onClick={onNavigate}
               className={cn(
                 "flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
                 active

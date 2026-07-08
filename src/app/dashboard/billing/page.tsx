@@ -31,6 +31,7 @@ type Payment = {
   usdtAmount?: number | null;
   txHash?: string | null;
   notes?: string | null;
+  proofUrl?: string | null;
   createdAt: string;
 };
 
@@ -63,6 +64,7 @@ export default function BillingPage() {
     instructions: string;
   } | null>(null);
   const [aiUsage, setAiUsage] = useState<AiUsage[]>([]);
+  const [uploadingProofId, setUploadingProofId] = useState<string | null>(null);
   const paymentsRef = useRef<HTMLDivElement>(null);
 
   const pendingUsdtPayment = payments.find((p) => p.method === "USDT" && p.status === "PENDING");
@@ -163,6 +165,43 @@ export default function BillingPage() {
     }
     await load();
     paymentsRef.current?.scrollIntoView({ behavior: "smooth" });
+  }
+
+  async function uploadPaymentProof(paymentId: string, file: File) {
+    if (!teamId) return;
+    setUploadingProofId(paymentId);
+    setStatus("");
+    try {
+      const presign = await fetch("/api/media/presign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: file.name, contentType: file.type || "application/octet-stream" }),
+      });
+      const urls = await presign.json();
+      if (!presign.ok) throw new Error(urls.error || "Presign failed");
+
+      const put = await fetch(urls.uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+      if (!put.ok) throw new Error("Upload failed");
+
+      const res = await fetch(`/api/billing/payments/${paymentId}/proof`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamId, proofUrl: urls.publicUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not submit proof");
+
+      setStatus(data.message || "Payment proof uploaded. Admin will review shortly.");
+      await load();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Proof upload failed");
+    } finally {
+      setUploadingProofId(null);
+    }
   }
 
   return (
@@ -318,6 +357,32 @@ export default function BillingPage() {
                       {verifyingId === payment.id ? "Verifying..." : "Verify payment"}
                     </Button>
                   </div>
+                ) : null}
+                {(payment.method === "PAYPAL" || payment.method === "GCASH") &&
+                payment.status === "PENDING" &&
+                !payment.proofUrl ? (
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <Input
+                      type="file"
+                      accept="image/*,.pdf"
+                      disabled={uploadingProofId === payment.id}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void uploadPaymentProof(payment.id, file);
+                      }}
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      {uploadingProofId === payment.id ? "Uploading..." : "Upload receipt screenshot"}
+                    </span>
+                  </div>
+                ) : null}
+                {payment.proofUrl ? (
+                  <p className="text-xs text-muted-foreground">
+                    Proof:{" "}
+                    <a href={payment.proofUrl} target="_blank" rel="noreferrer" className="underline">
+                      View uploaded receipt
+                    </a>
+                  </p>
                 ) : null}
                 {payment.txHash ? (
                   <p className="break-all text-xs text-muted-foreground">TX: {payment.txHash}</p>

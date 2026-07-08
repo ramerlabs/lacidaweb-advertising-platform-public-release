@@ -15,20 +15,33 @@ type Overview = {
   mrrApprox: number;
 };
 
+type AiStats = {
+  tokensSold: number;
+  tokenRevenueUsd: number;
+  usageCount: number;
+  tokensConsumed: number;
+  profitUsd: string;
+  topTeams: Array<{ name: string; slug: string; aiTokenBalance: number }>;
+};
+
 export default function AdminOverviewPage() {
   const [overview, setOverview] = useState<Overview | null>(null);
+  const [aiStats, setAiStats] = useState<AiStats | null>(null);
   const [siteTitle, setSiteTitle] = useState("");
 
   useEffect(() => {
     async function load() {
-      const [overviewRes, brandingRes] = await Promise.all([
+      const [overviewRes, brandingRes, aiRes] = await Promise.all([
         fetch("/api/admin/overview"),
         fetch("/api/branding"),
+        fetch("/api/admin/ai-stats"),
       ]);
       const ov = await overviewRes.json();
       const branding = await brandingRes.json();
+      const ai = await aiRes.json();
       if (overviewRes.ok) setOverview(ov);
       if (brandingRes.ok) setSiteTitle(branding.settings?.title || "");
+      if (aiRes.ok) setAiStats(ai);
     }
     load();
   }, []);
@@ -48,6 +61,19 @@ export default function AdminOverviewPage() {
           <Metric label="Pending Payments" value={overview.pendingPayments} />
           <Metric label="Open Tickets" value={overview.openTickets} />
           <Metric label="Revenue (month)" value={`$${overview.mrrApprox}`} />
+        </div>
+      ) : null}
+
+      {aiStats ? (
+        <div className="space-y-3">
+          <h2 className="text-xl font-semibold">AI tokens</h2>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <Metric label="Token revenue" value={`$${aiStats.tokenRevenueUsd}`} />
+            <Metric label="Tokens sold" value={aiStats.tokensSold.toLocaleString()} />
+            <Metric label="Tokens used" value={aiStats.tokensConsumed.toLocaleString()} />
+            <Metric label="Generations" value={aiStats.usageCount} />
+            <Metric label="Est. profit" value={`$${aiStats.profitUsd}`} />
+          </div>
         </div>
       ) : null}
 
@@ -100,6 +126,24 @@ export default function AdminOverviewPage() {
           </CardHeader>
           <Button asChild>
             <Link href="/admin/settings/payments">Configure payments</Link>
+          </Button>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>AI & tokens</CardTitle>
+            <CardDescription>OpenAI key, margin, token packs, trial tokens</CardDescription>
+          </CardHeader>
+          <Button asChild>
+            <Link href="/admin/settings/ai">Configure AI</Link>
+          </Button>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Audit log</CardTitle>
+            <CardDescription>Platform actions and admin activity</CardDescription>
+          </CardHeader>
+          <Button asChild>
+            <Link href="/admin/audit">View audit log</Link>
           </Button>
         </Card>
         <Card>

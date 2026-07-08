@@ -134,6 +134,7 @@ model Team {
   aiEnabled        Boolean  @default(false)
   aiBalanceCents   Int      @default(0)
   aiTokenBalance   Int      @default(0)
+  lowTokenAlertAt  DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -148,6 +149,7 @@ model Team {
   payments            Payment[]
   supportTickets      SupportTicket[]
   aiUsageLogs         AiUsageLog[]
+  postTemplates       PostTemplate[]
 }
 
 model TeamMember {
@@ -447,7 +449,23 @@ model IntegrationSettings {
   aiImageCostUsd          Float   @default(0.04)
   aiCreditPackUsd         Float   @default(10)
   aiCreditsPerPackCents   Int     @default(1000)
+  aiTrialTokens             Int     @default(50000)
+  aiLowTokenThreshold       Int     @default(50000)
   updatedAt           DateTime @updatedAt
+}
+
+model PostTemplate {
+  id        String   @id @default(cuid())
+  teamId    String
+  name      String
+  prompt    String   @db.Text
+  tone      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
 }
 
 model AiUsageLog {

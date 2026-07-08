@@ -18,6 +18,8 @@ type AiSettings = {
   aiImageCostUsd: number;
   aiCreditPackUsd: number;
   aiCreditsPerPackCents: number;
+  aiTrialTokens: number;
+  aiLowTokenThreshold: number;
   clientPricing: AiClientPricing;
 };
 
@@ -66,6 +68,8 @@ export default function AdminAiSettingsPage() {
         aiImageCostUsd: settings.aiImageCostUsd,
         aiCreditPackUsd: settings.aiCreditPackUsd,
         aiCreditsPerPackCents: settings.aiCreditsPerPackCents,
+        aiTrialTokens: settings.aiTrialTokens,
+        aiLowTokenThreshold: settings.aiLowTokenThreshold,
       }),
     });
     const data = await res.json();
@@ -229,6 +233,35 @@ export default function AdminAiSettingsPage() {
               captions or ~{Math.floor((preview?.tokensPerPack || 0) / (preview?.imageTokenCost || 1))}{" "}
               images per pack at current rates.
             </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Trial & alerts</CardTitle>
+          <CardDescription>
+            Free tokens for new workspaces and when to email low-balance alerts
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Trial tokens (new teams)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={settings.aiTrialTokens}
+              onChange={(e) => update("aiTrialTokens", Number(e.target.value) || 0)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Low-token alert threshold</Label>
+            <Input
+              type="number"
+              min={0}
+              value={settings.aiLowTokenThreshold}
+              onChange={(e) => update("aiLowTokenThreshold", Number(e.target.value) || 0)}
+            />
           </div>
         </CardContent>
       </Card>

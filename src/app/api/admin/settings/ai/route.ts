@@ -12,6 +12,8 @@ const schema = z.object({
   aiImageCostUsd: z.number().min(0).optional(),
   aiCreditPackUsd: z.number().min(1).optional(),
   aiCreditsPerPackCents: z.number().int().min(100).optional(),
+  aiTrialTokens: z.number().int().min(0).optional(),
+  aiLowTokenThreshold: z.number().int().min(0).optional(),
 });
 
 export async function GET() {
