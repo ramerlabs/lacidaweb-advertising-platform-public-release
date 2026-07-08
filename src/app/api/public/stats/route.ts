@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { displaySocialProofStats } from "@/lib/social-proof-stats";
 
 export async function GET() {
   try {
@@ -9,20 +10,28 @@ export async function GET() {
       prisma.team.count(),
       prisma.aiUsageLog.count(),
     ]);
+
+    const displayed = displaySocialProofStats({
+      teams,
+      posts,
+      aiGenerations,
+    });
+
     return NextResponse.json({
       users: Math.max(users, 1),
-      posts: Math.max(posts, 0),
-      postsPublished: Math.max(posts, 0),
-      teams: Math.max(teams, 1),
-      aiGenerations: Math.max(aiGenerations, 0),
+      posts: displayed.posts,
+      postsPublished: displayed.posts,
+      teams: displayed.teams,
+      aiGenerations: displayed.aiGenerations,
     });
   } catch {
+    const displayed = displaySocialProofStats({ teams: 0, posts: 0, aiGenerations: 0 });
     return NextResponse.json({
       users: 500,
-      posts: 10000,
-      postsPublished: 10000,
-      teams: 200,
-      aiGenerations: 2500,
+      posts: displayed.posts,
+      postsPublished: displayed.posts,
+      teams: displayed.teams,
+      aiGenerations: displayed.aiGenerations,
     });
   }
 }
