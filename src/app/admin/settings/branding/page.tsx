@@ -14,6 +14,8 @@ type BrandingSettings = {
   product: string;
   description: string;
   logoUrl: string;
+  logoDarkUrl: string;
+  logoHeightPx: number;
   faviconUrl: string;
   domain: string;
   tagline: string;
@@ -27,6 +29,8 @@ export default function AdminBrandingPage() {
     product: "",
     description: "",
     logoUrl: "",
+    logoDarkUrl: "",
+    logoHeightPx: 40,
     faviconUrl: "",
     domain: "",
     tagline: "",
@@ -35,7 +39,7 @@ export default function AdminBrandingPage() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState<"logo" | "favicon" | null>(null);
+  const [uploading, setUploading] = useState<"logo" | "logoDark" | "favicon" | null>(null);
   const [status, setStatus] = useState("");
 
   useEffect(() => {
@@ -48,8 +52,10 @@ export default function AdminBrandingPage() {
     load();
   }, []);
 
-  async function uploadAsset(file: File, field: "logoUrl" | "faviconUrl") {
-    setUploading(field === "logoUrl" ? "logo" : "favicon");
+  async function uploadAsset(file: File, field: "logoUrl" | "logoDarkUrl" | "faviconUrl") {
+    setUploading(
+      field === "logoUrl" ? "logo" : field === "logoDarkUrl" ? "logoDark" : "favicon",
+    );
     setStatus("");
     try {
       const presign = await fetch("/api/media/presign", {
@@ -71,7 +77,9 @@ export default function AdminBrandingPage() {
       if (!put.ok) throw new Error("Upload failed");
 
       setSettings((s) => ({ ...s, [field]: urls.publicUrl }));
-      setStatus(`${field === "logoUrl" ? "Logo" : "Favicon"} uploaded`);
+      setStatus(
+        `${field === "logoUrl" ? "Logo" : field === "logoDarkUrl" ? "Dark logo" : "Favicon"} uploaded`,
+      );
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Upload failed");
     } finally {
@@ -116,11 +124,13 @@ export default function AdminBrandingPage() {
           <CardTitle>Preview</CardTitle>
           <CardDescription>How your brand appears in the header</CardDescription>
         </CardHeader>
-        <CardContent className="flex items-center gap-4 rounded-lg border p-4">
-          <SiteLogo branding={settings} />
+        <CardContent className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center">
+          <SiteLogo branding={settings} forceTheme="light" />
+          {settings.logoDarkUrl ? <SiteLogo branding={settings} forceTheme="dark" /> : null}
           <div>
             <p className="font-medium">{settings.title}</p>
             <p className="text-sm text-muted-foreground">{settings.product}</p>
+            <p className="text-xs text-muted-foreground">Height: {settings.logoHeightPx}px</p>
           </div>
         </CardContent>
       </Card>
@@ -164,7 +174,7 @@ export default function AdminBrandingPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Logo</CardTitle>
+          <CardTitle>Logo (light theme)</CardTitle>
           <CardDescription>Recommended: PNG or SVG, transparent background, at least 200px wide</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -181,6 +191,62 @@ export default function AdminBrandingPage() {
             <p className="break-all text-xs text-muted-foreground">Current: {settings.logoUrl}</p>
           ) : null}
           {uploading === "logo" ? <p className="text-sm text-muted-foreground">Uploading logo...</p> : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Logo (dark theme)</CardTitle>
+          <CardDescription>Shown when users switch to dark mode. Falls back to light logo if empty.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            disabled={uploading === "logoDark"}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) uploadAsset(file, "logoDarkUrl");
+            }}
+          />
+          {settings.logoDarkUrl ? (
+            <p className="break-all text-xs text-muted-foreground">Current: {settings.logoDarkUrl}</p>
+          ) : null}
+          {uploading === "logoDark" ? (
+            <p className="text-sm text-muted-foreground">Uploading dark logo...</p>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Logo size</CardTitle>
+          <CardDescription>Height in pixels (24–120). Width scales automatically.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Input
+            type="range"
+            min={24}
+            max={120}
+            value={settings.logoHeightPx}
+            onChange={(e) =>
+              setSettings((s) => ({ ...s, logoHeightPx: Number(e.target.value) }))
+            }
+            className="w-full"
+          />
+          <Input
+            type="number"
+            min={24}
+            max={120}
+            value={settings.logoHeightPx}
+            onChange={(e) =>
+              setSettings((s) => ({
+                ...s,
+                logoHeightPx: Math.min(120, Math.max(24, Number(e.target.value) || 40)),
+              }))
+            }
+            className="w-32"
+          />
         </CardContent>
       </Card>
 

@@ -47,6 +47,13 @@ export async function activatePayment(
     });
   }
 
+  if (payment.purpose === "AI_CREDITS" && payment.aiCreditsCents) {
+    await prisma.team.update({
+      where: { id: payment.teamId },
+      data: { aiBalanceCents: { increment: payment.aiCreditsCents } },
+    });
+  }
+
   await prisma.auditLog.create({
     data: {
       teamId: payment.teamId,

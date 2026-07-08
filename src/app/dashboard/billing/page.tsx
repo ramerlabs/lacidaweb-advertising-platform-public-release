@@ -23,6 +23,7 @@ type Payment = {
   method: string;
   status: string;
   amount: number;
+  purpose?: string;
   usdtAmount?: number | null;
   txHash?: string | null;
   notes?: string | null;
@@ -37,23 +38,40 @@ export default function BillingPage() {
   const [status, setStatus] = useState("");
   const [txHashes, setTxHashes] = useState<Record<string, string>>({});
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
+  const [aiBalanceCents, setAiBalanceCents] = useState(0);
+  const [aiPackUsd, setAiPackUsd] = useState(10);
+  const [aiCreditsCents, setAiCreditsCents] = useState(1000);
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [buyingCredits, setBuyingCredits] = useState(false);
   const paymentsRef = useRef<HTMLDivElement>(null);
 
   const pendingUsdtPayment = payments.find((p) => p.method === "USDT" && p.status === "PENDING");
 
   async function load() {
     if (!teamId) return;
-    const [subRes, payRes, methodsRes] = await Promise.all([
+    const [subRes, payRes, methodsRes, aiRes, pricingRes] = await Promise.all([
       fetch(`/api/billing/subscription?teamId=${teamId}`),
       fetch(`/api/billing/payments?teamId=${teamId}`),
       fetch("/api/billing/payment-methods"),
+      fetch(`/api/ai/generate?teamId=${teamId}`),
+      fetch("/api/ai/pricing"),
     ]);
     const subData = await subRes.json();
     const payData = await payRes.json();
     const methodsData = await methodsRes.json();
+    const aiData = await aiRes.json();
+    const pricingData = await pricingRes.json();
     setSubscription(subData.subscription || null);
     setPayments(payData.payments || []);
     if (methodsRes.ok) setUsdtWallet(methodsData.usdtWallet || "");
+    if (aiRes.ok) {
+      setAiBalanceCents(aiData.balanceCents || 0);
+      setAiEnabled(aiData.aiEnabled);
+    }
+    if (pricingRes.ok && pricingData.settings) {
+      setAiPackUsd(pricingData.settings.creditPackUsd || 10);
+      setAiCreditsCents(pricingData.settings.creditsPerPackCents || 1000);
+    }
   }
 
   useEffect(() => {
@@ -85,6 +103,26 @@ export default function BillingPage() {
     await load();
   }
 
+  async function buyAiCredits(method: "USDT" | "PAYPAL" | "GCASH") {
+    if (!teamId) return;
+    setBuyingCredits(true);
+    setStatus("");
+    const res = await fetch("/api/billing/ai-credits", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ teamId, method }),
+    });
+    const data = await res.json();
+    setBuyingCredits(false);
+    if (!res.ok) {
+      setStatus(data.error || "Could not start AI credit purchase");
+      return;
+    }
+    setStatus(`AI credit payment created. Complete ${method} payment below.`);
+    await load();
+    paymentsRef.current?.scrollIntoView({ behavior: "smooth" });
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -110,6 +148,33 @@ export default function BillingPage() {
           )}
         </CardContent>
       </Card>
+
+      {aiEnabled ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>AI credits</CardTitle>
+            <CardDescription>
+              Balance: ${(aiBalanceCents / 100).toFixed(2)} — used for AI caption and image generation in Compose
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              ${aiPackUsd} pack adds ${(aiCreditsCents / 100).toFixed(2)} in credits (prices set by admin).
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" disabled={buyingCredits} onClick={() => buyAiCredits("USDT")}>
+                Buy with USDT
+              </Button>
+              <Button size="sm" variant="secondary" disabled={buyingCredits} onClick={() => buyAiCredits("PAYPAL")}>
+                Buy with PayPal
+              </Button>
+              <Button size="sm" variant="outline" disabled={buyingCredits} onClick={() => buyAiCredits("GCASH")}>
+                Buy with GCash
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {pendingUsdtPayment?.usdtAmount && usdtWallet ? (
         <UsdtPaymentHighlight
@@ -142,7 +207,7 @@ export default function BillingPage() {
               <div key={payment.id} className="space-y-2 rounded border p-3 text-sm">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p>{payment.method} - ${payment.amount}</p>
+                    <p>{payment.method} - ${payment.amount}{payment.purpose === "AI_CREDITS" ? " (AI credits)" : ""}</p>
                     {payment.usdtAmount ? (
                       <p className="text-muted-foreground">USDT amount: {payment.usdtAmount}</p>
                     ) : null}

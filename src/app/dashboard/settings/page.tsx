@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTeam } from "@/components/dashboard/team-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,41 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordStatus, setPasswordStatus] = useState("");
   const [changing, setChanging] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiBalanceCents, setAiBalanceCents] = useState(0);
+  const [platformAiEnabled, setPlatformAiEnabled] = useState(false);
+  const [aiSaving, setAiSaving] = useState(false);
+  const [aiStatus, setAiStatus] = useState("");
+
+  useEffect(() => {
+    if (!teamId) return;
+    fetch(`/api/ai/generate?teamId=${teamId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.teamAiEnabled !== undefined) setAiEnabled(data.teamAiEnabled);
+        if (data.balanceCents !== undefined) setAiBalanceCents(data.balanceCents);
+        if (data.aiEnabled !== undefined) setPlatformAiEnabled(data.aiEnabled);
+      });
+  }, [teamId]);
+
+  async function toggleAi(enabled: boolean) {
+    if (!teamId) return;
+    setAiSaving(true);
+    setAiStatus("");
+    const res = await fetch("/api/teams/ai", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ teamId, aiEnabled: enabled }),
+    });
+    const data = await res.json();
+    setAiSaving(false);
+    if (!res.ok) {
+      setAiStatus(data.error || "Failed to update AI setting");
+      return;
+    }
+    setAiEnabled(data.team.aiEnabled);
+    setAiStatus(enabled ? "AI enabled for this workspace" : "AI disabled");
+  }
 
   async function changePassword() {
     if (!currentPassword || !newPassword) {
@@ -85,6 +120,36 @@ export default function SettingsPage() {
         <CardContent className="flex items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground">Theme preference is saved on this device.</p>
           <ThemeSelect />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>AI generation</CardTitle>
+          <CardDescription>
+            Allow AI to auto-generate post captions and images using your credit balance
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!platformAiEnabled ? (
+            <p className="text-sm text-muted-foreground">AI is not enabled on this platform yet.</p>
+          ) : (
+            <>
+              <p className="text-sm">
+                Credit balance: <strong>${(aiBalanceCents / 100).toFixed(2)}</strong>
+              </p>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={aiEnabled}
+                  disabled={aiSaving}
+                  onChange={(e) => toggleAi(e.target.checked)}
+                />
+                Enable AI for this workspace
+              </label>
+              {aiStatus ? <p className="text-sm text-muted-foreground">{aiStatus}</p> : null}
+            </>
+          )}
         </CardContent>
       </Card>
 

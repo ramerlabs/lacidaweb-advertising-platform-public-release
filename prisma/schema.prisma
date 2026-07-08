@@ -131,6 +131,8 @@ model Team {
   name             String
   slug             String   @unique
   zernioProfileId  String?  @unique
+  aiEnabled        Boolean  @default(false)
+  aiBalanceCents   Int      @default(0)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -144,6 +146,7 @@ model Team {
   subscription        Subscription?
   payments            Payment[]
   supportTickets      SupportTicket[]
+  aiUsageLogs         AiUsageLog[]
 }
 
 model TeamMember {
@@ -334,6 +337,8 @@ model Payment {
   currency       String        @default("USD")
   usdtAmount     Float?
   interval       BillingInterval @default(MONTHLY)
+  purpose        String        @default("SUBSCRIPTION")
+  aiCreditsCents Int?
   externalRef    String?
   txHash         String?       @unique
   notes          String?       @db.Text
@@ -401,6 +406,8 @@ model SiteSettings {
   product                    String?
   description                String?  @db.Text
   logoUrl                    String?
+  logoDarkUrl                String?
+  logoHeightPx               Int      @default(40)
   faviconUrl                 String?
   activityFeedDisplayCount   Int      @default(20)
   activityFeedSimulatedEnabled Boolean @default(true)
@@ -428,7 +435,30 @@ model IntegrationSettings {
   smtpFromEmail           String?
   smtpFromName            String?
   smtpFallbackTelegram    Boolean @default(true)
+  openaiApiKey            String?
+  aiEnabled               Boolean @default(false)
+  aiProfitMarginPercent   Int     @default(80)
+  aiTextInputCostPerMillion  Float @default(0.15)
+  aiTextOutputCostPerMillion Float @default(0.60)
+  aiImageCostUsd          Float   @default(0.04)
+  aiCreditPackUsd         Float   @default(10)
+  aiCreditsPerPackCents   Int     @default(1000)
   updatedAt           DateTime @updatedAt
+}
+
+model AiUsageLog {
+  id                String   @id @default(cuid())
+  teamId            String
+  type              String
+  providerCostCents Int
+  chargedCents      Int
+  promptTokens      Int?
+  completionTokens  Int?
+  createdAt         DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, createdAt])
 }
 
 model Faq {

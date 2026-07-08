@@ -40,9 +40,7 @@ export function Sidebar() {
   return (
     <aside className="flex h-full w-64 flex-col border-r bg-card">
       <div className="border-b px-5 py-5">
-        <SiteLogo branding={branding} textClassName="text-xs font-semibold uppercase tracking-[0.2em] text-primary" />
-        <div className="mt-1 text-lg font-semibold">{branding.product}</div>
-        <p className="mt-1 text-xs text-muted-foreground">{branding.domain}</p>
+        <SiteLogo branding={branding} />
       </div>
       <nav className="flex-1 space-y-1 p-3">
         {links.map((link) => {

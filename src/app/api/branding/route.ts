@@ -10,6 +10,8 @@ export async function GET() {
         product: settings.product,
         description: settings.description,
         logoUrl: settings.logoUrl,
+        logoDarkUrl: settings.logoDarkUrl,
+        logoHeightPx: settings.logoHeightPx,
         faviconUrl: settings.faviconUrl,
         domain: settings.domain,
         tagline: settings.tagline,

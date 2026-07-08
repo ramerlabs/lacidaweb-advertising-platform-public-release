@@ -1,26 +1,30 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePlatformAdmin, requireSession } from "@/lib/auth";
-import { getSiteSettings, updateSiteSettings } from "@/lib/site-settings";
+import { getAiSettings, updateAiSettings } from "@/lib/ai-settings";
 
 const schema = z.object({
-  title: z.string().min(1).max(120).optional(),
-  product: z.string().min(1).max(120).optional(),
-  description: z.string().min(1).max(2000).optional(),
-  logoUrl: z.string().url().or(z.literal("")).optional(),
-  logoDarkUrl: z.string().url().or(z.literal("")).optional(),
-  logoHeightPx: z.number().int().min(24).max(120).optional(),
-  faviconUrl: z.string().url().or(z.literal("")).optional(),
-  activityFeedDisplayCount: z.number().int().min(20).max(100).optional(),
-  activityFeedSimulatedEnabled: z.boolean().optional(),
+  openaiApiKey: z.string().optional(),
+  aiEnabled: z.boolean().optional(),
+  aiProfitMarginPercent: z.number().int().min(0).max(99).optional(),
+  aiTextInputCostPerMillion: z.number().min(0).optional(),
+  aiTextOutputCostPerMillion: z.number().min(0).optional(),
+  aiImageCostUsd: z.number().min(0).optional(),
+  aiCreditPackUsd: z.number().min(1).optional(),
+  aiCreditsPerPackCents: z.number().int().min(100).optional(),
 });
 
 export async function GET() {
   try {
     const session = await requireSession();
     await requirePlatformAdmin(session.user.id);
-    const settings = await getSiteSettings();
-    return NextResponse.json({ settings });
+    const settings = await getAiSettings();
+    return NextResponse.json({
+      settings: {
+        ...settings,
+        openaiApiKey: undefined,
+      },
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed";
     const status = message === "UNAUTHORIZED" ? 401 : message === "FORBIDDEN" ? 403 : 400;
@@ -33,8 +37,13 @@ export async function PATCH(req: Request) {
     const session = await requireSession();
     await requirePlatformAdmin(session.user.id);
     const body = schema.parse(await req.json());
-    const settings = await updateSiteSettings(body);
-    return NextResponse.json({ settings });
+    const settings = await updateAiSettings(body);
+    return NextResponse.json({
+      settings: {
+        ...settings,
+        openaiApiKey: undefined,
+      },
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed";
     const status = message === "UNAUTHORIZED" ? 401 : message === "FORBIDDEN" ? 403 : 400;

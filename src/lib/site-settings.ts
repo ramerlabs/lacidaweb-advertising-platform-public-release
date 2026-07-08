@@ -6,6 +6,8 @@ export type SiteSettingsData = {
   product: string;
   description: string;
   logoUrl: string;
+  logoDarkUrl: string;
+  logoHeightPx: number;
   faviconUrl: string;
   domain: string;
   tagline: string;
@@ -32,6 +34,8 @@ const DEFAULTS: SiteSettingsData = {
   product: brand.product,
   description: brand.positioning,
   logoUrl: brand.logoUrl,
+  logoDarkUrl: "",
+  logoHeightPx: 40,
   faviconUrl: brand.faviconUrl,
   activityFeedDisplayCount: 20,
   activityFeedSimulatedEnabled: true,
@@ -44,6 +48,8 @@ function mergeSettings(
     product: string | null;
     description: string | null;
     logoUrl: string | null;
+    logoDarkUrl?: string | null;
+    logoHeightPx?: number | null;
     faviconUrl: string | null;
     activityFeedDisplayCount?: number | null;
     activityFeedSimulatedEnabled?: boolean | null;
@@ -56,6 +62,8 @@ function mergeSettings(
     product: row.product?.trim() || DEFAULTS.product,
     description: row.description?.trim() || DEFAULTS.description,
     logoUrl: row.logoUrl?.trim() || DEFAULTS.logoUrl,
+    logoDarkUrl: row.logoDarkUrl?.trim() || DEFAULTS.logoDarkUrl,
+    logoHeightPx: Math.min(120, Math.max(24, row.logoHeightPx ?? DEFAULTS.logoHeightPx)),
     faviconUrl: row.faviconUrl?.trim() || DEFAULTS.faviconUrl,
     activityFeedDisplayCount: Math.max(20, row.activityFeedDisplayCount ?? DEFAULTS.activityFeedDisplayCount),
     activityFeedSimulatedEnabled: row.activityFeedSimulatedEnabled ?? DEFAULTS.activityFeedSimulatedEnabled,
@@ -99,6 +107,8 @@ export async function updateSiteSettings(
       | "product"
       | "description"
       | "logoUrl"
+      | "logoDarkUrl"
+      | "logoHeightPx"
       | "faviconUrl"
       | "activityFeedDisplayCount"
       | "activityFeedSimulatedEnabled"
@@ -115,6 +125,8 @@ export async function updateSiteSettings(
     product: input.product?.trim() ?? current.product,
     description: input.description?.trim() ?? current.description,
     logoUrl: input.logoUrl?.trim() ?? current.logoUrl,
+    logoDarkUrl: input.logoDarkUrl?.trim() ?? current.logoDarkUrl,
+    logoHeightPx: Math.min(120, Math.max(24, input.logoHeightPx ?? current.logoHeightPx)),
     faviconUrl: input.faviconUrl?.trim() ?? current.faviconUrl,
     activityFeedDisplayCount: Math.max(
       20,
@@ -132,6 +144,8 @@ export async function updateSiteSettings(
       product: next.product || null,
       description: next.description || null,
       logoUrl: next.logoUrl || null,
+      logoDarkUrl: next.logoDarkUrl || null,
+      logoHeightPx: next.logoHeightPx,
       faviconUrl: next.faviconUrl || null,
       activityFeedDisplayCount: next.activityFeedDisplayCount,
       activityFeedSimulatedEnabled: next.activityFeedSimulatedEnabled,
@@ -141,6 +155,8 @@ export async function updateSiteSettings(
       product: next.product || null,
       description: next.description || null,
       logoUrl: next.logoUrl || null,
+      logoDarkUrl: next.logoDarkUrl || null,
+      logoHeightPx: next.logoHeightPx,
       faviconUrl: next.faviconUrl || null,
       activityFeedDisplayCount: next.activityFeedDisplayCount,
       activityFeedSimulatedEnabled: next.activityFeedSimulatedEnabled,

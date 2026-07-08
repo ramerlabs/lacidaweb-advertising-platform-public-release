@@ -11,6 +11,8 @@ const updateSchema = z.object({
   name: z.string().min(1).max(120).optional(),
   email: z.string().email().optional(),
   planId: z.enum(["starter", "growth", "scale"]).optional(),
+  aiBalanceCents: z.number().int().min(0).optional(),
+  addAiCreditsCents: z.number().int().min(0).optional(),
   subscriptionStatus: z.enum(["TRIAL", "ACTIVE", "PAST_DUE", "CANCELED"]).optional(),
   interval: z.enum(["MONTHLY", "YEARLY"]).optional(),
   banned: z.boolean().optional(),
@@ -152,6 +154,24 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ userId
       }
     }
 
+    let aiBalanceCents: number | undefined;
+    if (team && (body.aiBalanceCents !== undefined || body.addAiCreditsCents !== undefined)) {
+      const current = await prisma.team.findUnique({
+        where: { id: team.id },
+        select: { aiBalanceCents: true },
+      });
+      const nextBalance =
+        body.aiBalanceCents !== undefined
+          ? body.aiBalanceCents
+          : (current?.aiBalanceCents || 0) + (body.addAiCreditsCents || 0);
+      const updatedTeam = await prisma.team.update({
+        where: { id: team.id },
+        data: { aiBalanceCents: nextBalance },
+        select: { aiBalanceCents: true },
+      });
+      aiBalanceCents = updatedTeam.aiBalanceCents;
+    }
+
     let emailResult: { ok: boolean; method?: string } | null = null;
     if (generatedPassword && body.sendPasswordEmail !== false) {
       emailResult = await sendPasswordResetEmail({
@@ -172,6 +192,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ userId
         banReason: updated.banReason,
       },
       subscription,
+      aiBalanceCents,
       newPassword:
         generatedPassword && (body.sendPasswordEmail === false || !emailResult?.ok)
           ? generatedPassword

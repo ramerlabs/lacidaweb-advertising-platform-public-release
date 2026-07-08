@@ -8,6 +8,8 @@ export type PublicBranding = {
   product: string;
   description: string;
   logoUrl: string;
+  logoDarkUrl: string;
+  logoHeightPx: number;
   faviconUrl: string;
   domain: string;
   tagline: string;
@@ -18,6 +20,8 @@ const FALLBACK: PublicBranding = {
   product: brand.product,
   description: brand.positioning,
   logoUrl: "",
+  logoDarkUrl: "",
+  logoHeightPx: 40,
   faviconUrl: "",
   domain: brand.domain,
   tagline: brand.tagline,

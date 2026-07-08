@@ -8,12 +8,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Sparkles } from "lucide-react";
+import Link from "next/link";
 
 type ConnectedAccount = {
   id: string;
   platform: string;
   username: string | null;
   displayName: string | null;
+};
+
+type AiState = {
+  aiEnabled: boolean;
+  teamAiEnabled: boolean;
+  balanceCents: number;
+  pricing: {
+    estimatedTextPostUsd: number;
+    estimatedImageUsd: number;
+  };
 };
 
 export default function ComposePage() {
@@ -29,12 +41,22 @@ export default function ComposePage() {
   const [status, setStatus] = useState("");
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [imagePrompt, setImagePrompt] = useState("");
+  const [aiState, setAiState] = useState<AiState | null>(null);
+  const [generatingText, setGeneratingText] = useState(false);
+  const [generatingImage, setGeneratingImage] = useState(false);
 
   useEffect(() => {
     if (!teamId) return;
     fetch(`/api/accounts?teamId=${teamId}`)
       .then((r) => r.json())
       .then((data) => setAccounts(data.accounts || []));
+    fetch(`/api/ai/generate?teamId=${teamId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.balanceCents !== undefined) setAiState(data);
+      });
   }, [teamId]);
 
   const selectedAccounts = useMemo(
@@ -60,6 +82,49 @@ export default function ComposePage() {
 
   function toggleAccount(id: string) {
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  const aiReady = aiState?.aiEnabled && aiState?.teamAiEnabled;
+
+  async function generateText() {
+    if (!teamId || !aiPrompt.trim()) return;
+    setGeneratingText(true);
+    setStatus("");
+    const platform = selectedAccounts[0]?.platform;
+    const res = await fetch("/api/ai/generate?action=text", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ teamId, prompt: aiPrompt, platform }),
+    });
+    const data = await res.json();
+    setGeneratingText(false);
+    if (!res.ok) {
+      setStatus(data.error || "AI text generation failed");
+      return;
+    }
+    setContent(data.text);
+    setAiState((s) => (s ? { ...s, balanceCents: data.balanceCents } : s));
+    setStatus(`Caption generated ($${(data.chargedCents / 100).toFixed(2)} charged)`);
+  }
+
+  async function generateImage() {
+    if (!teamId || !imagePrompt.trim()) return;
+    setGeneratingImage(true);
+    setStatus("");
+    const res = await fetch("/api/ai/generate?action=image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ teamId, prompt: imagePrompt }),
+    });
+    const data = await res.json();
+    setGeneratingImage(false);
+    if (!res.ok) {
+      setStatus(data.error || "AI image generation failed");
+      return;
+    }
+    setMediaUrl(data.imageUrl);
+    setAiState((s) => (s ? { ...s, balanceCents: data.balanceCents } : s));
+    setStatus(`Image generated ($${(data.chargedCents / 100).toFixed(2)} charged)`);
   }
 
   async function onUpload(file: File) {
@@ -166,6 +231,91 @@ export default function ComposePage() {
                 placeholder="Write your marketing copy..."
               />
             </div>
+
+            {aiState?.aiEnabled ? (
+              <Card className="border-dashed bg-muted/30">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Sparkles className="h-4 w-4" />
+                    AI assistant
+                  </CardTitle>
+                  <CardDescription>
+                    {aiReady ? (
+                      <>
+                        Balance: <strong>${(aiState.balanceCents / 100).toFixed(2)}</strong> · Est. caption ~$
+                        {aiState.pricing.estimatedTextPostUsd.toFixed(3)} · image ~$
+                        {aiState.pricing.estimatedImageUsd.toFixed(2)}
+                      </>
+                    ) : (
+                      <>
+                        Enable AI in{" "}
+                        <Link href="/dashboard/settings" className="text-primary underline">
+                          Settings
+                        </Link>{" "}
+                        to use generation.
+                      </>
+                    )}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="ai-prompt">Generate caption</Label>
+                    <Textarea
+                      id="ai-prompt"
+                      rows={2}
+                      value={aiPrompt}
+                      onChange={(e) => setAiPrompt(e.target.value)}
+                      placeholder="e.g. Promote our new digital banking app for small businesses..."
+                      disabled={!aiReady}
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      disabled={!aiReady || generatingText || !aiPrompt.trim()}
+                      onClick={generateText}
+                    >
+                      {generatingText ? "Generating..." : "Generate text"}
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ai-image">Generate image</Label>
+                    <Textarea
+                      id="ai-image"
+                      rows={2}
+                      value={imagePrompt}
+                      onChange={(e) => setImagePrompt(e.target.value)}
+                      placeholder="e.g. Modern fintech app on a phone, purple gradient, professional..."
+                      disabled={!aiReady}
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      disabled={!aiReady || generatingImage || !imagePrompt.trim()}
+                      onClick={generateImage}
+                    >
+                      {generatingImage ? "Generating..." : "Generate image"}
+                    </Button>
+                  </div>
+                  {!aiReady ? (
+                    <p className="text-xs text-muted-foreground">
+                      <Link href="/dashboard/billing" className="text-primary underline">
+                        Buy AI credits
+                      </Link>{" "}
+                      in Billing when your balance runs low.
+                    </p>
+                  ) : aiState.balanceCents < 50 ? (
+                    <p className="text-xs text-amber-700">
+                      Low balance.{" "}
+                      <Link href="/dashboard/billing" className="underline">
+                        Buy AI credits
+                      </Link>
+                    </p>
+                  ) : null}
+                </CardContent>
+              </Card>
+            ) : null}
 
             <div className="space-y-2">
               <Label htmlFor="media">Media file</Label>
