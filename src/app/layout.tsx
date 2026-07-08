@@ -8,11 +8,30 @@ const inter = Inter({ subsets: ["latin"] });
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSiteSettings();
+  const title = `${settings.title} — ${settings.product}`;
+  const ogImage = "/branding/og.png";
   return {
-    title: `${settings.title} — ${settings.product}`,
+    title,
     description: settings.description,
     metadataBase: new URL(settings.url),
-    icons: settings.faviconUrl ? { icon: settings.faviconUrl } : undefined,
+    icons: {
+      icon: settings.faviconUrl || "/branding/icon.png",
+      apple: settings.faviconUrl || "/branding/icon.png",
+    },
+    openGraph: {
+      title,
+      description: settings.description,
+      url: settings.url,
+      siteName: settings.title,
+      images: [{ url: ogImage, width: 1200, height: 630, alt: settings.title }],
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description: settings.description,
+      images: [ogImage],
+    },
   };
 }
 

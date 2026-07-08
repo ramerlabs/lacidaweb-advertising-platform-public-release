@@ -1,6 +1,8 @@
-# Pulse — Multi-tenant Social Media Automation SaaS
+# VCC & Bank — Digital Growth Suite
 
-Production-ready scaffold for a Zernio-powered social automation platform.
+![VCC & Bank](public/branding/og.png)
+
+Multi-tenant social publishing and engagement SaaS for [vccandbank.com](https://vccandbank.com).
 
 **Stack:** Next.js 15 · TypeScript · Tailwind CSS · Prisma · PostgreSQL · NextAuth · Recharts · `@zernio/node`
 
