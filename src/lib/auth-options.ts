@@ -6,14 +6,20 @@ import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/utils";
 import { ensureTeamZernioProfile } from "@/services/profiles";
 
+const useSecureCookies = process.env.NODE_ENV === "production";
+const cookieDomain = process.env.NEXTAUTH_COOKIE_DOMAIN?.trim() || undefined;
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as NextAuthOptions["adapter"],
   session: { strategy: "jwt" },
+  secret: process.env.NEXTAUTH_SECRET,
+  // Allow both apex and www behind Vercel; set NEXTAUTH_URL to your primary domain.
   pages: {
     signIn: "/login",
   },
   providers: [
     CredentialsProvider({
+      id: "credentials",
       name: "credentials",
       credentials: {
         email: { label: "Email", type: "email" },
@@ -23,7 +29,7 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || !credentials.password) return null;
 
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase() },
+          where: { email: credentials.email.toLowerCase().trim() },
         });
 
         if (!user?.passwordHash) return null;
@@ -44,10 +50,25 @@ export const authOptions: NextAuthOptions = {
       },
     }),
   ],
+  cookies: {
+    sessionToken: {
+      name: useSecureCookies
+        ? "__Secure-next-auth.session-token"
+        : "next-auth.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: useSecureCookies,
+        domain: cookieDomain,
+      },
+    },
+  },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
+        token.banned = false;
       }
 
       if (token.id) {
@@ -56,10 +77,13 @@ export const authOptions: NextAuthOptions = {
             where: { id: String(token.id) },
             select: { bannedAt: true },
           });
-          token.banned = Boolean(dbUser?.bannedAt);
-          if (!dbUser) token.banned = true;
+          // Only mark banned when we positively know the user is banned.
+          // Do not wipe sessions on transient DB misses.
+          if (dbUser) {
+            token.banned = Boolean(dbUser.bannedAt);
+          }
         } catch {
-          // DB hiccup — do not ban on transient errors
+          // DB hiccup — keep existing session
         }
       }
 

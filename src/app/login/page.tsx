@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,7 +11,6 @@ import { useSiteBranding } from "@/hooks/use-site-branding";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function LoginPage() {
-  const router = useRouter();
   const { branding } = useSiteBranding();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,7 +32,7 @@ export default function LoginPage() {
     setError("");
     setBanReason("");
     const res = await signIn("credentials", {
-      email,
+      email: email.trim().toLowerCase(),
       password,
       redirect: false,
     });
@@ -43,7 +41,7 @@ export default function LoginPage() {
       const banRes = await fetch("/api/auth/ban-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
       });
       const banData = await banRes.json().catch(() => ({ banned: false, banReason: null }));
       if (banData.banned) {
@@ -54,7 +52,23 @@ export default function LoginPage() {
       }
       return;
     }
-    router.push("/dashboard");
+
+    // Full navigation so the session cookie is applied (SPA push can race cookies,
+    // especially across www vs apex domains).
+    const params = new URLSearchParams(window.location.search);
+    const callbackUrl = params.get("callbackUrl");
+    let nextPath = "/dashboard";
+    if (callbackUrl) {
+      try {
+        const url = new URL(callbackUrl, window.location.origin);
+        if (url.origin === window.location.origin) {
+          nextPath = `${url.pathname}${url.search}${url.hash}` || "/dashboard";
+        }
+      } catch {
+        if (callbackUrl.startsWith("/")) nextPath = callbackUrl;
+      }
+    }
+    window.location.assign(nextPath);
   }
 
   return (
