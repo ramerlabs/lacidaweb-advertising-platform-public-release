@@ -12,17 +12,8 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "10mb",
     },
   },
-  async redirects() {
-    return [
-      // Keep auth cookies on one host (apex). Avoid www <-> apex session loss.
-      {
-        source: "/:path*",
-        has: [{ type: "host", value: "www.vccandbank.com" }],
-        destination: "https://vccandbank.com/:path*",
-        permanent: false,
-      },
-    ];
-  },
+  // Do NOT redirect www <-> apex here. Vercel Domains already handles that.
+  // App-level redirects cause ERR_TOO_MANY_REDIRECTS when they conflict.
 };
 
 export default nextConfig;
