@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useTeam } from "@/components/dashboard/team-provider";
 import { PlanPricingGrid } from "@/components/dashboard/plan-pricing-grid";
 import { UsdtPaymentHighlight } from "@/components/billing/usdt-payment-highlight";
+import { ManualPaymentHighlight } from "@/components/billing/manual-payment-highlight";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,9 +25,19 @@ type Payment = {
   status: string;
   amount: number;
   purpose?: string;
+  aiCreditsCents?: number | null;
   usdtAmount?: number | null;
   txHash?: string | null;
   notes?: string | null;
+  createdAt: string;
+};
+
+type AiUsage = {
+  id: string;
+  type: string;
+  chargedCents: number;
+  promptTokens: number | null;
+  completionTokens: number | null;
   createdAt: string;
 };
 
@@ -43,24 +54,33 @@ export default function BillingPage() {
   const [aiCreditsCents, setAiCreditsCents] = useState(1000);
   const [aiEnabled, setAiEnabled] = useState(false);
   const [buyingCredits, setBuyingCredits] = useState(false);
+  const [pendingManual, setPendingManual] = useState<{
+    method: "PAYPAL" | "GCASH";
+    amountUsd: number;
+    creditsUsd: number;
+    instructions: string;
+  } | null>(null);
+  const [aiUsage, setAiUsage] = useState<AiUsage[]>([]);
   const paymentsRef = useRef<HTMLDivElement>(null);
 
   const pendingUsdtPayment = payments.find((p) => p.method === "USDT" && p.status === "PENDING");
 
   async function load() {
     if (!teamId) return;
-    const [subRes, payRes, methodsRes, aiRes, pricingRes] = await Promise.all([
+    const [subRes, payRes, methodsRes, aiRes, pricingRes, usageRes] = await Promise.all([
       fetch(`/api/billing/subscription?teamId=${teamId}`),
       fetch(`/api/billing/payments?teamId=${teamId}`),
       fetch("/api/billing/payment-methods"),
       fetch(`/api/ai/generate?teamId=${teamId}`),
       fetch("/api/ai/pricing"),
+      fetch(`/api/ai/usage?teamId=${teamId}`),
     ]);
     const subData = await subRes.json();
     const payData = await payRes.json();
     const methodsData = await methodsRes.json();
     const aiData = await aiRes.json();
     const pricingData = await pricingRes.json();
+    const usageData = await usageRes.json();
     setSubscription(subData.subscription || null);
     setPayments(payData.payments || []);
     if (methodsRes.ok) setUsdtWallet(methodsData.usdtWallet || "");
@@ -72,6 +92,7 @@ export default function BillingPage() {
       setAiPackUsd(pricingData.settings.creditPackUsd || 10);
       setAiCreditsCents(pricingData.settings.creditsPerPackCents || 1000);
     }
+    if (usageRes.ok) setAiUsage(usageData.usage || []);
   }
 
   useEffect(() => {
@@ -99,7 +120,12 @@ export default function BillingPage() {
       setStatus(data.error || "Verification failed");
       return;
     }
-    setStatus(data.message || "Payment verified. Your subscription is now active.");
+    setStatus(
+      data.message ||
+        (data.payment?.purpose === "AI_CREDITS"
+          ? "Payment verified. AI credits added to your balance."
+          : "Payment verified. Your subscription is now active."),
+    );
     await load();
   }
 
@@ -118,7 +144,19 @@ export default function BillingPage() {
       setStatus(data.error || "Could not start AI credit purchase");
       return;
     }
-    setStatus(`AI credit payment created. Complete ${method} payment below.`);
+    const creditsUsd = (data.aiCreditsCents || aiCreditsCents) / 100;
+    if (method === "USDT") {
+      setPendingManual(null);
+      setStatus(`Pay ${data.usdtAmount} USDT — see payment details below. You will receive $${creditsUsd.toFixed(2)} in credits after verification.`);
+    } else {
+      setPendingManual({
+        method,
+        amountUsd: data.payment?.amount || aiPackUsd,
+        creditsUsd,
+        instructions: data.instructions || data.payment?.notes || "",
+      });
+      setStatus("");
+    }
     await load();
     paymentsRef.current?.scrollIntoView({ behavior: "smooth" });
   }
@@ -158,8 +196,9 @@ export default function BillingPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              ${aiPackUsd} pack adds ${(aiCreditsCents / 100).toFixed(2)} in credits (prices set by admin).
+            <p className="text-sm">
+              Pay <strong>${aiPackUsd.toFixed(2)}</strong> → receive{" "}
+              <strong>${(aiCreditsCents / 100).toFixed(2)}</strong> in AI credits (usable in Compose).
             </p>
             <div className="flex flex-wrap gap-2">
               <Button size="sm" disabled={buyingCredits} onClick={() => buyAiCredits("USDT")}>
@@ -172,6 +211,40 @@ export default function BillingPage() {
                 Buy with GCash
               </Button>
             </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {pendingManual ? (
+        <ManualPaymentHighlight
+          method={pendingManual.method}
+          amountUsd={pendingManual.amountUsd}
+          creditsUsd={pendingManual.creditsUsd}
+          instructions={pendingManual.instructions}
+        />
+      ) : null}
+
+      {aiEnabled && aiUsage.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>AI usage history</CardTitle>
+            <CardDescription>Recent text and image generations charged to your balance</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {aiUsage.slice(0, 10).map((row) => (
+              <div key={row.id} className="flex items-center justify-between rounded border px-3 py-2 text-sm">
+                <div>
+                  <p className="font-medium capitalize">{row.type}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(row.createdAt).toLocaleString()}
+                    {row.type === "text" && row.promptTokens
+                      ? ` · ${row.promptTokens + (row.completionTokens || 0)} tokens`
+                      : ""}
+                  </p>
+                </div>
+                <p className="font-medium">-${(row.chargedCents / 100).toFixed(2)}</p>
+              </div>
+            ))}
           </CardContent>
         </Card>
       ) : null}
@@ -208,6 +281,12 @@ export default function BillingPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p>{payment.method} - ${payment.amount}{payment.purpose === "AI_CREDITS" ? " (AI credits)" : ""}</p>
+                    {payment.purpose === "AI_CREDITS" && payment.aiCreditsCents ? (
+                      <p className="text-muted-foreground">
+                        Credits: ${(payment.aiCreditsCents / 100).toFixed(2)}
+                        {payment.status === "PAID" ? " — added to your balance" : " — pending approval"}
+                      </p>
+                    ) : null}
                     {payment.usdtAmount ? (
                       <p className="text-muted-foreground">USDT amount: {payment.usdtAmount}</p>
                     ) : null}
@@ -237,7 +316,9 @@ export default function BillingPage() {
                   <p className="break-all text-xs text-muted-foreground">TX: {payment.txHash}</p>
                 ) : null}
                 {payment.notes && payment.status === "PENDING" ? (
-                  <p className="text-xs text-muted-foreground">{payment.notes}</p>
+                  <pre className="whitespace-pre-wrap rounded bg-muted/50 p-2 text-xs text-muted-foreground">
+                    {payment.notes}
+                  </pre>
                 ) : null}
               </div>
             ))

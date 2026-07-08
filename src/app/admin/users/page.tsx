@@ -19,6 +19,7 @@ type AdminUser = {
     id: string;
     name: string;
     slug: string;
+    aiBalanceCents: number;
     connectedAccounts: number;
     posts: number;
   } | null;
@@ -54,6 +55,8 @@ export default function AdminUsersPage() {
   const [newPassword, setNewPassword] = useState("");
   const [sendPasswordEmail, setSendPasswordEmail] = useState(true);
   const [banReason, setBanReason] = useState("");
+  const [aiBalance, setAiBalance] = useState("");
+  const [addAiCredits, setAddAiCredits] = useState("");
 
   const selected = useMemo(
     () => users.find((u) => u.id === selectedId) || bannedUsers.find((u) => u.id === selectedId) || null,
@@ -103,6 +106,12 @@ export default function AdminUsersPage() {
     setIntervalBilling((selected.subscription?.interval as "MONTHLY" | "YEARLY") || "MONTHLY");
     setBanReason(selected.banReason || "");
     setNewPassword("");
+    setAiBalance(
+      selected.team?.aiBalanceCents !== undefined
+        ? (selected.team.aiBalanceCents / 100).toFixed(2)
+        : "0.00",
+    );
+    setAddAiCredits("");
   }, [selected]);
 
   async function save(patch: Record<string, unknown>, userId = selectedId) {
@@ -146,6 +155,18 @@ export default function AdminUsersPage() {
     setStatus("User unbanned");
     if (selectedId === userId) setSelectedId(null);
     await refresh();
+  }
+
+  async function saveAiCredits() {
+    const balance = Number(aiBalance);
+    const add = Number(addAiCredits);
+    if (!Number.isNaN(balance) && aiBalance.trim() !== "") {
+      await save({ aiBalanceCents: Math.round(balance * 100) });
+      return;
+    }
+    if (!Number.isNaN(add) && add > 0) {
+      await save({ addAiCreditsCents: Math.round(add * 100) });
+    }
   }
 
   async function saveProfile() {
@@ -367,6 +388,54 @@ export default function AdminUsersPage() {
                     </div>
                     <Button onClick={saveProfile} disabled={saving}>
                       {saving ? "Saving..." : "Save profile & plan"}
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>AI credits</CardTitle>
+                    <CardDescription>
+                      Manually set or add AI token balance for this client&apos;s workspace
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-sm">
+                      Current balance:{" "}
+                      <strong>
+                        ${((selected.team?.aiBalanceCents || 0) / 100).toFixed(2)}
+                      </strong>
+                    </p>
+                    <div className="space-y-2">
+                      <Label>Set balance (USD)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        value={aiBalance}
+                        onChange={(e) => setAiBalance(e.target.value)}
+                        placeholder="e.g. 10.00"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Replaces the current balance with this exact amount.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Or add credits (USD)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        value={addAiCredits}
+                        onChange={(e) => setAddAiCredits(e.target.value)}
+                        placeholder="e.g. 5.00"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Adds to the current balance instead of replacing it.
+                      </p>
+                    </div>
+                    <Button variant="outline" onClick={saveAiCredits} disabled={saving}>
+                      {saving ? "Saving..." : "Update AI credits"}
                     </Button>
                   </CardContent>
                 </Card>

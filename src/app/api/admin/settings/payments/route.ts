@@ -8,6 +8,8 @@ const schema = z.object({
   paypalEnabled: z.boolean().optional(),
   gcashEnabled: z.boolean().optional(),
   usdtTrc20Wallet: z.string().optional(),
+  paypalEmail: z.string().optional(),
+  gcashNumber: z.string().optional(),
   usdtInstructions: z.string().optional(),
   paypalInstructions: z.string().optional(),
   gcashInstructions: z.string().optional(),

@@ -13,6 +13,8 @@ type PaymentSettings = {
   paypalEnabled: boolean;
   gcashEnabled: boolean;
   usdtTrc20Wallet: string;
+  paypalEmail: string;
+  gcashNumber: string;
   usdtInstructions: string;
   paypalInstructions: string;
   gcashInstructions: string;
@@ -52,6 +54,8 @@ export default function AdminPaymentSettingsPage() {
     paypalEnabled: true,
     gcashEnabled: true,
     usdtTrc20Wallet: "",
+    paypalEmail: "",
+    gcashNumber: "",
     usdtInstructions: "",
     paypalInstructions: "",
     gcashInstructions: "",
@@ -189,16 +193,32 @@ export default function AdminPaymentSettingsPage() {
           />
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            <Label htmlFor="paypal-instructions">PayPal instructions</Label>
-            <Textarea
-              id="paypal-instructions"
-              rows={3}
-              disabled={!settings.paypalEnabled}
-              placeholder="e.g. Send payment to your-paypal@email.com and include your account email in the note."
-              value={settings.paypalInstructions}
-              onChange={(e) => setSettings((s) => ({ ...s, paypalInstructions: e.target.value }))}
-            />
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="paypal-email">PayPal email</Label>
+              <Input
+                id="paypal-email"
+                type="email"
+                disabled={!settings.paypalEnabled}
+                placeholder="your-paypal@email.com"
+                value={settings.paypalEmail}
+                onChange={(e) => setSettings((s) => ({ ...s, paypalEmail: e.target.value }))}
+              />
+              <p className="text-xs text-muted-foreground">
+                Shown to clients at checkout: &quot;Send $X to PayPal: your email&quot;
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="paypal-instructions">Extra PayPal notes (optional)</Label>
+              <Textarea
+                id="paypal-instructions"
+                rows={3}
+                disabled={!settings.paypalEnabled}
+                placeholder="e.g. Include your account email in the PayPal note."
+                value={settings.paypalInstructions}
+                onChange={(e) => setSettings((s) => ({ ...s, paypalInstructions: e.target.value }))}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -217,16 +237,31 @@ export default function AdminPaymentSettingsPage() {
           />
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            <Label htmlFor="gcash-instructions">GCash instructions</Label>
-            <Textarea
-              id="gcash-instructions"
-              rows={3}
-              disabled={!settings.gcashEnabled}
-              placeholder="e.g. Send to GCash 09XX XXX XXXX. Upload screenshot proof in support if needed."
-              value={settings.gcashInstructions}
-              onChange={(e) => setSettings((s) => ({ ...s, gcashInstructions: e.target.value }))}
-            />
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="gcash-number">GCash mobile number</Label>
+              <Input
+                id="gcash-number"
+                disabled={!settings.gcashEnabled}
+                placeholder="09XX XXX XXXX"
+                value={settings.gcashNumber}
+                onChange={(e) => setSettings((s) => ({ ...s, gcashNumber: e.target.value }))}
+              />
+              <p className="text-xs text-muted-foreground">
+                Shown to clients at checkout: &quot;Send to GCash: your number&quot;
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="gcash-instructions">Extra GCash notes (optional)</Label>
+              <Textarea
+                id="gcash-instructions"
+                rows={3}
+                disabled={!settings.gcashEnabled}
+                placeholder="e.g. Screenshot your receipt and contact support if needed."
+                value={settings.gcashInstructions}
+                onChange={(e) => setSettings((s) => ({ ...s, gcashInstructions: e.target.value }))}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -194,28 +194,38 @@ export default function AdminAiSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Credit packs</CardTitle>
-          <CardDescription>What clients pay to top up AI credits</CardDescription>
+          <CardDescription>
+            Set how much clients pay per pack. They receive the same dollar amount in AI credits (e.g. pay
+            $10 → $10 credits). Your {settings.aiProfitMarginPercent}% profit applies when they generate
+            text/images — see the price preview above. PayPal/GCash numbers are in{" "}
+            <a href="/admin/settings/payments" className="text-primary underline">
+              Payment details
+            </a>
+            .
+          </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
+        <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Pack price (USD)</Label>
             <Input
               type="number"
               min={1}
               value={settings.aiCreditPackUsd}
-              onChange={(e) => update("aiCreditPackUsd", Number(e.target.value) || 1)}
+              onChange={(e) => {
+                const price = Number(e.target.value) || 1;
+                update("aiCreditPackUsd", price);
+                update("aiCreditsPerPackCents", Math.round(price * 100));
+              }}
             />
           </div>
-          <div className="space-y-2">
-            <Label>Credits granted (cents)</Label>
-            <Input
-              type="number"
-              min={100}
-              value={settings.aiCreditsPerPackCents}
-              onChange={(e) => update("aiCreditsPerPackCents", Number(e.target.value) || 100)}
-            />
-            <p className="text-xs text-muted-foreground">
-              ${(settings.aiCreditsPerPackCents / 100).toFixed(2)} credit balance per pack
+          <div className="rounded-lg border bg-muted/40 p-4 text-sm">
+            <p className="font-medium">What clients see at checkout</p>
+            <p className="mt-2 text-muted-foreground">
+              Pay <strong>${settings.aiCreditPackUsd.toFixed(2)}</strong> → receive{" "}
+              <strong>${(settings.aiCreditsPerPackCents / 100).toFixed(2)}</strong> AI credits
+            </p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Example usage from balance: ~{Math.floor((settings.aiCreditsPerPackCents / 100) / (preview?.estimatedTextPostUsd || 0.01))} captions or ~{Math.floor((settings.aiCreditsPerPackCents / 100) / (preview?.imageUsd || 0.2))} images at current prices.
             </p>
           </div>
         </CardContent>

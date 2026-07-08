@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { BillingInterval, PaymentMethod } from "@prisma/client";
 import { requireSession, requireTeamAccess } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getPaymentInstructions } from "@/lib/billing";
+import { formatCheckoutInstructions } from "@/lib/billing";
 import { assertPaymentMethodEnabled } from "@/lib/payment-settings";
 import { getAiSettings } from "@/lib/ai-settings";
 import { getUsdtWalletAddress, usdToUsdt, usdtPaymentInstructions } from "@/services/crypto-verify";
@@ -32,12 +32,15 @@ export async function POST(req: Request) {
     const isUsdt = body.method === "USDT";
 
     let usdtAmount: number | undefined;
-    let instructions = await getPaymentInstructions(body.method as PaymentMethod);
+    let instructions = await formatCheckoutInstructions(body.method as PaymentMethod, {
+      amountUsd: amount,
+      aiCreditsCents,
+    });
 
     if (isUsdt) {
       usdtAmount = await usdToUsdt(amount);
       const wallet = await getUsdtWalletAddress();
-      instructions = usdtPaymentInstructions(usdtAmount, wallet);
+      instructions = `${instructions}\n\n${usdtPaymentInstructions(usdtAmount, wallet)}`;
     }
 
     const payment = await prisma.payment.create({
@@ -52,7 +55,7 @@ export async function POST(req: Request) {
         purpose: "AI_CREDITS",
         aiCreditsCents,
         proofUrl: body.proofUrl,
-        notes: `AI credit pack: $${(aiCreditsCents / 100).toFixed(2)} credits. ${instructions}`,
+        notes: instructions,
       },
     });
 

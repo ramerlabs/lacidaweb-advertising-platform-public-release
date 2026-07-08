@@ -3,7 +3,8 @@ import { z } from "zod";
 import type { BillingInterval, PaymentMethod } from "@prisma/client";
 import { requireSession, requireTeamAccess } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getPlanAccountLimit, getPlanAmount, getPaymentInstructions } from "@/lib/billing";
+import { getPlanAccountLimit, getPlanAmount, formatCheckoutInstructions } from "@/lib/billing";
+import { getPlanById } from "@/lib/pricing";
 import { assertPaymentMethodEnabled } from "@/lib/payment-settings";
 import { getUsdtWalletAddress, usdToUsdt, usdtPaymentInstructions } from "@/services/crypto-verify";
 import { notifyAdminPaymentCreated } from "@/services/admin-notify";
@@ -28,12 +29,16 @@ export async function POST(req: Request) {
     const isUsdt = body.method === "USDT";
 
     let usdtAmount: number | undefined;
-    let instructions = await getPaymentInstructions(body.method as PaymentMethod);
+    const plan = getPlanById(body.planId);
+    let instructions = await formatCheckoutInstructions(body.method as PaymentMethod, {
+      amountUsd: amount,
+      planName: plan.name,
+    });
 
     if (isUsdt) {
       usdtAmount = await usdToUsdt(amount);
       const wallet = await getUsdtWalletAddress();
-      instructions = usdtPaymentInstructions(usdtAmount, wallet);
+      instructions = `${instructions}\n\n${usdtPaymentInstructions(usdtAmount, wallet)}`;
     }
 
     const subscription = await prisma.subscription.upsert({

@@ -118,7 +118,11 @@ export async function updateAiSettings(input: {
       input.aiTextOutputCostPerMillion ?? current.aiTextOutputCostPerMillion,
     aiImageCostUsd: input.aiImageCostUsd ?? current.aiImageCostUsd,
     aiCreditPackUsd: input.aiCreditPackUsd ?? current.aiCreditPackUsd,
-    aiCreditsPerPackCents: input.aiCreditsPerPackCents ?? current.aiCreditsPerPackCents,
+    aiCreditsPerPackCents:
+      input.aiCreditsPerPackCents ??
+      (input.aiCreditPackUsd !== undefined
+        ? Math.round((input.aiCreditPackUsd ?? current.aiCreditPackUsd) * 100)
+        : current.aiCreditsPerPackCents),
   };
 
   const row = await prisma.integrationSettings.upsert({

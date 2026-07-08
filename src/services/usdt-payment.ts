@@ -50,6 +50,9 @@ export async function verifyAndActivateUsdtPayment(paymentId: string, txHash: st
   return {
     payment: activated,
     alreadyPaid: false,
-    message: "Payment verified and subscription activated",
+    message:
+      payment.purpose === "AI_CREDITS"
+        ? `Payment verified. $${((payment.aiCreditsCents || 0) / 100).toFixed(2)} AI credits added to your balance.`
+        : "Payment verified and subscription activated",
   };
 }

@@ -7,6 +7,8 @@ export type PaymentSettingsData = {
   paypalEnabled: boolean;
   gcashEnabled: boolean;
   usdtTrc20Wallet: string;
+  paypalEmail: string;
+  gcashNumber: string;
   usdtInstructions: string;
   paypalInstructions: string;
   gcashInstructions: string;
@@ -18,11 +20,13 @@ const DEFAULTS: PaymentSettingsData = {
   paypalEnabled: true,
   gcashEnabled: true,
   usdtTrc20Wallet: "",
+  paypalEmail: "",
+  gcashNumber: "",
   usdtInstructions: RECOMMENDED_USDT_INSTRUCTIONS,
   paypalInstructions:
-    "Complete payment through PayPal and upload your receipt in the support ticket if requested.",
+    "Include your account email in the PayPal payment note so we can match your payment.",
   gcashInstructions:
-    "Send payment to the GCash number provided and upload a screenshot as proof if requested.",
+    "Send the exact amount shown. Screenshot your receipt and contact support if approval is delayed.",
   usdtPerUsd: null,
 };
 
@@ -33,6 +37,8 @@ function envFallbacks(): Omit<PaymentSettingsData, "usdtEnabled" | "paypalEnable
       process.env.USDT_TRC20_WALLET?.trim() ||
       process.env.USDT_WALLET_ADDRESS?.trim() ||
       "",
+    paypalEmail: process.env.PAYPAL_EMAIL?.trim() || "",
+    gcashNumber: process.env.GCASH_NUMBER?.trim() || "",
     usdtInstructions:
       process.env.USDT_PAYMENT_INSTRUCTIONS?.trim() || DEFAULTS.usdtInstructions,
     paypalInstructions:
@@ -49,6 +55,8 @@ function mergeSettings(
     paypalEnabled: boolean;
     gcashEnabled: boolean;
     usdtTrc20Wallet: string | null;
+    paypalEmail?: string | null;
+    gcashNumber?: string | null;
     usdtInstructions: string | null;
     paypalInstructions: string | null;
     gcashInstructions: string | null;
@@ -63,6 +71,8 @@ function mergeSettings(
     paypalEnabled: row.paypalEnabled,
     gcashEnabled: row.gcashEnabled,
     usdtTrc20Wallet: row.usdtTrc20Wallet?.trim() || env.usdtTrc20Wallet,
+    paypalEmail: row.paypalEmail?.trim() || env.paypalEmail,
+    gcashNumber: row.gcashNumber?.trim() || env.gcashNumber,
     usdtInstructions: row.usdtInstructions?.trim() || env.usdtInstructions,
     paypalInstructions: row.paypalInstructions?.trim() || env.paypalInstructions,
     gcashInstructions: row.gcashInstructions?.trim() || env.gcashInstructions,
@@ -122,6 +132,8 @@ export async function updatePaymentSettings(
     paypalEnabled: input.paypalEnabled ?? current.paypalEnabled,
     gcashEnabled: input.gcashEnabled ?? current.gcashEnabled,
     usdtTrc20Wallet: input.usdtTrc20Wallet?.trim() ?? current.usdtTrc20Wallet,
+    paypalEmail: input.paypalEmail?.trim() ?? current.paypalEmail,
+    gcashNumber: input.gcashNumber?.trim() ?? current.gcashNumber,
     usdtInstructions: input.usdtInstructions?.trim() ?? current.usdtInstructions,
     paypalInstructions: input.paypalInstructions?.trim() ?? current.paypalInstructions,
     gcashInstructions: input.gcashInstructions?.trim() ?? current.gcashInstructions,
@@ -141,6 +153,8 @@ export async function updatePaymentSettings(
       paypalEnabled: next.paypalEnabled,
       gcashEnabled: next.gcashEnabled,
       usdtTrc20Wallet: next.usdtTrc20Wallet || null,
+      paypalEmail: next.paypalEmail || null,
+      gcashNumber: next.gcashNumber || null,
       usdtInstructions: next.usdtInstructions || null,
       paypalInstructions: next.paypalInstructions || null,
       gcashInstructions: next.gcashInstructions || null,
@@ -151,6 +165,8 @@ export async function updatePaymentSettings(
       paypalEnabled: next.paypalEnabled,
       gcashEnabled: next.gcashEnabled,
       usdtTrc20Wallet: next.usdtTrc20Wallet || null,
+      paypalEmail: next.paypalEmail || null,
+      gcashNumber: next.gcashNumber || null,
       usdtInstructions: next.usdtInstructions || null,
       paypalInstructions: next.paypalInstructions || null,
       gcashInstructions: next.gcashInstructions || null,

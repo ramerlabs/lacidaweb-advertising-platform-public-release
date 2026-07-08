@@ -393,6 +393,8 @@ model PaymentSettings {
   paypalEnabled      Boolean  @default(true)
   gcashEnabled       Boolean  @default(true)
   usdtTrc20Wallet    String?
+  paypalEmail        String?
+  gcashNumber        String?
   usdtInstructions   String?  @db.Text
   paypalInstructions String?  @db.Text
   gcashInstructions  String?  @db.Text
