@@ -15,6 +15,7 @@ const updateSchema = z.object({
   addAiCreditsCents: z.number().int().min(0).optional(),
   aiTokenBalance: z.number().int().min(0).optional(),
   addAiTokens: z.number().int().min(0).optional(),
+  teamId: z.string().min(1).optional(),
   subscriptionStatus: z.enum(["TRIAL", "ACTIVE", "PAST_DUE", "CANCELED"]).optional(),
   interval: z.enum(["MONTHLY", "YEARLY"]).optional(),
   banned: z.boolean().optional(),
@@ -101,7 +102,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ userId
       },
     });
 
-    const team = user.memberships[0]?.team;
+    const team =
+      (body.teamId
+        ? user.memberships.find((m) => m.teamId === body.teamId)?.team
+        : null) || user.memberships[0]?.team;
     let subscription = team?.subscription || null;
 
     if (team && (body.planId || body.subscriptionStatus || body.interval)) {
@@ -168,7 +172,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ userId
           : (current?.aiTokenBalance || 0) + (body.addAiTokens || 0);
       const updatedTeam = await prisma.team.update({
         where: { id: team.id },
-        data: { aiTokenBalance: nextBalance },
+        data: {
+          aiTokenBalance: nextBalance,
+          aiEnabled: nextBalance > 0 ? true : undefined,
+        },
         select: { aiTokenBalance: true },
       });
       aiTokenBalance = updatedTeam.aiTokenBalance;

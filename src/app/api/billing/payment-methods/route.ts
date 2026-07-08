@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getPaymentSettings } from "@/lib/payment-settings";
+import { getPaymentSettings, getUsBankDetails } from "@/lib/payment-settings";
 
 export async function GET() {
   try {
@@ -9,8 +9,10 @@ export async function GET() {
         USDT: settings.usdtEnabled,
         PAYPAL: settings.paypalEnabled,
         GCASH: settings.gcashEnabled,
+        US_BANK: settings.usBankEnabled,
       },
       usdtWallet: settings.usdtEnabled ? settings.usdtTrc20Wallet : "",
+      usBank: getUsBankDetails(settings),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed";

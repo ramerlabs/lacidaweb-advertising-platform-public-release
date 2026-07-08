@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSession, requireTeamAccess } from "@/lib/auth";
-import { generatePostImage, generatePostText, transformPostText } from "@/lib/ai-service";
+import { generatePostImage, generatePostText, generateAdCreative, transformPostText } from "@/lib/ai-service";
 import { getAiSettings, toPublicAiSettings } from "@/lib/ai-settings";
 import { isBusinessProfileComplete, toBusinessProfile, BUSINESS_PROFILE_SELECT } from "@/lib/team-business";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -24,6 +24,14 @@ const transformSchema = z.object({
 const imageSchema = z.object({
   teamId: z.string().min(1),
   prompt: z.string().min(1).max(1000),
+});
+
+const adSchema = z.object({
+  teamId: z.string().min(1),
+  prompt: z.string().min(1).max(2000),
+  goal: z.string().max(50).optional(),
+  platform: z.string().max(80).optional(),
+  tone: z.string().max(100).optional(),
 });
 
 export async function GET(req: Request) {
@@ -82,6 +90,13 @@ export async function POST(req: Request) {
       const body = imageSchema.parse(await req.json());
       await requireTeamAccess(body.teamId, session.user.id);
       const result = await generatePostImage(body);
+      return NextResponse.json(result);
+    }
+
+    if (action === "ad") {
+      const body = adSchema.parse(await req.json());
+      await requireTeamAccess(body.teamId, session.user.id);
+      const result = await generateAdCreative(body);
       return NextResponse.json(result);
     }
 

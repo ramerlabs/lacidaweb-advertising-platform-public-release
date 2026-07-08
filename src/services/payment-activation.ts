@@ -50,7 +50,10 @@ export async function activatePayment(
   if (payment.purpose === "AI_CREDITS" && payment.aiTokensGranted) {
     await prisma.team.update({
       where: { id: payment.teamId },
-      data: { aiTokenBalance: { increment: payment.aiTokensGranted } },
+      data: {
+        aiTokenBalance: { increment: payment.aiTokensGranted },
+        aiEnabled: true,
+      },
     });
   }
 

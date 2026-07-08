@@ -106,11 +106,7 @@ export default function AdminUsersPage() {
     setIntervalBilling((selected.subscription?.interval as "MONTHLY" | "YEARLY") || "MONTHLY");
     setBanReason(selected.banReason || "");
     setNewPassword("");
-    setAiTokenBalance(
-      selected.team?.aiTokenBalance !== undefined
-        ? String(selected.team.aiTokenBalance)
-        : "0",
-    );
+    setAiTokenBalance("");
     setAddAiTokens("");
   }, [selected]);
 
@@ -158,14 +154,20 @@ export default function AdminUsersPage() {
   }
 
   async function saveAiTokens() {
-    const balance = Number(aiTokenBalance);
     const add = Number(addAiTokens);
-    if (!Number.isNaN(balance) && aiTokenBalance.trim() !== "") {
-      await save({ aiTokenBalance: Math.round(balance) });
+    if (!Number.isNaN(add) && add > 0) {
+      await save({
+        addAiTokens: Math.round(add),
+        teamId: selected?.team?.id,
+      });
       return;
     }
-    if (!Number.isNaN(add) && add > 0) {
-      await save({ addAiTokens: Math.round(add) });
+    const balance = Number(aiTokenBalance);
+    if (!Number.isNaN(balance) && aiTokenBalance.trim() !== "") {
+      await save({
+        aiTokenBalance: Math.round(balance),
+        teamId: selected?.team?.id,
+      });
     }
   }
 
@@ -403,6 +405,9 @@ export default function AdminUsersPage() {
                     <p className="text-sm">
                       Current balance:{" "}
                       <strong>{(selected.team?.aiTokenBalance || 0).toLocaleString()} tokens</strong>
+                      {selected.team?.name ? (
+                        <span className="text-muted-foreground"> · workspace: {selected.team.name}</span>
+                      ) : null}
                     </p>
                     <div className="space-y-2">
                       <Label>Set token balance</Label>
@@ -411,7 +416,7 @@ export default function AdminUsersPage() {
                         min={0}
                         value={aiTokenBalance}
                         onChange={(e) => setAiTokenBalance(e.target.value)}
-                        placeholder="e.g. 13333333"
+                        placeholder={`Current: ${(selected.team?.aiTokenBalance || 0).toLocaleString()}`}
                       />
                       <p className="text-xs text-muted-foreground">
                         Replaces the current balance with this exact token count.

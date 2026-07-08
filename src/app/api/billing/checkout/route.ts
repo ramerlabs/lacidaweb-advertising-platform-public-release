@@ -5,7 +5,7 @@ import { requireSession, requireTeamAccess } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getPlanAccountLimit, getPlanAmount, formatCheckoutInstructions } from "@/lib/billing";
 import { getPlanById } from "@/lib/pricing";
-import { assertPaymentMethodEnabled } from "@/lib/payment-settings";
+import { assertPaymentMethodEnabled, getPaymentSettings, getUsBankDetails } from "@/lib/payment-settings";
 import { getUsdtWalletAddress, usdToUsdt, usdtPaymentInstructions } from "@/services/crypto-verify";
 import { notifyAdminPaymentCreated } from "@/services/admin-notify";
 
@@ -13,7 +13,7 @@ const schema = z.object({
   teamId: z.string().min(1),
   planId: z.enum(["starter", "growth", "scale"]),
   interval: z.enum(["MONTHLY", "YEARLY"]).default("MONTHLY"),
-  method: z.enum(["USDT", "PAYPAL", "GCASH"]),
+  method: z.enum(["USDT", "PAYPAL", "GCASH", "US_BANK"]),
   proofUrl: z.string().url().optional(),
 });
 
@@ -89,6 +89,7 @@ export async function POST(req: Request) {
       instructions,
       usdtAmount,
       walletAddress: isUsdt ? await getUsdtWalletAddress() : undefined,
+      usBank: body.method === "US_BANK" ? getUsBankDetails(await getPaymentSettings()) : undefined,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Checkout failed";

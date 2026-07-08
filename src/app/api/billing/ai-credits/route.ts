@@ -4,7 +4,7 @@ import type { BillingInterval, PaymentMethod } from "@prisma/client";
 import { requireSession, requireTeamAccess } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatCheckoutInstructions } from "@/lib/billing";
-import { assertPaymentMethodEnabled } from "@/lib/payment-settings";
+import { assertPaymentMethodEnabled, getPaymentSettings, getUsBankDetails } from "@/lib/payment-settings";
 import { getAiSettings } from "@/lib/ai-settings";
 import { formatTokenCount } from "@/lib/ai-pricing";
 import { getUsdtWalletAddress, usdToUsdt, usdtPaymentInstructions } from "@/services/crypto-verify";
@@ -12,7 +12,7 @@ import { notifyAdminPaymentCreated } from "@/services/admin-notify";
 
 const schema = z.object({
   teamId: z.string().min(1),
-  method: z.enum(["USDT", "PAYPAL", "GCASH"]),
+  method: z.enum(["USDT", "PAYPAL", "GCASH", "US_BANK"]),
   proofUrl: z.string().url().optional(),
 });
 
@@ -75,6 +75,7 @@ export async function POST(req: Request) {
       aiTokensGranted,
       tokensLabel: formatTokenCount(aiTokensGranted),
       walletAddress: isUsdt ? await getUsdtWalletAddress() : undefined,
+      usBank: body.method === "US_BANK" ? getUsBankDetails(await getPaymentSettings()) : undefined,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Checkout failed";

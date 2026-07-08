@@ -15,6 +15,7 @@ export async function getPaymentInstructions(method: PaymentMethod): Promise<str
   const settings = await getPaymentSettings();
   if (method === "USDT") return settings.usdtInstructions;
   if (method === "PAYPAL") return settings.paypalInstructions;
+  if (method === "US_BANK") return settings.usBankInstructions;
   return settings.gcashInstructions;
 }
 
@@ -58,6 +59,21 @@ export async function formatCheckoutInstructions(
     }
     if (settings.gcashInstructions) lines.push(settings.gcashInstructions);
     lines.push("Payment is reviewed manually. Tokens or subscription activate after admin confirms.");
+  } else if (method === "US_BANK") {
+    if (settings.usBankName && settings.usBankAccountNumber && settings.usBankRoutingNumber) {
+      lines.push(`Bank: ${settings.usBankName}`);
+      if (settings.usBankAccountName) lines.push(`Account name: ${settings.usBankAccountName}`);
+      lines.push(`Routing number: ${settings.usBankRoutingNumber}`);
+      lines.push(`Account number: ${settings.usBankAccountNumber}`);
+      if (settings.usBankAccountType) lines.push(`Account type: ${settings.usBankAccountType}`);
+      lines.push(`Amount: $${amount} USD`);
+    } else {
+      lines.push("US bank details not configured — contact the platform admin.");
+    }
+    if (settings.usBankInstructions) lines.push(settings.usBankInstructions);
+    lines.push(
+      "After you pay, enter your bank transfer reference on the billing page so we can match your payment.",
+    );
   } else if (method === "USDT") {
     if (settings.usdtInstructions) lines.push(settings.usdtInstructions);
   }

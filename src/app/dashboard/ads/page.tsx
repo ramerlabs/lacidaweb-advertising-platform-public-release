@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Megaphone, Plus, X } from "lucide-react";
+import { Megaphone, Plus, Sparkles, X } from "lucide-react";
 
 type AdsConnection = {
   id: string;
@@ -64,6 +64,10 @@ export default function AdsPage() {
   const [pricing, setPricing] = useState<Pricing | null>(null);
   const [creating, setCreating] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [generatingAd, setGeneratingAd] = useState(false);
+  const [aiReady, setAiReady] = useState(false);
+  const [tokenBalance, setTokenBalance] = useState(0);
 
   const [form, setForm] = useState({
     connectedAccountId: "",
@@ -96,6 +100,17 @@ export default function AdsPage() {
 
   useEffect(() => {
     void load();
+  }, [teamId]);
+
+  useEffect(() => {
+    if (!teamId) return;
+    fetch(`/api/ai/generate?teamId=${teamId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setAiReady(Boolean(data.aiEnabled && data.teamAiEnabled));
+        setTokenBalance(data.tokenBalance || 0);
+      })
+      .catch(() => {});
   }, [teamId]);
 
   useEffect(() => {
@@ -173,6 +188,37 @@ export default function AdsPage() {
     } finally {
       setUploading(false);
     }
+  }
+
+  async function generateAdWithAi() {
+    if (!teamId || !aiPrompt.trim()) return;
+    setGeneratingAd(true);
+    setMessage("");
+    const conn = connections.find((c) => c.id === form.connectedAccountId);
+    const res = await fetch("/api/ai/generate?action=ad", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        teamId,
+        prompt: aiPrompt,
+        goal: form.goal,
+        platform: conn ? platformLabel(conn.platform) : "paid social",
+        tone: "promotional",
+      }),
+    });
+    const data = await res.json();
+    setGeneratingAd(false);
+    if (!res.ok) {
+      setMessage(data.error || "Could not generate ad copy");
+      return;
+    }
+    setForm((f) => ({
+      ...f,
+      body: data.primaryText || f.body,
+      headline: data.headline || f.headline,
+    }));
+    if (data.tokenBalance !== undefined) setTokenBalance(data.tokenBalance);
+    setMessage("Ad copy generated — review and edit before publishing.");
   }
 
   async function createAd() {
@@ -340,6 +386,47 @@ export default function AdsPage() {
             <CardContent>
               <div className="grid gap-6 lg:grid-cols-2">
                 <div className="space-y-4">
+                  {aiReady ? (
+                    <div className="rounded-lg border border-dashed bg-muted/30 p-4 space-y-3">
+                      <div className="flex items-center gap-2 text-sm font-medium">
+                        <Sparkles className="h-4 w-4 text-primary" />
+                        AI ad assistant
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Balance: {tokenBalance.toLocaleString()} tokens · generates primary text + headline
+                      </p>
+                      <Textarea
+                        rows={2}
+                        value={aiPrompt}
+                        onChange={(e) => setAiPrompt(e.target.value)}
+                        placeholder="e.g. Summer sale — 30% off our digital banking app for small businesses..."
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        disabled={generatingAd || !aiPrompt.trim()}
+                        onClick={generateAdWithAi}
+                      >
+                        {generatingAd ? "Generating..." : "Generate ad copy"}
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                        Uses your business profile from{" "}
+                        <Link href="/dashboard/settings" className="text-primary underline">
+                          Settings
+                        </Link>
+                        .
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Enable AI in{" "}
+                      <Link href="/dashboard/settings" className="text-primary underline">
+                        Settings
+                      </Link>{" "}
+                      and add tokens in Billing to generate ad copy with AI.
+                    </p>
+                  )}
                   <div className="space-y-2">
                     <Label>Primary text</Label>
                     <Textarea

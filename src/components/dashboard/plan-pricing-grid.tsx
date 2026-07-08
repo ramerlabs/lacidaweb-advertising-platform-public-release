@@ -4,13 +4,19 @@ import { useEffect, useRef, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { plans, type PlanId } from "@/lib/pricing";
 import { UsdtPaymentHighlight } from "@/components/billing/usdt-payment-highlight";
+import { BankPaymentHighlight } from "@/components/billing/bank-payment-highlight";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DEFAULT_ENABLED_METHODS,
+  type ClientPaymentMethod,
+  type EnabledPaymentMethods,
+  type UsBankDetails,
+  paymentMethodLabel,
+} from "@/lib/payment-methods";
 
-type PaymentMethod = "USDT" | "PAYPAL" | "GCASH";
-
-type EnabledMethods = Record<PaymentMethod, boolean>;
+type PaymentMethod = ClientPaymentMethod;
 
 type PlanPricingGridProps = {
   teamId: string | null;
@@ -35,12 +41,14 @@ export function PlanPricingGrid({
     usdtAmount: number;
     walletAddress: string;
   } | null>(null);
+  const [pendingBank, setPendingBank] = useState<{
+    paymentId: string;
+    amountUsd: number;
+    bank: UsBankDetails;
+    instructions: string;
+  } | null>(null);
   const usdtHighlightRef = useRef<HTMLDivElement>(null);
-  const [enabledMethods, setEnabledMethods] = useState<EnabledMethods>({
-    USDT: true,
-    PAYPAL: true,
-    GCASH: true,
-  });
+  const [enabledMethods, setEnabledMethods] = useState<EnabledPaymentMethods>(DEFAULT_ENABLED_METHODS);
 
   useEffect(() => {
     fetch("/api/billing/payment-methods")
@@ -51,7 +59,11 @@ export function PlanPricingGrid({
       .catch(() => undefined);
   }, []);
 
-  const hasPaymentMethods = enabledMethods.USDT || enabledMethods.PAYPAL || enabledMethods.GCASH;
+  const hasPaymentMethods =
+    enabledMethods.USDT ||
+    enabledMethods.PAYPAL ||
+    enabledMethods.GCASH ||
+    enabledMethods.US_BANK;
 
   async function startCheckout(planId: PlanId, method: PaymentMethod) {
     if (!teamId) {
@@ -72,6 +84,7 @@ export function PlanPricingGrid({
       return;
     }
     if (method === "USDT") {
+      setPendingBank(null);
       setPendingUsdt({
         paymentId: data.payment?.id,
         usdtAmount: data.usdtAmount,
@@ -79,9 +92,19 @@ export function PlanPricingGrid({
       });
       setStatus("");
       setTimeout(() => usdtHighlightRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
+    } else if (method === "US_BANK" && data.usBank) {
+      setPendingUsdt(null);
+      setPendingBank({
+        paymentId: data.payment?.id,
+        amountUsd: data.payment?.amount || 0,
+        bank: data.usBank,
+        instructions: data.instructions || "",
+      });
+      setStatus("");
     } else {
       setPendingUsdt(null);
-      setStatus(`${plans.find((p) => p.id === planId)?.name} payment created (${method}). ${data.instructions}`);
+      setPendingBank(null);
+      setStatus(`${plans.find((p) => p.id === planId)?.name} payment created (${paymentMethodLabel(method)}). ${data.instructions}`);
     }
     onCheckoutComplete?.();
   }
@@ -98,6 +121,7 @@ export function PlanPricingGrid({
                 enabledMethods.USDT && "USDT",
                 enabledMethods.PAYPAL && "PayPal",
                 enabledMethods.GCASH && "GCash",
+                enabledMethods.US_BANK && "US Bank",
               ]
                 .filter(Boolean)
                 .join(", ") || "your preferred method"}
@@ -137,6 +161,16 @@ export function PlanPricingGrid({
             Go to <strong>Billing</strong> to paste your transaction hash and activate your plan.
           </p>
         </div>
+      ) : null}
+
+      {pendingBank && teamId ? (
+        <BankPaymentHighlight
+          paymentId={pendingBank.paymentId}
+          teamId={teamId}
+          amountUsd={pendingBank.amountUsd}
+          bank={pendingBank.bank}
+          instructions={pendingBank.instructions}
+        />
       ) : null}
 
       <div className="grid gap-5 lg:grid-cols-3">
@@ -218,6 +252,16 @@ export function PlanPricingGrid({
                         onClick={() => startCheckout(plan.id, "GCASH")}
                       >
                         {loadingPlan === `${plan.id}-GCASH` ? "Processing..." : `Buy with GCash`}
+                      </Button>
+                    ) : null}
+                    {enabledMethods.US_BANK ? (
+                      <Button
+                        className="w-full"
+                        variant="outline"
+                        disabled={!!loadingPlan}
+                        onClick={() => startCheckout(plan.id, "US_BANK")}
+                      >
+                        {loadingPlan === `${plan.id}-US_BANK` ? "Processing..." : `Buy with US Bank`}
                       </Button>
                     ) : null}
                   </div>

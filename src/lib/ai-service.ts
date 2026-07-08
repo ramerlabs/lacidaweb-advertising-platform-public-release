@@ -286,3 +286,67 @@ export async function generatePostImage(input: { teamId: string; prompt: string 
 
   return { imageUrl: presign.publicUrl, ...billing, providerCostUsd: settings.aiImageCostUsd };
 }
+
+export async function generateAdCreative(input: {
+  teamId: string;
+  prompt: string;
+  goal?: string;
+  platform?: string;
+  tone?: string;
+}) {
+  const settings = await getAiSettings();
+  if (!settings.aiEnabled) throw new Error("AI generation is disabled by the platform admin");
+  const apiKey = await getOpenAiApiKey();
+  if (!apiKey) throw new Error("OpenAI is not configured");
+
+  const team = await prisma.team.findUnique({
+    where: { id: input.teamId },
+    select: { aiEnabled: true },
+  });
+  if (!team?.aiEnabled) throw new Error("Enable AI in your workspace settings first");
+
+  const { context, profile } = await getTeamBusinessContext(input.teamId);
+  const userPrompt = input.prompt.trim();
+  if (!userPrompt) throw new Error("Describe what you are promoting");
+
+  const goal = input.goal || "engagement";
+  const platform = input.platform || "Meta (Facebook/Instagram)";
+  const tone = input.tone || profile.brandVoice || "professional and persuasive";
+
+  const systemParts = [
+    "You write paid social ad copy.",
+    `Platform: ${platform}. Campaign goal: ${goal}. Tone: ${tone}.`,
+    "Return ONLY valid JSON with keys primaryText and headline.",
+    "primaryText: main ad copy, max 125 characters.",
+    "headline: short hook, max 40 characters.",
+    "No markdown, no extra keys.",
+  ];
+  if (context) {
+    systemParts.push("", "Business context:", context);
+  }
+
+  const { text, promptTokens, completionTokens } = await callOpenAiText(
+    apiKey,
+    systemParts.join("\n"),
+    userPrompt,
+    350,
+  );
+
+  let primaryText = "";
+  let headline = "";
+  try {
+    const parsed = JSON.parse(text) as { primaryText?: string; headline?: string };
+    primaryText = String(parsed.primaryText || "").slice(0, 125);
+    headline = String(parsed.headline || "").slice(0, 40);
+  } catch {
+    const lines = text.split("\n").map((l: string) => l.trim()).filter(Boolean);
+    primaryText = (lines[0] || text).slice(0, 125);
+    headline = (lines[1] || lines[0] || "Learn more").slice(0, 40);
+  }
+
+  const billing = await billTextUsage(input.teamId, settings, promptTokens, completionTokens, {
+    type: "ad_creative",
+  });
+
+  return { primaryText, headline, ...billing };
+}

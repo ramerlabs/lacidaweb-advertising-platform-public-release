@@ -12,12 +12,19 @@ type PaymentSettings = {
   usdtEnabled: boolean;
   paypalEnabled: boolean;
   gcashEnabled: boolean;
+  usBankEnabled: boolean;
   usdtTrc20Wallet: string;
   paypalEmail: string;
   gcashNumber: string;
+  usBankName: string;
+  usBankAccountName: string;
+  usBankAccountNumber: string;
+  usBankRoutingNumber: string;
+  usBankAccountType: string;
   usdtInstructions: string;
   paypalInstructions: string;
   gcashInstructions: string;
+  usBankInstructions: string;
   usdtPerUsd: number | null;
 };
 
@@ -53,12 +60,19 @@ export default function AdminPaymentSettingsPage() {
     usdtEnabled: true,
     paypalEnabled: true,
     gcashEnabled: true,
+    usBankEnabled: false,
     usdtTrc20Wallet: "",
     paypalEmail: "",
     gcashNumber: "",
+    usBankName: "",
+    usBankAccountName: "",
+    usBankAccountNumber: "",
+    usBankRoutingNumber: "",
+    usBankAccountType: "Checking",
     usdtInstructions: "",
     paypalInstructions: "",
     gcashInstructions: "",
+    usBankInstructions: "",
     usdtPerUsd: null,
   });
   const [loading, setLoading] = useState(true);
@@ -262,6 +276,89 @@ export default function AdminPaymentSettingsPage() {
                 onChange={(e) => setSettings((s) => ({ ...s, gcashInstructions: e.target.value }))}
               />
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className={!settings.usBankEnabled ? "opacity-80" : ""}>
+        <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+          <div>
+            <CardTitle>US bank transfer</CardTitle>
+            <CardDescription>Wire or ACH — client enters a transfer reference after paying</CardDescription>
+          </div>
+          <MethodToggle
+            id="usbank-enabled"
+            label="US Bank"
+            enabled={settings.usBankEnabled}
+            onChange={(usBankEnabled) => setSettings((s) => ({ ...s, usBankEnabled }))}
+          />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="usbank-name">Bank name</Label>
+              <Input
+                id="usbank-name"
+                disabled={!settings.usBankEnabled}
+                placeholder="Chase, Bank of America..."
+                value={settings.usBankName}
+                onChange={(e) => setSettings((s) => ({ ...s, usBankName: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="usbank-account-name">Account holder name</Label>
+              <Input
+                id="usbank-account-name"
+                disabled={!settings.usBankEnabled}
+                placeholder="Business or personal name on account"
+                value={settings.usBankAccountName}
+                onChange={(e) => setSettings((s) => ({ ...s, usBankAccountName: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="usbank-routing">Routing number</Label>
+              <Input
+                id="usbank-routing"
+                disabled={!settings.usBankEnabled}
+                placeholder="9-digit routing number"
+                value={settings.usBankRoutingNumber}
+                onChange={(e) => setSettings((s) => ({ ...s, usBankRoutingNumber: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="usbank-account">Account number</Label>
+              <Input
+                id="usbank-account"
+                disabled={!settings.usBankEnabled}
+                placeholder="Account number"
+                value={settings.usBankAccountNumber}
+                onChange={(e) => setSettings((s) => ({ ...s, usBankAccountNumber: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="usbank-type">Account type</Label>
+              <Input
+                id="usbank-type"
+                disabled={!settings.usBankEnabled}
+                placeholder="Checking or Savings"
+                value={settings.usBankAccountType}
+                onChange={(e) => setSettings((s) => ({ ...s, usBankAccountType: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="usbank-instructions">Client instructions</Label>
+            <Textarea
+              id="usbank-instructions"
+              rows={3}
+              disabled={!settings.usBankEnabled}
+              placeholder="e.g. Include your workspace email in the transfer memo."
+              value={settings.usBankInstructions}
+              onChange={(e) => setSettings((s) => ({ ...s, usBankInstructions: e.target.value }))}
+            />
+            <p className="text-xs text-muted-foreground">
+              Bank details are shown on Billing after the client starts a payment. They submit a reference number for manual approval.
+            </p>
           </div>
         </CardContent>
       </Card>

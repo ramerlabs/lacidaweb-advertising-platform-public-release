@@ -6,9 +6,18 @@ import { useTeam } from "@/components/dashboard/team-provider";
 import { PlanPricingGrid } from "@/components/dashboard/plan-pricing-grid";
 import { UsdtPaymentHighlight } from "@/components/billing/usdt-payment-highlight";
 import { ManualPaymentHighlight } from "@/components/billing/manual-payment-highlight";
+import { BankPaymentHighlight } from "@/components/billing/bank-payment-highlight";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  DEFAULT_ENABLED_METHODS,
+  type ClientPaymentMethod,
+  type EnabledPaymentMethods,
+  type UsBankDetails,
+  paymentMethodLabel,
+} from "@/lib/payment-methods";
+import { formatTokenCount } from "@/lib/ai-pricing";
 
 type Subscription = {
   id: string;
@@ -19,8 +28,6 @@ type Subscription = {
   amount: number;
 };
 
-import { formatTokenCount } from "@/lib/ai-pricing";
-
 type Payment = {
   id: string;
   method: string;
@@ -30,6 +37,7 @@ type Payment = {
   aiTokensGranted?: number | null;
   usdtAmount?: number | null;
   txHash?: string | null;
+  externalRef?: string | null;
   notes?: string | null;
   proofUrl?: string | null;
   createdAt: string;
@@ -44,6 +52,44 @@ type AiUsage = {
   createdAt: string;
 };
 
+function BankPaymentInlineReference({
+  paymentId,
+  teamId,
+  onDone,
+}: {
+  paymentId: string;
+  teamId: string;
+  onDone: () => void;
+}) {
+  const [reference, setReference] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit() {
+    if (!reference.trim()) return;
+    setSubmitting(true);
+    const res = await fetch(`/api/billing/payments/${paymentId}/reference`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ teamId, reference: reference.trim() }),
+    });
+    setSubmitting(false);
+    if (res.ok) onDone();
+  }
+
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row">
+      <Input
+        placeholder="Bank transfer reference"
+        value={reference}
+        onChange={(e) => setReference(e.target.value)}
+      />
+      <Button size="sm" disabled={submitting} onClick={submit}>
+        {submitting ? "Saving..." : "Submit reference"}
+      </Button>
+    </div>
+  );
+}
+
 export default function BillingPage() {
   const { teamId } = useTeam();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
@@ -57,8 +103,16 @@ export default function BillingPage() {
   const [tokensPerPack, setTokensPerPack] = useState(0);
   const [aiEnabled, setAiEnabled] = useState(false);
   const [buyingTokens, setBuyingTokens] = useState(false);
+  const [enabledMethods, setEnabledMethods] = useState<EnabledPaymentMethods>(DEFAULT_ENABLED_METHODS);
+  const [usBankDetails, setUsBankDetails] = useState<UsBankDetails | null>(null);
   const [pendingManual, setPendingManual] = useState<{
     method: "PAYPAL" | "GCASH";
+    amountUsd: number;
+    tokensGranted: number;
+    instructions: string;
+  } | null>(null);
+  const [pendingBank, setPendingBank] = useState<{
+    paymentId: string;
     amountUsd: number;
     tokensGranted: number;
     instructions: string;
@@ -87,7 +141,11 @@ export default function BillingPage() {
     const usageData = await usageRes.json();
     setSubscription(subData.subscription || null);
     setPayments(payData.payments || []);
-    if (methodsRes.ok) setUsdtWallet(methodsData.usdtWallet || "");
+    if (methodsRes.ok) {
+      setUsdtWallet(methodsData.usdtWallet || "");
+      if (methodsData.methods) setEnabledMethods(methodsData.methods);
+      setUsBankDetails(methodsData.usBank || null);
+    }
     if (aiRes.ok) {
       setTokenBalance(aiData.tokenBalance || 0);
       setAiEnabled(aiData.aiEnabled);
@@ -133,7 +191,7 @@ export default function BillingPage() {
     await load();
   }
 
-  async function buyAiTokens(method: "USDT" | "PAYPAL" | "GCASH") {
+  async function buyAiTokens(method: ClientPaymentMethod) {
     if (!teamId) return;
     setBuyingTokens(true);
     setStatus("");
@@ -151,10 +209,21 @@ export default function BillingPage() {
     const granted = data.aiTokensGranted || tokensPerPack;
     if (method === "USDT") {
       setPendingManual(null);
+      setPendingBank(null);
       setStatus(
         `Pay ${data.usdtAmount} USDT — see below. You will receive ${granted.toLocaleString()} tokens after verification.`,
       );
+    } else if (method === "US_BANK") {
+      setPendingManual(null);
+      setPendingBank({
+        paymentId: data.payment?.id,
+        amountUsd: data.payment?.amount || aiPackUsd,
+        tokensGranted: granted,
+        instructions: data.instructions || "",
+      });
+      setStatus("");
     } else {
+      setPendingBank(null);
       setPendingManual({
         method,
         amountUsd: data.payment?.amount || aiPackUsd,
@@ -166,6 +235,12 @@ export default function BillingPage() {
     await load();
     paymentsRef.current?.scrollIntoView({ behavior: "smooth" });
   }
+
+  const hasTokenPaymentMethods =
+    enabledMethods.USDT ||
+    enabledMethods.PAYPAL ||
+    enabledMethods.GCASH ||
+    enabledMethods.US_BANK;
 
   async function uploadPaymentProof(paymentId: string, file: File) {
     if (!teamId) return;
@@ -245,16 +320,30 @@ export default function BillingPage() {
               <strong>{tokensPerPack.toLocaleString()}</strong> tokens ({formatTokenCount(tokensPerPack)}).
             </p>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" disabled={buyingTokens} onClick={() => buyAiTokens("USDT")}>
-                Buy with USDT
-              </Button>
-              <Button size="sm" variant="secondary" disabled={buyingTokens} onClick={() => buyAiTokens("PAYPAL")}>
-                Buy with PayPal
-              </Button>
-              <Button size="sm" variant="outline" disabled={buyingTokens} onClick={() => buyAiTokens("GCASH")}>
-                Buy with GCash
-              </Button>
+              {enabledMethods.USDT ? (
+                <Button size="sm" disabled={buyingTokens} onClick={() => buyAiTokens("USDT")}>
+                  Buy with USDT
+                </Button>
+              ) : null}
+              {enabledMethods.PAYPAL ? (
+                <Button size="sm" variant="secondary" disabled={buyingTokens} onClick={() => buyAiTokens("PAYPAL")}>
+                  Buy with PayPal
+                </Button>
+              ) : null}
+              {enabledMethods.GCASH ? (
+                <Button size="sm" variant="outline" disabled={buyingTokens} onClick={() => buyAiTokens("GCASH")}>
+                  Buy with GCash
+                </Button>
+              ) : null}
+              {enabledMethods.US_BANK ? (
+                <Button size="sm" variant="outline" disabled={buyingTokens} onClick={() => buyAiTokens("US_BANK")}>
+                  Buy with US Bank
+                </Button>
+              ) : null}
             </div>
+            {!hasTokenPaymentMethods ? (
+              <p className="text-sm text-muted-foreground">No payment methods are enabled yet.</p>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}
@@ -265,6 +354,18 @@ export default function BillingPage() {
           amountUsd={pendingManual.amountUsd}
           tokensGranted={pendingManual.tokensGranted}
           instructions={pendingManual.instructions}
+        />
+      ) : null}
+
+      {pendingBank && usBankDetails && teamId ? (
+        <BankPaymentHighlight
+          paymentId={pendingBank.paymentId}
+          teamId={teamId}
+          amountUsd={pendingBank.amountUsd}
+          tokensGranted={pendingBank.tokensGranted}
+          bank={usBankDetails}
+          instructions={pendingBank.instructions}
+          onReferenceSubmitted={load}
         />
       ) : null}
 
@@ -326,7 +427,7 @@ export default function BillingPage() {
               <div key={payment.id} className="space-y-2 rounded border p-3 text-sm">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p>{payment.method} - ${payment.amount}{payment.purpose === "AI_CREDITS" ? " (AI tokens)" : ""}</p>
+                    <p>{paymentMethodLabel(payment.method as ClientPaymentMethod)} - ${payment.amount}{payment.purpose === "AI_CREDITS" ? " (AI tokens)" : ""}</p>
                     {payment.purpose === "AI_CREDITS" && payment.aiTokensGranted ? (
                       <p className="text-muted-foreground">
                         Tokens: {payment.aiTokensGranted.toLocaleString()}
@@ -383,6 +484,12 @@ export default function BillingPage() {
                       View uploaded receipt
                     </a>
                   </p>
+                ) : null}
+                {payment.externalRef ? (
+                  <p className="text-xs text-muted-foreground">Reference: {payment.externalRef}</p>
+                ) : null}
+                {payment.method === "US_BANK" && payment.status === "PENDING" && !payment.externalRef && teamId ? (
+                  <BankPaymentInlineReference paymentId={payment.id} teamId={teamId} onDone={load} />
                 ) : null}
                 {payment.txHash ? (
                   <p className="break-all text-xs text-muted-foreground">TX: {payment.txHash}</p>

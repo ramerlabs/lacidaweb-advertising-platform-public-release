@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CheckCircle2, BarChart3, Inbox, Calendar, Webhook, MessageSquare, Infinity, Sparkles } from "lucide-react";
+import { CheckCircle2, BarChart3, Inbox, Calendar, Webhook, MessageSquare, Infinity, Sparkles, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import { getPublishedFaqs } from "@/lib/faqs";
 import { SiteLogo } from "@/components/branding/site-logo";
 import { FaqSection } from "@/components/landing/faq-section";
 import { PlatformsSection } from "@/components/landing/platforms-section";
+import { AdsSection } from "@/components/landing/ads-section";
 import { SocialProof } from "@/components/landing/social-proof";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UNLIMITED_HIGHLIGHTS } from "@/lib/platforms";
@@ -43,6 +44,11 @@ const features = [
     icon: Webhook,
     title: "Webhooks & integrations",
     text: "Real-time events for comments, messages, and publish lifecycle.",
+  },
+  {
+    icon: Megaphone,
+    title: "Paid advertising",
+    text: "Connect your ad accounts and run campaigns on Meta, Google, TikTok, LinkedIn, Pinterest, and X — budgets, creatives, and goals in one dashboard.",
   },
 ];
 
@@ -80,7 +86,7 @@ export default async function HomePage() {
           <p className="mx-auto mt-3 max-w-2xl text-sm text-muted-foreground">{site.tagline}</p>
           <p className="mx-auto mt-4 flex max-w-2xl items-center justify-center gap-2 text-sm font-medium text-primary">
             <Sparkles className="h-4 w-4 shrink-0" />
-            AI-powered captions &amp; images — generate posts in seconds, then publish everywhere
+            AI-powered captions &amp; images — publish organically and run paid ads from one workspace
           </p>
           <div className="mx-auto mt-6 flex max-w-2xl flex-wrap items-center justify-center gap-3">
             {UNLIMITED_HIGHLIGHTS.map((text) => (
@@ -102,6 +108,9 @@ export default async function HomePage() {
             </Button>
             <Button asChild size="lg" variant="ghost">
               <a href="#platforms">Platforms</a>
+            </Button>
+            <Button asChild size="lg" variant="ghost">
+              <a href="#ads">Advertising</a>
             </Button>
             <Button asChild size="lg" variant="ghost">
               <a href="#faq">FAQs</a>
@@ -184,6 +193,8 @@ export default async function HomePage() {
       </section>
 
       <PlatformsSection />
+
+      <AdsSection />
 
       <section id="pricing" className="mx-auto max-w-6xl px-6 pb-20">
         <div className="mb-8 text-center">

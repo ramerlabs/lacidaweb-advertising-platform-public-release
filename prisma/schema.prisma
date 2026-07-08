@@ -49,6 +49,7 @@ enum PaymentMethod {
   USDT
   PAYPAL
   GCASH
+  US_BANK
 }
 
 enum PaymentStatus {
@@ -405,12 +406,19 @@ model PaymentSettings {
   usdtEnabled        Boolean  @default(true)
   paypalEnabled      Boolean  @default(true)
   gcashEnabled       Boolean  @default(true)
+  usBankEnabled      Boolean  @default(false)
   usdtTrc20Wallet    String?
   paypalEmail        String?
   gcashNumber        String?
+  usBankName         String?
+  usBankAccountName  String?
+  usBankAccountNumber String?
+  usBankRoutingNumber String?
+  usBankAccountType  String?
   usdtInstructions   String?  @db.Text
   paypalInstructions String?  @db.Text
   gcashInstructions  String?  @db.Text
+  usBankInstructions String?  @db.Text
   usdtPerUsd         Float?
   updatedAt          DateTime @updatedAt
 }

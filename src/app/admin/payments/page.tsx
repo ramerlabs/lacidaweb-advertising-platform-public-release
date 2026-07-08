@@ -10,6 +10,7 @@ type Payment = {
   method: string;
   status: string;
   txHash?: string | null;
+  externalRef?: string | null;
   team: { name: string };
 };
 
@@ -52,7 +53,7 @@ export default function AdminPaymentsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Payment queue</CardTitle>
-          <CardDescription>USDT payments with a valid hash are auto-approved. PayPal and GCash need manual review.</CardDescription>
+          <CardDescription>USDT auto-verifies with a hash. PayPal, GCash, and US Bank need manual review.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           {payments.length === 0 ? (
@@ -66,6 +67,9 @@ export default function AdminPaymentsPage() {
                 </p>
                 {payment.txHash ? (
                   <p className="mt-1 break-all text-xs text-muted-foreground">TX: {payment.txHash}</p>
+                ) : null}
+                {payment.externalRef ? (
+                  <p className="mt-1 text-xs text-muted-foreground">Bank reference: {payment.externalRef}</p>
                 ) : null}
                 {payment.status === "PENDING" ? (
                   <div className="mt-2 flex gap-2">
