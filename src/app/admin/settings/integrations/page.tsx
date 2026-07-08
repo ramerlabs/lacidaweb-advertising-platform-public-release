@@ -58,6 +58,8 @@ export default function AdminIntegrationsPage() {
   const [telegramChatId, setTelegramChatId] = useState("");
   const [smtpPassword, setSmtpPassword] = useState("");
   const [smtpTestTo, setSmtpTestTo] = useState("");
+  const [webhookUrl, setWebhookUrl] = useState("/api/webhooks/inbox");
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -65,6 +67,10 @@ export default function AdminIntegrationsPage() {
   const [status, setStatus] = useState("");
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      setWebhookUrl(`${window.location.origin}/api/webhooks/inbox`);
+    }
+
     async function load() {
       const res = await fetch("/api/admin/settings/integrations");
       const data = await res.json();
@@ -76,6 +82,16 @@ export default function AdminIntegrationsPage() {
     }
     load();
   }, []);
+
+  async function copyWebhookUrl() {
+    try {
+      await navigator.clipboard.writeText(webhookUrl);
+      setCopiedWebhook(true);
+      setTimeout(() => setCopiedWebhook(false), 2000);
+    } catch {
+      setStatus("Could not copy webhook URL");
+    }
+  }
 
   function buildPayload() {
     if (!settings) return {};
@@ -197,7 +213,28 @@ export default function AdminIntegrationsPage() {
               rows={2}
               value={zernioWebhookSecret}
               onChange={(e) => setZernioWebhookSecret(e.target.value)}
+              placeholder="Same secret configured in your Zernio dashboard"
             />
+            <p className="text-xs text-muted-foreground">
+              Must match the webhook signing secret in your Zernio account (platform owner only).
+            </p>
+          </div>
+          <div className="space-y-2 rounded-lg border bg-muted/30 p-4">
+            <Label>Inbox webhook URL</Label>
+            <p className="text-xs text-muted-foreground">
+              Paste this URL into the Zernio dashboard so comments, DMs, and post lifecycle events are delivered
+              into client inboxes. Clients do not configure this.
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input value={webhookUrl} readOnly className="font-mono text-xs" />
+              <Button type="button" variant="outline" onClick={copyWebhookUrl}>
+                {copiedWebhook ? "Copied" : "Copy"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Events handled: <code>comment.received</code>, <code>message.received</code>, and post lifecycle.
+              Use your production domain in Zernio when live (not localhost).
+            </p>
           </div>
         </CardContent>
       </Card>

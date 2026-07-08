@@ -11,10 +11,6 @@ import { ThemeSelect } from "@/components/theme-toggle";
 export default function SettingsPage() {
   const { teamId, teams } = useTeam();
   const team = useMemo(() => teams.find((t) => t.id === teamId), [teams, teamId]);
-  const webhookUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/api/webhooks/inbox`
-      : "/api/webhooks/inbox";
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -57,7 +53,7 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">Workspace + webhook configuration</p>
+        <p className="text-muted-foreground">Workspace, appearance, and account security</p>
       </div>
 
       <Card>
@@ -129,20 +125,6 @@ export default function SettingsPage() {
             {changing ? "Updating..." : "Update password"}
           </Button>
           {passwordStatus ? <p className="text-sm text-muted-foreground">{passwordStatus}</p> : null}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Inbox webhook</CardTitle>
-          <CardDescription>
-            Configure your backend webhook for `comment.received`, `message.received`, and post
-            lifecycle events. Use the same secret as `ZERNIO_WEBHOOK_SECRET`.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <Label>Endpoint URL</Label>
-          <Input value={webhookUrl} readOnly />
         </CardContent>
       </Card>
     </div>

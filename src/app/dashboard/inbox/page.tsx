@@ -88,7 +88,7 @@ export default function InboxPage() {
           <CardContent className="space-y-2">
             {items.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No inbox events yet. Configure your webhook in settings.
+                No inbox events yet. New comments and messages will appear here automatically.
               </p>
             ) : (
               items.map((item) => (
