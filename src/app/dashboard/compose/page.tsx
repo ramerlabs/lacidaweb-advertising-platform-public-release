@@ -359,6 +359,11 @@ export default function ComposePage() {
                     >
                       {generatingText ? "Generating..." : "Generate text"}
                     </Button>
+                    {aiReady && !aiPrompt.trim() ? (
+                      <p className="text-xs text-muted-foreground">
+                        Describe what you want the post to say above — the button enables once you enter a prompt.
+                      </p>
+                    ) : null}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="ai-image">Generate image</Label>
@@ -379,6 +384,11 @@ export default function ComposePage() {
                     >
                       {generatingImage ? "Generating..." : "Generate image"}
                     </Button>
+                    {aiReady && !imagePrompt.trim() ? (
+                      <p className="text-xs text-muted-foreground">
+                        Describe the image you want above — the button enables once you enter a prompt.
+                      </p>
+                    ) : null}
                   </div>
                   {templates.length > 0 ? (
                     <div className="space-y-2">
