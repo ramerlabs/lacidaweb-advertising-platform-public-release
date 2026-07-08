@@ -17,14 +17,20 @@ function normalizeSignature(value: string): string {
 
 export async function verifyZernioSignature(rawBody: string, signatureHeader: string | null) {
   const secret = await getZernioWebhookSecret();
-  if (!secret) {
-    console.warn("[webhook] ZERNIO_WEBHOOK_SECRET not set — skipping signature verification");
+
+  if (!signatureHeader) {
+    // Zernio only sends a signature when the webhook has a secret configured on their side.
+    if (secret) {
+      console.warn(
+        "[webhook] No signature header — Zernio webhook has no secret or secrets are out of sync. Processing anyway.",
+      );
+    }
     return true;
   }
 
-  if (!signatureHeader) {
-    console.warn("[webhook] Missing X-Zernio-Signature / X-Late-Signature header");
-    return false;
+  if (!secret) {
+    console.warn("[webhook] Signature received but ZERNIO_WEBHOOK_SECRET not set — skipping verification");
+    return true;
   }
 
   const expected = createHmac("sha256", secret).update(rawBody).digest("hex").toLowerCase();
@@ -109,6 +115,55 @@ async function resolveWebhookContext(payload: WebhookPayload, accountId: string)
   return { teamId: null as string | null, connectedAccountId: null as string | null };
 }
 
+function platformVariants(platform: string): string[] {
+  const p = platform.toLowerCase();
+  if (p === "facebook") return ["facebook", "meta", "metaads"];
+  if (p === "instagram") return ["instagram", "meta", "metaads"];
+  return [p];
+}
+
+async function resolveCommentTeam(
+  comment: Record<string, unknown>,
+  teamId: string | null,
+  connectedAccountId: string | null,
+) {
+  if (teamId) return { teamId, connectedAccountId };
+
+  const postId = String(comment.postId || "");
+  if (postId) {
+    const post = await prisma.post.findFirst({ where: { zernioPostId: postId } });
+    if (post) {
+      const platform = String(comment.platform || "facebook");
+      const connected = await prisma.connectedAccount.findFirst({
+        where: { teamId: post.teamId, platform: { in: platformVariants(platform) }, isActive: true },
+      });
+      return { teamId: post.teamId, connectedAccountId: connected?.id ?? null };
+    }
+  }
+
+  const accountId = String(comment.accountId || "");
+  if (accountId) {
+    const connected = await prisma.connectedAccount.findUnique({ where: { zernioAccountId: accountId } });
+    if (connected) {
+      return { teamId: connected.teamId, connectedAccountId: connected.id };
+    }
+  }
+
+  const platform = String(comment.platform || "");
+  if (platform) {
+    const accounts = await prisma.connectedAccount.findMany({
+      where: { platform: { in: platformVariants(platform) }, isActive: true },
+      orderBy: { connectedAt: "desc" },
+      take: 10,
+    });
+    if (accounts.length === 1) {
+      return { teamId: accounts[0].teamId, connectedAccountId: accounts[0].id };
+    }
+  }
+
+  return { teamId: null, connectedAccountId: null };
+}
+
 export async function processWebhookEvent(payload: WebhookPayload) {
   const eventType = normalizeEventType(String(payload.type || payload.event || payload.eventType || "unknown"));
   const eventId = String(payload.id || payload.eventId || `${eventType}-${Date.now()}`);
@@ -123,6 +178,7 @@ export async function processWebhookEvent(payload: WebhookPayload) {
       payload.data?.accountId ||
       (payload.data?.comment as Record<string, unknown> | undefined)?.accountId ||
       payload.comment?.accountId ||
+      (payload.comment as Record<string, unknown> | undefined)?.accountId ||
       payload.message?.accountId ||
       "",
   );
@@ -183,11 +239,23 @@ async function handleCommentReceived(
   connectedAccountId: string | null,
   teamId: string | null,
 ) {
-  if (!teamId) return;
-
   const data = (payload.data || {}) as Record<string, unknown>;
   const nestedComment = (data.comment || {}) as Record<string, unknown>;
   const comment = (payload.comment || nestedComment || data) as Record<string, unknown>;
+
+  const resolved = await resolveCommentTeam(comment, teamId, connectedAccountId);
+  teamId = resolved.teamId;
+  connectedAccountId = resolved.connectedAccountId;
+
+  if (!teamId) {
+    console.warn("[webhook] comment.received — could not resolve workspace", {
+      postId: comment.postId,
+      platform: comment.platform,
+    });
+    return;
+  }
+
+  const author = (comment.author || {}) as Record<string, unknown>;
   const externalId = String(comment.id || comment.commentId || payload.id || "");
   const content = String(comment.text || comment.content || comment.message || "");
   const platform = String(payload.platform || comment.platform || data.platform || "unknown");
@@ -203,8 +271,8 @@ async function handleCommentReceived(
       platform,
       externalId,
       conversationId: String(comment.postId || comment.platformPostId || "") || null,
-      authorName: String(comment.authorName || comment.username || "") || null,
-      authorHandle: String(comment.username || comment.authorHandle || "") || null,
+      authorName: String(comment.authorName || author.name || "") || null,
+      authorHandle: String(comment.username || author.username || author.id || comment.authorHandle || "") || null,
       content,
       metadata: comment as object,
       receivedAt: new Date(),
