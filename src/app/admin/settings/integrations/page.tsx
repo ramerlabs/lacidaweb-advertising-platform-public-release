@@ -216,7 +216,9 @@ export default function AdminIntegrationsPage() {
               placeholder="Same secret configured in your Zernio dashboard"
             />
             <p className="text-xs text-muted-foreground">
-              Must match the webhook signing secret in your Zernio account (platform owner only).
+              Must match the <strong>exact</strong> signing secret from your Zernio webhook configuration
+              (platform owner only). If Zernio shows 401 failures, re-copy the secret from Zernio → paste here →
+              Save, then redeploy or wait for Vercel to pick up the change.
             </p>
           </div>
           <div className="space-y-2 rounded-lg border bg-muted/30 p-4">
@@ -232,8 +234,9 @@ export default function AdminIntegrationsPage() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Events handled: <code>comment.received</code>, <code>message.received</code>, and post lifecycle.
-              Use your production domain in Zernio when live (not localhost).
+              URL must be exactly: <code>{webhookUrl}</code> (or <code>/api/webhooks/zernio</code>).
+              Events: <code>comment.received</code>, <code>message.received</code>, post lifecycle, and{" "}
+              <code>webhook.test</code>. Use your production domain in Zernio (not localhost).
             </p>
           </div>
         </CardContent>

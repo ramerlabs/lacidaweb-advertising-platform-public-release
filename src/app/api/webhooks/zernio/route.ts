@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
-import { processWebhookEvent, verifyZernioSignature } from "@/services/inbox";
+import { processWebhookEvent, verifyZernioSignature, extractWebhookSignature } from "@/services/inbox";
 
 export async function POST(req: Request) {
   const rawBody = await req.text();
-  const signature = req.headers.get("x-zernio-signature");
+  const signature = extractWebhookSignature(req);
 
   if (!(await verifyZernioSignature(rawBody, signature))) {
-    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Invalid signature — webhook secret must match Zernio and Admin → Integrations" },
+      { status: 401 },
+    );
   }
 
   let payload: Record<string, unknown>;

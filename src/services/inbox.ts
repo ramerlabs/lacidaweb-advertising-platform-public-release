@@ -3,6 +3,18 @@ import { prisma } from "@/lib/prisma";
 import { getZernioWebhookSecret } from "@/lib/integration-settings";
 import { getZernio, withZernioRetry } from "@/lib/zernio";
 
+export function extractWebhookSignature(req: Request): string | null {
+  return (
+    req.headers.get("x-zernio-signature") ||
+    req.headers.get("x-late-signature") ||
+    null
+  );
+}
+
+function normalizeSignature(value: string): string {
+  return value.trim().toLowerCase().replace(/^sha256=/, "");
+}
+
 export async function verifyZernioSignature(rawBody: string, signatureHeader: string | null) {
   const secret = await getZernioWebhookSecret();
   if (!secret) {
@@ -10,19 +22,31 @@ export async function verifyZernioSignature(rawBody: string, signatureHeader: st
     return true;
   }
 
-  if (!signatureHeader) return false;
+  if (!signatureHeader) {
+    console.warn("[webhook] Missing X-Zernio-Signature / X-Late-Signature header");
+    return false;
+  }
 
-  const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
-  const provided = signatureHeader.replace(/^sha256=/i, "").trim().toLowerCase();
+  const expected = createHmac("sha256", secret).update(rawBody).digest("hex").toLowerCase();
+  const providedRaw = signatureHeader.trim();
+  const provided = normalizeSignature(providedRaw);
+
+  if (providedRaw.toLowerCase() === expected || provided === expected) {
+    return true;
+  }
 
   try {
     const a = Buffer.from(expected, "utf8");
     const b = Buffer.from(provided, "utf8");
-    if (a.length !== b.length) return false;
-    return timingSafeEqual(a, b);
+    if (a.length === b.length && timingSafeEqual(a, b)) {
+      return true;
+    }
   } catch {
-    return false;
+    // fall through
   }
+
+  console.warn("[webhook] Signature mismatch — confirm Admin → Integrations webhook secret matches Zernio");
+  return false;
 }
 
 type WebhookPayload = {
@@ -130,6 +154,10 @@ export async function processWebhookEvent(payload: WebhookPayload) {
     } else if (eventType === "ad.status_changed") {
       const { handleAdStatusChanged } = await import("@/services/ads");
       await handleAdStatusChanged(payload as Record<string, unknown>);
+    } else if (eventType.startsWith("account.")) {
+      console.info("[webhook] Account event received:", eventType);
+    } else if (eventType === "webhook.test") {
+      console.info("[webhook] Test event received");
     } else {
       console.warn("[webhook] Unhandled event type:", eventType);
     }
