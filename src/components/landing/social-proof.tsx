@@ -8,7 +8,14 @@ export function SocialProof() {
   useEffect(() => {
     fetch("/api/public/stats")
       .then((r) => r.json())
-      .then(setStats)
+      .then((data) => {
+        const posts = typeof data?.posts === "number" ? data.posts : data?.postsPublished;
+        const teams = data?.teams;
+        const aiGenerations = data?.aiGenerations;
+        if (typeof teams === "number" && typeof posts === "number" && typeof aiGenerations === "number") {
+          setStats({ teams, posts, aiGenerations });
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -22,11 +29,11 @@ export function SocialProof() {
           <p className="text-sm text-muted-foreground">Teams publishing</p>
         </div>
         <div>
-          <p className="text-3xl font-bold">{stats.posts.toLocaleString()}+</p>
+          <p className="text-3xl font-bold">{(stats.posts ?? 0).toLocaleString()}+</p>
           <p className="text-sm text-muted-foreground">Posts scheduled</p>
         </div>
         <div>
-          <p className="text-3xl font-bold">{stats.aiGenerations.toLocaleString()}+</p>
+          <p className="text-3xl font-bold">{(stats.aiGenerations ?? 0).toLocaleString()}+</p>
           <p className="text-sm text-muted-foreground">AI generations</p>
         </div>
       </div>
