@@ -164,6 +164,60 @@ async function resolveCommentTeam(
   return { teamId: null, connectedAccountId: null };
 }
 
+async function resolveMessageTeam(
+  message: Record<string, unknown>,
+  teamId: string | null,
+  connectedAccountId: string | null,
+) {
+  if (teamId) return { teamId, connectedAccountId };
+
+  const accountId = String(message.accountId || "");
+  if (accountId) {
+    const connected = await prisma.connectedAccount.findUnique({ where: { zernioAccountId: accountId } });
+    if (connected) {
+      return { teamId: connected.teamId, connectedAccountId: connected.id };
+    }
+  }
+
+  const platform = String(message.platform || "");
+  if (platform) {
+    const accounts = await prisma.connectedAccount.findMany({
+      where: { platform: { in: platformVariants(platform) }, isActive: true },
+      orderBy: { connectedAt: "desc" },
+      take: 10,
+    });
+    if (accounts.length === 1) {
+      return { teamId: accounts[0].teamId, connectedAccountId: accounts[0].id };
+    }
+  }
+
+  return { teamId: null, connectedAccountId: null };
+}
+
+async function zernioAccountIdForItem(
+  item: {
+    connectedAccountId: string | null;
+    metadata: unknown;
+    connectedAccount?: { zernioAccountId: string } | null;
+  },
+) {
+  const metadata = (item.metadata || {}) as Record<string, unknown>;
+  const fromMeta = String(metadata.accountId || "");
+  if (fromMeta) return fromMeta;
+
+  if (item.connectedAccount?.zernioAccountId) return item.connectedAccount.zernioAccountId;
+
+  if (item.connectedAccountId) {
+    const connected = await prisma.connectedAccount.findUnique({
+      where: { id: item.connectedAccountId },
+      select: { zernioAccountId: true },
+    });
+    if (connected) return connected.zernioAccountId;
+  }
+
+  return null;
+}
+
 export async function processWebhookEvent(payload: WebhookPayload) {
   const eventType = normalizeEventType(String(payload.type || payload.event || payload.eventType || "unknown"));
   const eventId = String(payload.id || payload.eventId || `${eventType}-${Date.now()}`);
@@ -262,6 +316,15 @@ async function handleCommentReceived(
 
   if (!externalId) return;
 
+  let accountIdMeta = String(comment.accountId || "");
+  if (!accountIdMeta && connectedAccountId) {
+    const connected = await prisma.connectedAccount.findUnique({
+      where: { id: connectedAccountId },
+      select: { zernioAccountId: true },
+    });
+    accountIdMeta = connected?.zernioAccountId || "";
+  }
+
   const item = await prisma.inboxItem.upsert({
     where: { teamId_externalId: { teamId, externalId } },
     create: {
@@ -274,13 +337,14 @@ async function handleCommentReceived(
       authorName: String(comment.authorName || author.name || "") || null,
       authorHandle: String(comment.username || author.username || author.id || comment.authorHandle || "") || null,
       content,
-      metadata: comment as object,
+      metadata: { ...comment, accountId: accountIdMeta || undefined } as object,
       receivedAt: new Date(),
     },
     update: {
       content,
-      metadata: comment as object,
+      metadata: { ...comment, accountId: accountIdMeta || undefined } as object,
       status: "UNREAD",
+      ...(connectedAccountId ? { connectedAccountId } : {}),
     },
   });
 
@@ -299,14 +363,38 @@ async function handleMessageReceived(
   connectedAccountId: string | null,
   teamId: string | null,
 ) {
-  if (!teamId) return;
+  const data = (payload.data || {}) as Record<string, unknown>;
+  const nestedMessage = (data.message || {}) as Record<string, unknown>;
+  const message = (payload.message || nestedMessage || data) as Record<string, unknown>;
 
-  const message = (payload.message || payload.data || {}) as Record<string, unknown>;
+  const resolved = await resolveMessageTeam(message, teamId, connectedAccountId);
+  teamId = resolved.teamId;
+  connectedAccountId = resolved.connectedAccountId;
+
+  if (!teamId) {
+    console.warn("[webhook] message.received — could not resolve workspace", {
+      accountId: message.accountId,
+      platform: message.platform,
+    });
+    return;
+  }
+
+  const sender = (message.from || message.sender || {}) as Record<string, unknown>;
   const externalId = String(message.id || message.messageId || payload.id || "");
-  const content = String(message.text || message.content || message.body || "");
-  const platform = String(payload.platform || message.platform || "unknown");
+  const content = String(message.text || message.content || message.body || message.message || "");
+  const platform = String(payload.platform || message.platform || data.platform || "unknown");
+  const conversationId = String(message.conversationId || message.threadId || "") || null;
 
-  if (!externalId) return;
+  if (!externalId || !content) return;
+
+  let accountIdMeta = String(message.accountId || "");
+  if (!accountIdMeta && connectedAccountId) {
+    const connected = await prisma.connectedAccount.findUnique({
+      where: { id: connectedAccountId },
+      select: { zernioAccountId: true },
+    });
+    accountIdMeta = connected?.zernioAccountId || "";
+  }
 
   await prisma.inboxItem.upsert({
     where: { teamId_externalId: { teamId, externalId } },
@@ -316,17 +404,19 @@ async function handleMessageReceived(
       type: "MESSAGE",
       platform,
       externalId,
-      conversationId: String(message.conversationId || message.threadId || "") || null,
-      authorName: String(message.authorName || message.fromName || "") || null,
-      authorHandle: String(message.from || message.username || "") || null,
+      conversationId,
+      authorName: String(message.authorName || message.fromName || sender.name || "") || null,
+      authorHandle: String(message.from || message.username || sender.username || sender.id || "") || null,
       content,
-      metadata: message as object,
+      metadata: { ...message, accountId: accountIdMeta || undefined, conversationId } as object,
       receivedAt: new Date(),
     },
     update: {
       content,
-      metadata: message as object,
+      metadata: { ...message, accountId: accountIdMeta || undefined, conversationId } as object,
       status: "UNREAD",
+      ...(connectedAccountId ? { connectedAccountId } : {}),
+      ...(conversationId ? { conversationId } : {}),
     },
   });
 }
@@ -391,17 +481,24 @@ async function maybeAutoReply(input: {
 
   const zernio = await getZernio();
   const commentId = String(input.comment.id || input.comment.commentId || "");
+  const postId = String(input.comment.postId || "");
+  const accountId = await zernioAccountIdForItem({
+    connectedAccountId: input.connectedAccountId,
+    metadata: { ...input.comment, accountId: input.comment.accountId },
+  });
+
+  if (!postId || !accountId) {
+    console.error("[auto-reply] missing postId or accountId");
+    return;
+  }
 
   try {
     if (matched.replyType === "dm") {
       await withZernioRetry(
         async () =>
           zernio.comments.sendPrivateReplyToComment({
-            // @ts-ignore SDK version variance
-            path: { commentId },
-            body: { text: matched.replyTemplate },
-            commentId,
-            text: matched.replyTemplate,
+            path: { commentId, postId },
+            body: { accountId, message: matched.replyTemplate },
           }),
         { label: "comments.sendPrivateReplyToComment" },
       );
@@ -409,11 +506,8 @@ async function maybeAutoReply(input: {
       await withZernioRetry(
         async () =>
           zernio.comments.replyToInboxPost({
-            // @ts-ignore SDK version variance
-            path: { commentId },
-            body: { text: matched.replyTemplate },
-            commentId,
-            text: matched.replyTemplate,
+            path: { postId },
+            body: { accountId, message: matched.replyTemplate, commentId },
           }),
         { label: "comments.replyToInboxPost" },
       );
@@ -447,7 +541,7 @@ export async function syncInboxFromZernio(teamId: string) {
     select: { zernioProfileId: true },
   });
   if (!team?.zernioProfileId) {
-    return { synced: 0, postsChecked: 0, error: "No Zernio profile linked to this workspace" };
+    return { synced: 0, syncedMessages: 0, postsChecked: 0, conversationsChecked: 0, error: "No Zernio profile linked to this workspace" };
   }
 
   const accounts = await prisma.connectedAccount.findMany({
@@ -535,7 +629,89 @@ export async function syncInboxFromZernio(teamId: string) {
     }
   }
 
-  return { synced, postsChecked: posts.length };
+  let syncedMessages = 0;
+  const convResult = await withZernioRetry(
+    async () =>
+      zernio.messages.listInboxConversations({
+        query: {
+          profileId: team.zernioProfileId!,
+          limit: 25,
+          sortOrder: "desc",
+        },
+      }),
+    { label: "messages.listInboxConversations" },
+  );
+
+  const convData = unwrap<{
+    data?: Array<{
+      id?: string;
+      platform?: string;
+      accountId?: string;
+      participantName?: string;
+      lastMessage?: string;
+      updatedTime?: string;
+    }>;
+  }>(convResult);
+
+  const conversations = convData?.data || [];
+
+  for (const conv of conversations) {
+    if (!conv.id || !conv.accountId) continue;
+
+    const msgsResult = await withZernioRetry(
+      async () =>
+        zernio.messages.getInboxConversationMessages({
+          path: { conversationId: conv.id! },
+          query: { accountId: conv.accountId!, limit: 50, sortOrder: "desc" },
+        }),
+      { label: "messages.getInboxConversationMessages" },
+    );
+
+    const msgsData = unwrap<{
+      messages?: Array<{
+        id?: string;
+        message?: string;
+        platform?: string;
+        direction?: string;
+        senderName?: string | null;
+        senderId?: string;
+        createdAt?: string;
+      }>;
+    }>(msgsResult);
+
+    const connected = accountByZernioId.get(conv.accountId);
+
+    for (const msg of msgsData?.messages || []) {
+      if (!msg.id || !msg.message) continue;
+      if (msg.direction === "outgoing") continue;
+
+      await prisma.inboxItem.upsert({
+        where: { teamId_externalId: { teamId, externalId: msg.id } },
+        create: {
+          teamId,
+          connectedAccountId: connected?.id ?? null,
+          type: "MESSAGE",
+          platform: String(msg.platform || conv.platform || "facebook"),
+          externalId: msg.id,
+          conversationId: conv.id,
+          authorName: msg.senderName || conv.participantName || null,
+          authorHandle: msg.senderId || null,
+          content: msg.message,
+          metadata: { accountId: conv.accountId, conversationId: conv.id, message: msg } as object,
+          receivedAt: msg.createdAt ? new Date(msg.createdAt) : new Date(),
+        },
+        update: {
+          content: msg.message,
+          status: "UNREAD",
+          conversationId: conv.id,
+          ...(connected ? { connectedAccountId: connected.id } : {}),
+        },
+      });
+      syncedMessages += 1;
+    }
+  }
+
+  return { synced, syncedMessages, postsChecked: posts.length, conversationsChecked: conversations.length };
 }
 
 export async function listInbox(teamId: string, type?: "COMMENT" | "MESSAGE") {
@@ -557,20 +733,27 @@ export async function replyToInboxItem(input: {
 }) {
   const item = await prisma.inboxItem.findFirst({
     where: { id: input.inboxItemId, teamId: input.teamId },
+    include: { connectedAccount: true },
   });
   if (!item) throw new Error("Inbox item not found");
 
   const zernio = await getZernio();
+  const accountId = await zernioAccountIdForItem(item);
+  if (!accountId) throw new Error("Could not resolve connected account for this inbox item");
 
   if (item.type === "COMMENT") {
+    const postId = item.conversationId;
+    if (!postId) throw new Error("Missing post id for comment reply");
+
     await withZernioRetry(
       async () =>
         zernio.comments.replyToInboxPost({
-          // @ts-ignore SDK version variance
-          path: { commentId: item.externalId },
-          body: { text: input.text },
-          commentId: item.externalId,
-          text: input.text,
+          path: { postId },
+          body: {
+            accountId,
+            message: input.text,
+            commentId: item.externalId,
+          },
         }),
       { label: "comments.replyToInboxPost" },
     );
@@ -579,11 +762,11 @@ export async function replyToInboxItem(input: {
     await withZernioRetry(
       async () =>
         zernio.messages.sendInboxMessage({
-          // @ts-ignore SDK version variance
-          path: { conversationId: item.conversationId },
-          body: { text: input.text },
-          conversationId: item.conversationId,
-          text: input.text,
+          path: { conversationId: item.conversationId! },
+          body: {
+            accountId,
+            message: input.text,
+          },
         }),
       { label: "messages.sendInboxMessage" },
     );

@@ -44,10 +44,15 @@ export default function InboxPage() {
     if (sync && data.sync) {
       if (data.sync.error) {
         setStatus(data.sync.error);
-      } else if (data.sync.synced > 0) {
-        setStatus(`Synced ${data.sync.synced} comment(s) from your connected accounts.`);
       } else {
-        setStatus("Sync complete — no new comments found on recent posts.");
+        const parts: string[] = [];
+        if (data.sync.synced > 0) parts.push(`${data.sync.synced} comment(s)`);
+        if (data.sync.syncedMessages > 0) parts.push(`${data.sync.syncedMessages} message(s)`);
+        if (parts.length > 0) {
+          setStatus(`Synced ${parts.join(" and ")} from your connected accounts.`);
+        } else {
+          setStatus("Sync complete — no new comments or messages found.");
+        }
       }
     }
   }
@@ -111,8 +116,8 @@ export default function InboxPage() {
           <CardContent className="space-y-2">
             {items.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No inbox events yet. Click <strong>Sync now</strong> to pull recent comments from Facebook
-                and other connected accounts, or wait for new activity via webhook.
+                No inbox events yet. Click <strong>Sync now</strong> to pull recent comments and DMs from
+                Facebook and other connected accounts, or wait for new activity via webhook.
               </p>
             ) : (
               items.map((item) => (

@@ -21,7 +21,9 @@ export async function GET(req: Request) {
       } catch (error) {
         syncResult = {
           synced: 0,
+          syncedMessages: 0,
           postsChecked: 0,
+          conversationsChecked: 0,
           error: error instanceof Error ? error.message : "Sync failed",
         };
       }
