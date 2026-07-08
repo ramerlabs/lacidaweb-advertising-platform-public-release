@@ -101,8 +101,7 @@ function SelectAccountContent() {
         <CardHeader>
           <CardTitle>Finish connecting {platformLabel}</CardTitle>
           <CardDescription>
-            Choose which {branding.title} workspace asset to link. You won&apos;t see a third-party
-            connect screen here.
+            Choose which {branding.title} workspace asset to link to complete the connection.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

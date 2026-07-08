@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Payment } from "@prisma/client";
 import { notifyAdminPaymentCompleted } from "@/services/admin-notify";
+import { publishAdCampaignToZernio } from "@/services/ad-publish";
 
 export async function activatePayment(
   payment: Payment & { subscriptionId: string | null },
@@ -55,6 +56,37 @@ export async function activatePayment(
         aiEnabled: true,
       },
     });
+  }
+
+  if (payment.purpose === "AD_WALLET" && payment.adWalletTopUpCents) {
+    await prisma.team.update({
+      where: { id: payment.teamId },
+      data: { adWalletBalanceCents: { increment: payment.adWalletTopUpCents } },
+    });
+  }
+
+  if (payment.purpose === "AD_CAMPAIGN" && payment.adCampaignId) {
+    const campaign = await prisma.adCampaign.findUnique({
+      where: { id: payment.adCampaignId },
+    });
+    if (campaign && !campaign.zernioAdId && campaign.paymentStatus === "pending_payment") {
+      await publishAdCampaignToZernio(payment.adCampaignId);
+      await prisma.adCampaign.update({
+        where: { id: payment.adCampaignId },
+        data: {
+          paymentStatus: "checkout_paid",
+          paymentId: payment.id,
+        },
+      });
+      await prisma.auditLog.create({
+        data: {
+          teamId: payment.teamId,
+          action: "ads.campaign.published",
+          message: `Ad "${campaign.name}" published after payment confirmed`,
+          metadata: { adCampaignId: campaign.id, paymentId: payment.id },
+        },
+      });
+    }
   }
 
   await prisma.auditLog.create({

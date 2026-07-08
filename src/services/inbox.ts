@@ -40,8 +40,53 @@ type WebhookPayload = {
   [key: string]: unknown;
 };
 
+function unwrap<T>(result: unknown): T {
+  if (result && typeof result === "object" && "data" in result) {
+    return (result as { data: T }).data;
+  }
+  return result as T;
+}
+
+function normalizeEventType(raw: string): string {
+  const normalized = raw.trim().toLowerCase().replace(/-/g, ".");
+  if (normalized === "comment_received" || normalized === "comments.received" || normalized === "inbox.comment") {
+    return "comment.received";
+  }
+  if (normalized === "message_received" || normalized === "messages.received" || normalized === "inbox.message") {
+    return "message.received";
+  }
+  return raw;
+}
+
+async function resolveWebhookContext(payload: WebhookPayload, accountId: string) {
+  if (accountId) {
+    const connected = await prisma.connectedAccount.findUnique({ where: { zernioAccountId: accountId } });
+    if (connected) {
+      return { teamId: connected.teamId, connectedAccountId: connected.id };
+    }
+  }
+
+  const profileId = String(payload.profileId || payload.data?.profileId || "");
+  if (profileId) {
+    const team = await prisma.team.findUnique({ where: { zernioProfileId: profileId } });
+    if (team) {
+      const connected = accountId
+        ? await prisma.connectedAccount.findFirst({
+            where: { teamId: team.id, zernioAccountId: accountId },
+          })
+        : await prisma.connectedAccount.findFirst({
+            where: { teamId: team.id, isActive: true },
+            orderBy: { connectedAt: "desc" },
+          });
+      return { teamId: team.id, connectedAccountId: connected?.id ?? null };
+    }
+  }
+
+  return { teamId: null as string | null, connectedAccountId: null as string | null };
+}
+
 export async function processWebhookEvent(payload: WebhookPayload) {
-  const eventType = String(payload.type || payload.event || payload.eventType || "unknown");
+  const eventType = normalizeEventType(String(payload.type || payload.event || payload.eventType || "unknown"));
   const eventId = String(payload.id || payload.eventId || `${eventType}-${Date.now()}`);
 
   const existing = await prisma.webhookEvent.findUnique({ where: { eventId } });
@@ -52,16 +97,13 @@ export async function processWebhookEvent(payload: WebhookPayload) {
   const accountId = String(
     payload.accountId ||
       payload.data?.accountId ||
+      (payload.data?.comment as Record<string, unknown> | undefined)?.accountId ||
       payload.comment?.accountId ||
       payload.message?.accountId ||
       "",
   );
 
-  const connected = accountId
-    ? await prisma.connectedAccount.findUnique({ where: { zernioAccountId: accountId } })
-    : null;
-
-  const teamId = connected?.teamId ?? null;
+  const { teamId, connectedAccountId } = await resolveWebhookContext(payload, accountId);
 
   const stored = await prisma.webhookEvent.upsert({
     where: { eventId },
@@ -80,14 +122,16 @@ export async function processWebhookEvent(payload: WebhookPayload) {
 
   try {
     if (eventType === "comment.received") {
-      await handleCommentReceived(payload, connected?.id ?? null, teamId);
+      await handleCommentReceived(payload, connectedAccountId, teamId);
     } else if (eventType === "message.received") {
-      await handleMessageReceived(payload, connected?.id ?? null, teamId);
+      await handleMessageReceived(payload, connectedAccountId, teamId);
     } else if (eventType.startsWith("post.")) {
       await handlePostLifecycle(payload, teamId);
     } else if (eventType === "ad.status_changed") {
       const { handleAdStatusChanged } = await import("@/services/ads");
       await handleAdStatusChanged(payload as Record<string, unknown>);
+    } else {
+      console.warn("[webhook] Unhandled event type:", eventType);
     }
 
     await prisma.webhookEvent.update({
@@ -113,10 +157,12 @@ async function handleCommentReceived(
 ) {
   if (!teamId) return;
 
-  const comment = (payload.comment || payload.data || {}) as Record<string, unknown>;
+  const data = (payload.data || {}) as Record<string, unknown>;
+  const nestedComment = (data.comment || {}) as Record<string, unknown>;
+  const comment = (payload.comment || nestedComment || data) as Record<string, unknown>;
   const externalId = String(comment.id || comment.commentId || payload.id || "");
   const content = String(comment.text || comment.content || comment.message || "");
-  const platform = String(payload.platform || comment.platform || "unknown");
+  const platform = String(payload.platform || comment.platform || data.platform || "unknown");
 
   if (!externalId) return;
 
@@ -297,6 +343,103 @@ async function maybeAutoReply(input: {
   } catch (error) {
     console.error("[auto-reply] failed", error);
   }
+}
+
+export async function syncInboxFromZernio(teamId: string) {
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { zernioProfileId: true },
+  });
+  if (!team?.zernioProfileId) {
+    return { synced: 0, postsChecked: 0, error: "No Zernio profile linked to this workspace" };
+  }
+
+  const accounts = await prisma.connectedAccount.findMany({
+    where: { teamId, isActive: true },
+  });
+  const accountByZernioId = new Map(accounts.map((a) => [a.zernioAccountId, a]));
+
+  const zernio = await getZernio();
+  const result = await withZernioRetry(
+    async () =>
+      zernio.comments.listInboxComments({
+        query: {
+          profileId: team.zernioProfileId!,
+          limit: 25,
+          sortBy: "date",
+          sortOrder: "desc",
+        },
+      }),
+    { label: "comments.listInboxComments" },
+  );
+
+  const listData = unwrap<{
+    data?: Array<{
+      id?: string;
+      platform?: string;
+      accountId?: string;
+      commentCount?: number;
+    }>;
+  }>(result);
+
+  const posts = listData?.data || [];
+  let synced = 0;
+
+  for (const post of posts) {
+    if (!post.id || !post.accountId) continue;
+    if ((post.commentCount ?? 0) <= 0) continue;
+
+    const commentsResult = await withZernioRetry(
+      async () =>
+        zernio.comments.getInboxPostComments({
+          path: { postId: post.id! },
+          query: { accountId: post.accountId!, limit: 50 },
+        }),
+      { label: "comments.getInboxPostComments" },
+    );
+
+    const commentsData = unwrap<{
+      comments?: Array<{
+        id?: string;
+        message?: string;
+        createdTime?: string;
+        platform?: string;
+        from?: { name?: string; username?: string; isOwner?: boolean };
+      }>;
+    }>(commentsResult);
+
+    const connected = accountByZernioId.get(post.accountId);
+
+    for (const comment of commentsData?.comments || []) {
+      if (!comment.id || !comment.message) continue;
+      if (comment.from?.isOwner) continue;
+
+      await prisma.inboxItem.upsert({
+        where: { teamId_externalId: { teamId, externalId: comment.id } },
+        create: {
+          teamId,
+          connectedAccountId: connected?.id ?? null,
+          type: "COMMENT",
+          platform: String(comment.platform || post.platform || "facebook"),
+          externalId: comment.id,
+          conversationId: post.id,
+          authorName: comment.from?.name || null,
+          authorHandle: comment.from?.username || null,
+          content: comment.message,
+          metadata: { postId: post.id, accountId: post.accountId, comment } as object,
+          receivedAt: comment.createdTime ? new Date(comment.createdTime) : new Date(),
+        },
+        update: {
+          content: comment.message,
+          status: "UNREAD",
+          ...(connected ? { connectedAccountId: connected.id } : {}),
+        },
+      });
+      synced += 1;
+    }
+  }
+
+  return { synced, postsChecked: posts.length };
 }
 
 export async function listInbox(teamId: string, type?: "COMMENT" | "MESSAGE") {

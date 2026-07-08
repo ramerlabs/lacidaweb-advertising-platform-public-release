@@ -3,11 +3,13 @@ import { prisma } from "@/lib/prisma";
 export type AdsSettingsData = {
   adsEnabled: boolean;
   adsProfitMarginPercent: number;
+  adWalletTopUpUsd: number;
 };
 
 const DEFAULTS: AdsSettingsData = {
   adsEnabled: true,
   adsProfitMarginPercent: 80,
+  adWalletTopUpUsd: 25,
 };
 
 export async function getAdsSettings(): Promise<AdsSettingsData> {
@@ -16,6 +18,7 @@ export async function getAdsSettings(): Promise<AdsSettingsData> {
     return {
       adsEnabled: row?.adsEnabled ?? DEFAULTS.adsEnabled,
       adsProfitMarginPercent: row?.adsProfitMarginPercent ?? DEFAULTS.adsProfitMarginPercent,
+      adWalletTopUpUsd: row?.adWalletTopUpUsd ?? DEFAULTS.adWalletTopUpUsd,
     };
   } catch {
     return DEFAULTS;
@@ -27,6 +30,7 @@ export async function updateAdsSettings(input: Partial<AdsSettingsData>): Promis
   const next = {
     adsEnabled: input.adsEnabled ?? current.adsEnabled,
     adsProfitMarginPercent: input.adsProfitMarginPercent ?? current.adsProfitMarginPercent,
+    adWalletTopUpUsd: input.adWalletTopUpUsd ?? current.adWalletTopUpUsd,
   };
   await prisma.integrationSettings.upsert({
     where: { id: "default" },

@@ -1,10 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import { getZernio, withZernioRetry } from "@/lib/zernio";
 import { getAdsSettings } from "@/lib/ads-settings";
+import { centsToUsd } from "@/lib/ad-wallet";
 import { clientChargeFromPlatformBudget, formatAdPricing } from "@/lib/ads-pricing";
 import { isAdsPlatform, type AdGoalId, type AdsPlatformId } from "@/lib/ads-platforms";
 import { ensureTeamZernioProfile } from "@/services/profiles";
 import { syncConnectedAccounts } from "@/services/accounts";
+import {
+  adChargeCents,
+  creditAdWallet,
+  deductAdWallet,
+  publishAdCampaignToZernio,
+} from "@/services/ad-publish";
 
 const ADS_CONNECT_PLATFORM: Record<AdsPlatformId, string> = {
   metaads: "facebook",
@@ -134,6 +141,8 @@ export async function listTeamCampaigns(teamId: string, profileId: string) {
   return data.campaigns || [];
 }
 
+export type AdPayWith = "wallet" | "checkout";
+
 export async function createStandaloneAd(input: {
   teamId: string;
   userId: string;
@@ -149,6 +158,7 @@ export async function createStandaloneAd(input: {
   budgetType: "daily" | "lifetime";
   countries?: string[];
   status?: "ACTIVE" | "PAUSED";
+  payWith?: AdPayWith;
 }) {
   const settings = await getAdsSettings();
   if (!settings.adsEnabled) throw new Error("Ads are disabled on this platform");
@@ -161,59 +171,89 @@ export async function createStandaloneAd(input: {
   }
 
   const pricing = formatAdPricing(input.budgetAmount, settings.adsProfitMarginPercent);
-  const zernio = await getZernio();
+  const chargeCents = adChargeCents(pricing.clientChargeUsd);
+  const team = await prisma.team.findUnique({
+    where: { id: input.teamId },
+    select: { adWalletBalanceCents: true },
+  });
+  const walletBalanceCents = team?.adWalletBalanceCents ?? 0;
+  const payWith =
+    input.payWith ?? (walletBalanceCents >= chargeCents ? "wallet" : "checkout");
 
-  const body: Record<string, unknown> = {
-    accountId: account.zernioAccountId,
+  const campaignData = {
+    teamId: input.teamId,
+    connectedAccountId: account.id,
+    platform: account.platform,
     adAccountId: input.adAccountId,
     name: input.name,
     goal: input.goal,
+    adType: "standalone",
     budgetAmount: input.budgetAmount,
     budgetType: input.budgetType,
-    body: input.body,
+    platformBudgetUsd: pricing.platformBudgetUsd,
+    clientChargeUsd: pricing.clientChargeUsd,
     headline: input.headline,
+    body: input.body,
     linkUrl: input.linkUrl,
     imageUrl: input.imageUrl,
     countries: input.countries?.length ? input.countries : ["US"],
-    status: input.status || "PAUSED",
   };
 
-  if (account.platform === "googleads") {
-    body.campaignType = "display";
+  if (payWith === "wallet") {
+    if (walletBalanceCents < chargeCents) {
+      throw new Error(
+        `Insufficient ad wallet balance. Need $${centsToUsd(chargeCents).toFixed(2)}, have $${centsToUsd(walletBalanceCents).toFixed(2)}.`,
+      );
+    }
+
+    await deductAdWallet(input.teamId, chargeCents);
+
+    const record = await prisma.adCampaign.create({
+      data: {
+        ...campaignData,
+        status: "pending_payment",
+        paymentStatus: "wallet_paid",
+      },
+    });
+
+    try {
+      const published = await publishAdCampaignToZernio(record.id);
+      await prisma.auditLog.create({
+        data: {
+          teamId: input.teamId,
+          userId: input.userId,
+          action: "ads.campaign.created",
+          message: `Created ad campaign "${input.name}" (paid from wallet)`,
+          metadata: {
+            adCampaignId: published.id,
+            zernioAdId: published.zernioAdId,
+            clientChargeUsd: pricing.clientChargeUsd,
+            walletChargeCents: chargeCents,
+          },
+        },
+      });
+      return {
+        campaign: published,
+        pricing,
+        paymentStatus: "wallet_paid",
+        walletBalanceCents: walletBalanceCents - chargeCents,
+        message: "Ad submitted — pending platform review",
+      };
+    } catch (error) {
+      await creditAdWallet(input.teamId, chargeCents);
+      await prisma.adCampaign.update({
+        where: { id: record.id },
+        data: { status: "failed", paymentStatus: "wallet_refunded" },
+      });
+      throw error;
+    }
   }
-
-  const result = await withZernioRetry(
-    async () => zernio.ads.createStandaloneAd({ body }),
-    { label: "ads.createStandaloneAd" },
-  );
-
-  const data = unwrap<{ ad?: Record<string, unknown>; message?: string }>(result);
-  const ad = data.ad || {};
-  const zernioAdId = String(ad._id || ad.id || "");
-  const platformCampaignId = String(ad.platformCampaignId || ad.campaignId || "");
 
   const record = await prisma.adCampaign.create({
     data: {
-      teamId: input.teamId,
-      connectedAccountId: account.id,
-      zernioAdId: zernioAdId || null,
-      platformCampaignId: platformCampaignId || null,
-      platform: account.platform,
-      adAccountId: input.adAccountId,
-      name: input.name,
-      goal: input.goal,
-      adType: "standalone",
-      status: String(ad.status || "pending_review"),
-      budgetAmount: input.budgetAmount,
-      budgetType: input.budgetType,
-      platformBudgetUsd: pricing.platformBudgetUsd,
-      clientChargeUsd: pricing.clientChargeUsd,
-      headline: input.headline,
-      body: input.body,
-      linkUrl: input.linkUrl,
-      imageUrl: input.imageUrl,
-      countries: input.countries || ["US"],
-      metadata: ad as object,
+      ...campaignData,
+      status: "pending_payment",
+      paymentStatus: "pending_payment",
     },
   });
 
@@ -221,18 +261,22 @@ export async function createStandaloneAd(input: {
     data: {
       teamId: input.teamId,
       userId: input.userId,
-      action: "ads.campaign.created",
-      message: `Created ad campaign "${input.name}"`,
+      action: "ads.campaign.pending_payment",
+      message: `Ad "${input.name}" awaiting payment before publish`,
       metadata: {
         adCampaignId: record.id,
-        zernioAdId,
         clientChargeUsd: pricing.clientChargeUsd,
-        platformBudgetUsd: pricing.platformBudgetUsd,
       },
     },
   });
 
-  return { campaign: record, ad, pricing, message: data.message };
+  return {
+    campaign: record,
+    pricing,
+    requiresPayment: true,
+    checkoutUrl: `/checkout?purpose=ad_campaign&campaignId=${record.id}`,
+    message: "Complete payment to publish your ad.",
+  };
 }
 
 function zernioPlatformForStatus(platform: string): string {

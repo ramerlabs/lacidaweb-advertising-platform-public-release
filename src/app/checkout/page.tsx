@@ -9,33 +9,47 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { getPlanById } from "@/lib/pricing";
+import {
+  DEFAULT_ENABLED_METHODS,
+  type ClientPaymentMethod,
+  type EnabledPaymentMethods,
+} from "@/lib/payment-methods";
 
 type CheckoutResult = {
-  payment: { id: string };
+  payment: { id: string; amount?: number };
   instructions: string;
   usdtAmount?: number;
   walletAddress?: string;
 };
 
-type PaymentMethodOption = "USDT" | "PAYPAL" | "GCASH";
-
-type EnabledMethods = Record<PaymentMethodOption, boolean>;
+type AdCampaignContext = {
+  campaign: {
+    id: string;
+    name: string;
+    clientChargeUsd: number;
+    platformBudgetUsd: number;
+    budgetAmount: number;
+    budgetType: string;
+  };
+  amountUsd: number;
+};
 
 function CheckoutPageContent() {
   const search = useSearchParams();
+  const purpose = search.get("purpose") || "subscription";
+  const campaignId = search.get("campaignId");
   const plan = useMemo(() => getPlanById(search.get("plan")), [search]);
+
   const [teamId, setTeamId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodOption>("USDT");
-  const [enabledMethods, setEnabledMethods] = useState<EnabledMethods>({
-    USDT: true,
-    PAYPAL: true,
-    GCASH: true,
-  });
+  const [paymentMethod, setPaymentMethod] = useState<ClientPaymentMethod>("USDT");
+  const [enabledMethods, setEnabledMethods] = useState<EnabledPaymentMethods>(DEFAULT_ENABLED_METHODS);
   const [checkout, setCheckout] = useState<CheckoutResult | null>(null);
   const [txHash, setTxHash] = useState("");
   const [verifying, setVerifying] = useState(false);
+  const [adContext, setAdContext] = useState<AdCampaignContext | null>(null);
+  const [adWalletTopUpUsd, setAdWalletTopUpUsd] = useState(25);
 
   useEffect(() => {
     async function loadTeam() {
@@ -45,38 +59,92 @@ function CheckoutPageContent() {
       ]);
       const teamData = await teamRes.json();
       const methodsData = await methodsRes.json();
+      const tid = teamData.teams?.[0]?.id ?? null;
       if (teamRes.ok) {
-        setTeamId(teamData.teams?.[0]?.id ?? null);
+        setTeamId(tid);
       } else {
         setStatus("Please sign in before checkout.");
       }
       if (methodsRes.ok && methodsData.methods) {
-        const methods = methodsData.methods as EnabledMethods;
+        const methods = methodsData.methods as EnabledPaymentMethods;
         setEnabledMethods(methods);
-        const firstEnabled = (["USDT", "PAYPAL", "GCASH"] as PaymentMethodOption[]).find(
+        const firstEnabled = (["USDT", "PAYPAL", "GCASH", "US_BANK"] as ClientPaymentMethod[]).find(
           (m) => methods[m],
         );
         if (firstEnabled) setPaymentMethod(firstEnabled);
       }
+
+      if (tid && purpose === "ad_campaign" && campaignId) {
+        const res = await fetch(
+          `/api/billing/ad-campaign?teamId=${encodeURIComponent(tid)}&campaignId=${encodeURIComponent(campaignId)}`,
+        );
+        const data = await res.json();
+        if (res.ok) setAdContext(data);
+        else setStatus(data.error || "Could not load ad checkout");
+      }
+
+      if (tid && purpose === "ad_wallet") {
+        const res = await fetch(`/api/billing/ad-wallet?teamId=${encodeURIComponent(tid)}`);
+        const data = await res.json();
+        if (res.ok) setAdWalletTopUpUsd(data.adWalletTopUpUsd || 25);
+      }
     }
-    loadTeam();
-  }, []);
+    void loadTeam();
+  }, [purpose, campaignId]);
+
+  const title =
+    purpose === "ad_campaign"
+      ? "Pay for ad"
+      : purpose === "ad_wallet"
+        ? "Top up ad wallet"
+        : "Checkout";
+
+  const description =
+    purpose === "ad_campaign" && adContext
+      ? `Complete payment to publish "${adContext.campaign.name}"`
+      : purpose === "ad_wallet"
+        ? `Add $${adWalletTopUpUsd.toFixed(2)} to your prepaid ad balance`
+        : `Select billing and complete payment for ${plan.name}`;
+
+  const amountUsd =
+    purpose === "ad_campaign" && adContext
+      ? adContext.amountUsd
+      : purpose === "ad_wallet"
+        ? Math.round(adWalletTopUpUsd)
+        : plan.monthlyPrice;
 
   async function startCheckout() {
     if (!teamId) return;
     setLoading(true);
     setStatus("");
     setCheckout(null);
-    const res = await fetch("/api/billing/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        teamId,
-        planId: plan.id,
-        interval: "MONTHLY",
-        method: paymentMethod,
-      }),
-    });
+
+    let res: Response;
+    if (purpose === "ad_campaign" && campaignId) {
+      res = await fetch("/api/billing/ad-campaign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamId, campaignId, method: paymentMethod }),
+      });
+    } else if (purpose === "ad_wallet") {
+      res = await fetch("/api/billing/ad-wallet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamId, method: paymentMethod }),
+      });
+    } else {
+      res = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          teamId,
+          planId: plan.id,
+          interval: "MONTHLY",
+          method: paymentMethod,
+        }),
+      });
+    }
+
     const data = await res.json();
     setLoading(false);
     if (!res.ok) {
@@ -102,11 +170,23 @@ function CheckoutPageContent() {
       setStatus(data.error || "Verification failed");
       return;
     }
-    setStatus(data.message || "Payment verified. Redirecting to dashboard...");
+    const redirect =
+      purpose === "ad_campaign"
+        ? "/dashboard/ads"
+        : purpose === "ad_wallet"
+          ? "/dashboard/billing"
+          : "/dashboard/billing";
+    setStatus(data.message || "Payment verified. Redirecting...");
     setTimeout(() => {
-      window.location.href = "/dashboard/billing";
+      window.location.href = redirect;
     }, 1500);
   }
+
+  const hasMethods =
+    enabledMethods.USDT || enabledMethods.PAYPAL || enabledMethods.GCASH || enabledMethods.US_BANK;
+
+  const backHref =
+    purpose === "ad_campaign" ? "/dashboard/ads" : purpose === "ad_wallet" ? "/dashboard/billing" : "/";
 
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl items-center px-4 py-12">
@@ -114,36 +194,61 @@ function CheckoutPageContent() {
         <CardHeader>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <CardTitle>Checkout</CardTitle>
-              <CardDescription>Select billing and complete payment for {plan.name}</CardDescription>
+              <CardTitle>{title}</CardTitle>
+              <CardDescription>{description}</CardDescription>
             </div>
-            <Badge>{plan.accountLimit} accounts</Badge>
+            {purpose === "subscription" ? <Badge>{plan.accountLimit} accounts</Badge> : null}
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="rounded-lg border p-4">
-            <p className="text-sm text-muted-foreground">Plan</p>
-            <p className="mt-1 text-xl font-semibold">{plan.name}</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              ${plan.monthlyPrice}/month or ${plan.yearlyPrice}/year
-            </p>
+            {purpose === "ad_campaign" && adContext ? (
+              <>
+                <p className="text-sm text-muted-foreground">Ad campaign</p>
+                <p className="mt-1 text-xl font-semibold">{adContext.campaign.name}</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Ad spend ${adContext.campaign.platformBudgetUsd.toFixed(2)} · Your charge $
+                  {adContext.campaign.clientChargeUsd.toFixed(2)} (includes platform fee)
+                </p>
+              </>
+            ) : purpose === "ad_wallet" ? (
+              <>
+                <p className="text-sm text-muted-foreground">Ad wallet top-up</p>
+                <p className="mt-1 text-xl font-semibold">${adWalletTopUpUsd.toFixed(2)}</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Prepaid balance for launching ads without paying each time at checkout.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">Plan</p>
+                <p className="mt-1 text-xl font-semibold">{plan.name}</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  ${plan.monthlyPrice}/month or ${plan.yearlyPrice}/year
+                </p>
+              </>
+            )}
           </div>
 
           {!checkout ? (
             <div className="space-y-3 rounded-lg border p-4">
+              <p className="text-sm font-medium">
+                Amount due: <strong>${amountUsd}</strong>
+              </p>
               <p className="text-sm font-medium">Choose payment option</p>
-              {enabledMethods.USDT || enabledMethods.PAYPAL || enabledMethods.GCASH ? (
+              {hasMethods ? (
                 <>
                   <select
                     className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                     value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value as PaymentMethodOption)}
+                    onChange={(e) => setPaymentMethod(e.target.value as ClientPaymentMethod)}
                   >
                     {enabledMethods.USDT ? (
                       <option value="USDT">USDT Crypto (TRC20 — auto verify)</option>
                     ) : null}
                     {enabledMethods.PAYPAL ? <option value="PAYPAL">PayPal</option> : null}
                     {enabledMethods.GCASH ? <option value="GCASH">GCash</option> : null}
+                    {enabledMethods.US_BANK ? <option value="US_BANK">US Bank transfer</option> : null}
                   </select>
                   <Button className="w-full" size="lg" onClick={startCheckout} disabled={loading || !teamId}>
                     {loading ? "Creating payment..." : "Create payment request"}
@@ -176,6 +281,15 @@ function CheckoutPageContent() {
               ) : (
                 <p className="text-sm text-muted-foreground">{checkout.instructions}</p>
               )}
+              {paymentMethod !== "USDT" ? (
+                <p className="text-xs text-muted-foreground">
+                  {purpose === "ad_campaign"
+                    ? "After admin confirms payment, your ad will be submitted to the ad platform."
+                    : purpose === "ad_wallet"
+                      ? "After admin confirms payment, funds are added to your ad wallet in Billing."
+                      : "Payment is reviewed manually. Your subscription activates after admin confirms."}
+                </p>
+              ) : null}
             </div>
           )}
 
@@ -183,14 +297,16 @@ function CheckoutPageContent() {
 
           <div className="flex items-center justify-between">
             <Button asChild variant="ghost">
-              <Link href="/">
+              <Link href={backHref}>
                 <ArrowLeft className="h-4 w-4" />
-                Back to pricing
+                Back
               </Link>
             </Button>
-            <Button asChild variant="outline">
-              <Link href={`/register?plan=${plan.id}`}>Register account</Link>
-            </Button>
+            {purpose === "subscription" ? (
+              <Button asChild variant="outline">
+                <Link href={`/register?plan=${plan.id}`}>Register account</Link>
+              </Button>
+            ) : null}
           </div>
         </CardContent>
       </Card>

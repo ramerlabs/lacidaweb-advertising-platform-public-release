@@ -23,6 +23,8 @@ type CheckoutContext = {
   amountUsd: number;
   aiTokensGranted?: number;
   planName?: string;
+  adCampaignName?: string;
+  adWalletTopUpUsd?: number;
 };
 
 export async function formatCheckoutInstructions(
@@ -36,6 +38,14 @@ export async function formatCheckoutInstructions(
   if (context.aiTokensGranted) {
     lines.push(
       `AI token pack: pay $${amount} → receive ${context.aiTokensGranted.toLocaleString()} tokens after payment is confirmed.`,
+    );
+  } else if (context.adCampaignName) {
+    lines.push(
+      `Ad campaign "${context.adCampaignName}": pay $${amount} (includes platform fee). Your ad publishes after payment is confirmed.`,
+    );
+  } else if (context.adWalletTopUpUsd) {
+    lines.push(
+      `Ad wallet top-up: pay $${amount} → $${context.adWalletTopUpUsd.toFixed(2)} added to your prepaid ad balance after confirmation.`,
     );
   } else if (context.planName) {
     lines.push(`Subscription: ${context.planName} — pay $${amount}.`);

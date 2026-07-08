@@ -135,6 +135,7 @@ model Team {
   aiEnabled        Boolean  @default(false)
   aiBalanceCents   Int      @default(0)
   aiTokenBalance   Int      @default(0)
+  adWalletBalanceCents Int  @default(0)
   lowTokenAlertAt  DateTime?
   businessName        String?
   businessDescription String?  @db.Text
@@ -353,6 +354,8 @@ model Payment {
   purpose        String        @default("SUBSCRIPTION")
   aiCreditsCents Int?
   aiTokensGranted Int?
+  adCampaignId   String?
+  adWalletTopUpCents Int?
   externalRef    String?
   txHash         String?       @unique
   notes          String?       @db.Text
@@ -363,9 +366,11 @@ model Payment {
 
   team         Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
   subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  adCampaign   AdCampaign?   @relation(fields: [adCampaignId], references: [id], onDelete: SetNull)
 
   @@index([teamId, status])
   @@index([createdAt])
+  @@index([adCampaignId])
 }
 
 model SupportTicket {
@@ -470,6 +475,7 @@ model IntegrationSettings {
   aiLowTokenThreshold       Int     @default(50000)
   adsEnabled                Boolean @default(true)
   adsProfitMarginPercent    Int     @default(80)
+  adWalletTopUpUsd          Float   @default(25)
   updatedAt           DateTime @updatedAt
 }
 
@@ -489,6 +495,8 @@ model AdCampaign {
   budgetType         String
   platformBudgetUsd  Float
   clientChargeUsd    Float
+  paymentStatus      String   @default("pending_payment")
+  paymentId          String?
   currency           String   @default("USD")
   headline           String?
   body               String?  @db.Text
@@ -502,9 +510,11 @@ model AdCampaign {
 
   team             Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
   connectedAccount ConnectedAccount? @relation(fields: [connectedAccountId], references: [id], onDelete: SetNull)
+  payments         Payment[]
 
   @@index([teamId, status])
   @@index([platformCampaignId])
+  @@index([paymentStatus])
 }
 
 model PostTemplate {

@@ -19,6 +19,7 @@ const createSchema = z.object({
   budgetType: z.enum(["daily", "lifetime"]),
   countries: z.array(z.string().length(2)).optional(),
   status: z.enum(["ACTIVE", "PAUSED"]).optional(),
+  payWith: z.enum(["wallet", "checkout"]).optional(),
 });
 
 export async function GET(req: Request) {

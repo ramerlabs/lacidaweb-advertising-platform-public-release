@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSession, requireTeamAccess } from "@/lib/auth";
-import { listInbox, replyToInboxItem } from "@/services/inbox";
+import { listInbox, replyToInboxItem, syncInboxFromZernio } from "@/services/inbox";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(req: Request) {
@@ -10,11 +10,25 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const teamId = searchParams.get("teamId");
     const type = searchParams.get("type") as "COMMENT" | "MESSAGE" | null;
+    const shouldSync = searchParams.get("sync") === "1";
     if (!teamId) return NextResponse.json({ error: "teamId required" }, { status: 400 });
     await requireTeamAccess(teamId, session.user.id);
 
+    let syncResult: Awaited<ReturnType<typeof syncInboxFromZernio>> | null = null;
+    if (shouldSync) {
+      try {
+        syncResult = await syncInboxFromZernio(teamId);
+      } catch (error) {
+        syncResult = {
+          synced: 0,
+          postsChecked: 0,
+          error: error instanceof Error ? error.message : "Sync failed",
+        };
+      }
+    }
+
     const items = await listInbox(teamId, type || undefined);
-    return NextResponse.json({ items });
+    return NextResponse.json({ items, sync: syncResult });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed";
     return NextResponse.json({ error: message }, { status: 400 });

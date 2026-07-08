@@ -26,17 +26,35 @@ export default function InboxPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reply, setReply] = useState("");
   const [status, setStatus] = useState("");
+  const [syncing, setSyncing] = useState(false);
 
-  async function load() {
+  async function load(sync = false) {
     if (!teamId) return;
+    if (sync) setSyncing(true);
     const qs = filter === "ALL" ? "" : `&type=${filter}`;
-    const res = await fetch(`/api/inbox?teamId=${teamId}${qs}`);
+    const syncQs = sync ? "&sync=1" : "";
+    const res = await fetch(`/api/inbox?teamId=${teamId}${qs}${syncQs}`);
     const data = await res.json();
+    if (sync) setSyncing(false);
+    if (!res.ok) {
+      setStatus(data.error || "Could not load inbox");
+      return;
+    }
     setItems(data.items || []);
+    if (sync && data.sync) {
+      if (data.sync.error) {
+        setStatus(data.sync.error);
+      } else if (data.sync.synced > 0) {
+        setStatus(`Synced ${data.sync.synced} comment(s) from your connected accounts.`);
+      } else {
+        setStatus("Sync complete — no new comments found on recent posts.");
+      }
+    }
   }
 
   useEffect(() => {
-    load();
+    void load(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId, filter]);
 
   const selected = items.find((i) => i.id === selectedId) || null;
@@ -66,7 +84,7 @@ export default function InboxPage() {
         <p className="text-muted-foreground">Comments and DMs streamed from your connected channels</p>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {(["ALL", "COMMENT", "MESSAGE"] as const).map((value) => (
           <Button
             key={value}
@@ -77,7 +95,12 @@ export default function InboxPage() {
             {value}
           </Button>
         ))}
+        <Button variant="outline" size="sm" disabled={syncing} onClick={() => void load(true)}>
+          {syncing ? "Syncing..." : "Sync now"}
+        </Button>
       </div>
+
+      {status ? <p className="text-sm text-muted-foreground">{status}</p> : null}
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
         <Card>
@@ -88,7 +111,8 @@ export default function InboxPage() {
           <CardContent className="space-y-2">
             {items.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No inbox events yet. New comments and messages will appear here automatically.
+                No inbox events yet. Click <strong>Sync now</strong> to pull recent comments from Facebook
+                and other connected accounts, or wait for new activity via webhook.
               </p>
             ) : (
               items.map((item) => (

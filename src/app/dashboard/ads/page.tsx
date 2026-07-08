@@ -40,6 +40,7 @@ type LocalCampaign = {
   budgetAmount: number;
   budgetType: string;
   clientChargeUsd: number;
+  paymentStatus?: string;
   platformCampaignId: string | null;
   createdAt: string;
 };
@@ -68,6 +69,8 @@ export default function AdsPage() {
   const [generatingAd, setGeneratingAd] = useState(false);
   const [aiReady, setAiReady] = useState(false);
   const [tokenBalance, setTokenBalance] = useState(0);
+  const [adWalletBalanceCents, setAdWalletBalanceCents] = useState(0);
+  const [adsEnabled, setAdsEnabled] = useState(true);
 
   const [form, setForm] = useState({
     connectedAccountId: "",
@@ -101,6 +104,20 @@ export default function AdsPage() {
   useEffect(() => {
     void load();
   }, [teamId]);
+
+  useEffect(() => {
+    if (!teamId) return;
+    fetch(`/api/billing/ad-wallet?teamId=${teamId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.adWalletBalanceCents !== undefined) setAdWalletBalanceCents(data.adWalletBalanceCents);
+        if (data.adsEnabled !== undefined) setAdsEnabled(data.adsEnabled);
+      })
+      .catch(() => {});
+  }, [teamId]);
+
+  const adChargeCents = pricing ? Math.round(pricing.clientChargeUsd * 100) : 0;
+  const walletCoversAd = adWalletBalanceCents >= adChargeCents && adChargeCents > 0;
 
   useEffect(() => {
     if (!teamId) return;
@@ -221,7 +238,7 @@ export default function AdsPage() {
     setMessage("Ad copy generated — review and edit before publishing.");
   }
 
-  async function createAd() {
+  async function createAd(payWith: "wallet" | "checkout") {
     if (!teamId) return;
     setCreating(true);
     setMessage("");
@@ -241,7 +258,7 @@ export default function AdsPage() {
         budgetAmount: Number(form.budgetAmount),
         budgetType: form.budgetType,
         countries: form.countries.split(",").map((c) => c.trim().toUpperCase()).filter(Boolean),
-        status: "PAUSED",
+        payWith,
       }),
     });
     const data = await res.json();
@@ -249,6 +266,13 @@ export default function AdsPage() {
     if (!res.ok) {
       setMessage(data.error || "Could not create ad");
       return;
+    }
+    if (data.requiresPayment && data.checkoutUrl) {
+      window.location.href = data.checkoutUrl;
+      return;
+    }
+    if (data.walletBalanceCents !== undefined) {
+      setAdWalletBalanceCents(data.walletBalanceCents);
     }
     setShowCreate(false);
     setMessage(data.message || "Ad created — pending platform review");
@@ -362,8 +386,13 @@ export default function AdsPage() {
                     {platformLabel(c.platform)} · {c.goal} · ${c.budgetAmount}/{c.budgetType}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Client charge ${c.clientChargeUsd.toFixed(2)} · {new Date(c.createdAt).toLocaleString()}
+                    Your charge ${c.clientChargeUsd.toFixed(2)} · {new Date(c.createdAt).toLocaleString()}
                   </p>
+                  {c.paymentStatus === "pending_payment" ? (
+                    <Button asChild size="sm" className="mt-2" variant="outline">
+                      <Link href={`/checkout?purpose=ad_campaign&campaignId=${c.id}`}>Complete payment</Link>
+                    </Button>
+                  ) : null}
                 </div>
               ))}
             </>
@@ -570,6 +599,16 @@ export default function AdsPage() {
                         (includes platform fee)
                       </p>
                     ) : null}
+                    {adsEnabled ? (
+                      <p className="text-xs text-muted-foreground">
+                        Ad wallet: <strong>${(adWalletBalanceCents / 100).toFixed(2)}</strong>
+                        {walletCoversAd ? " — covers this ad" : pricing ? ` — need $${pricing.clientChargeUsd.toFixed(2)}` : null}
+                        {" · "}
+                        <Link href="/dashboard/billing" className="text-primary underline">
+                          Top up wallet
+                        </Link>
+                      </p>
+                    ) : null}
                   </div>
                   <div className="space-y-2">
                     <Label>Targeting (countries)</Label>
@@ -582,12 +621,27 @@ export default function AdsPage() {
                   </div>
                 </div>
               </div>
-              <div className="mt-6 flex justify-end gap-2">
+              <div className="mt-6 flex flex-wrap justify-end gap-2">
                 <Button variant="outline" onClick={() => setShowCreate(false)}>
                   Cancel
                 </Button>
-                <Button disabled={!canCreate || creating} onClick={createAd}>
-                  {creating ? "Creating..." : "Create ad"}
+                {walletCoversAd ? (
+                  <Button disabled={!canCreate || creating} onClick={() => createAd("wallet")}>
+                    {creating ? "Publishing..." : `Publish (wallet $${(adChargeCents / 100).toFixed(2)})`}
+                  </Button>
+                ) : null}
+                <Button
+                  variant={walletCoversAd ? "outline" : "default"}
+                  disabled={!canCreate || creating}
+                  onClick={() => createAd("checkout")}
+                >
+                  {creating
+                    ? "Processing..."
+                    : walletCoversAd
+                      ? "Pay separately at checkout"
+                      : pricing
+                        ? `Pay $${pricing.clientChargeUsd.toFixed(2)} & publish`
+                        : "Pay & publish"}
                 </Button>
               </div>
             </CardContent>
