@@ -1,0 +1,444 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum PublishStatus {
+  DRAFT
+  PENDING
+  SCHEDULED
+  PUBLISHED
+  FAILED
+}
+
+enum InboxItemType {
+  COMMENT
+  MESSAGE
+}
+
+enum InboxItemStatus {
+  UNREAD
+  READ
+  ARCHIVED
+  REPLIED
+}
+
+enum BillingInterval {
+  MONTHLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum PaymentMethod {
+  USDT
+  PAYPAL
+  GCASH
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_CLIENT
+  RESOLVED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model User {
+  id             String    @id @default(cuid())
+  name           String?
+  email          String    @unique
+  emailVerified  DateTime?
+  image          String?
+  passwordHash   String?
+  bannedAt       DateTime?
+  banReason      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  accounts       Account[]
+  sessions       Session[]
+  memberships    TeamMember[]
+  postsCreated   Post[]           @relation("PostCreator")
+  auditLogs      AuditLog[]
+  supportMessages SupportMessage[]
+  supportTickets  SupportTicket[]  @relation("TicketCreator")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Team {
+  id               String   @id @default(cuid())
+  name             String
+  slug             String   @unique
+  zernioProfileId  String?  @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  members             TeamMember[]
+  connectedAccounts   ConnectedAccount[]
+  posts               Post[]
+  inboxItems          InboxItem[]
+  autoReplyRules      AutoReplyRule[]
+  auditLogs           AuditLog[]
+  webhookEvents       WebhookEvent[]
+  subscription        Subscription?
+  payments            Payment[]
+  supportTickets      SupportTicket[]
+}
+
+model TeamMember {
+  id        String         @id @default(cuid())
+  teamId    String
+  userId    String
+  role      MembershipRole @default(MEMBER)
+  createdAt DateTime       @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([userId])
+}
+
+model ConnectedAccount {
+  id                 String   @id @default(cuid())
+  teamId             String
+  platform           String
+  zernioAccountId    String   @unique
+  zernioProfileId    String
+  username           String?
+  displayName        String?
+  avatarUrl          String?
+  metadata           Json?
+  isActive           Boolean  @default(true)
+  connectedAt        DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  team         Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  postTargets  PostTarget[]
+  inboxItems   InboxItem[]
+
+  @@index([teamId, platform])
+  @@index([zernioProfileId])
+}
+
+model Post {
+  id              String        @id @default(cuid())
+  teamId          String
+  createdById     String
+  content         String        @db.Text
+  mediaUrls       String[]
+  status          PublishStatus @default(DRAFT)
+  scheduledFor    DateTime?
+  timezone        String?       @default("UTC")
+  publishNow      Boolean       @default(false)
+  zernioPostId    String?       @unique
+  platformOptions Json?
+  errorMessage    String?       @db.Text
+  publishedAt     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  team      Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy User         @relation("PostCreator", fields: [createdById], references: [id])
+  targets   PostTarget[]
+  auditLogs AuditLog[]
+
+  @@index([teamId, status])
+  @@index([scheduledFor])
+}
+
+model PostTarget {
+  id                    String        @id @default(cuid())
+  postId                String
+  connectedAccountId    String
+  platform              String
+  status                PublishStatus @default(PENDING)
+  platformSpecificText  String?       @db.Text
+  platformPostUrl       String?
+  errorMessage          String?       @db.Text
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  post             Post             @relation(fields: [postId], references: [id], onDelete: Cascade)
+  connectedAccount ConnectedAccount @relation(fields: [connectedAccountId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([connectedAccountId])
+}
+
+model InboxItem {
+  id                   String          @id @default(cuid())
+  teamId               String
+  connectedAccountId   String?
+  type                 InboxItemType
+  status               InboxItemStatus @default(UNREAD)
+  platform             String
+  externalId           String
+  conversationId       String?
+  authorName           String?
+  authorHandle         String?
+  content              String          @db.Text
+  metadata             Json?
+  autoReplied          Boolean         @default(false)
+  receivedAt           DateTime        @default(now())
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  team             Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  connectedAccount ConnectedAccount? @relation(fields: [connectedAccountId], references: [id], onDelete: SetNull)
+
+  @@unique([teamId, externalId])
+  @@index([teamId, status, type])
+  @@index([receivedAt])
+}
+
+model AutoReplyRule {
+  id            String   @id @default(cuid())
+  teamId        String
+  name          String
+  keywords      String[]
+  matchMode     String   @default("any")
+  replyType     String   @default("comment")
+  replyTemplate String   @db.Text
+  platforms     String[]
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, isActive])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  teamId    String
+  userId    String?
+  postId    String?
+  action    String
+  status    PublishStatus?
+  message   String?  @db.Text
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  team Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  post Post? @relation(fields: [postId], references: [id], onDelete: SetNull)
+
+  @@index([teamId, createdAt])
+  @@index([postId])
+}
+
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  teamId      String?
+  eventId     String   @unique
+  eventType   String
+  payload     Json
+  processed   Boolean  @default(false)
+  processedAt DateTime?
+  error       String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  team Team? @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@index([eventType, processed])
+}
+
+model Subscription {
+  id             String             @id @default(cuid())
+  teamId         String             @unique
+  planId         String
+  accountLimit   Int
+  interval       BillingInterval    @default(MONTHLY)
+  amount         Int
+  currency       String             @default("USD")
+  status         SubscriptionStatus @default(TRIAL)
+  currentPeriodStart DateTime       @default(now())
+  currentPeriodEnd   DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  team     Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  payments Payment[]
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  teamId         String
+  subscriptionId String?
+  method         PaymentMethod
+  status         PaymentStatus @default(PENDING)
+  amount         Int
+  currency       String        @default("USD")
+  usdtAmount     Float?
+  interval       BillingInterval @default(MONTHLY)
+  externalRef    String?
+  txHash         String?       @unique
+  notes          String?       @db.Text
+  proofUrl       String?
+  verifiedAt     DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  team         Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([teamId, status])
+  @@index([createdAt])
+}
+
+model SupportTicket {
+  id          String        @id @default(cuid())
+  teamId       String
+  createdById  String
+  subject      String
+  description  String       @db.Text
+  status       TicketStatus @default(OPEN)
+  priority     TicketPriority @default(MEDIUM)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  team       Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy  User            @relation("TicketCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  messages   SupportMessage[]
+
+  @@index([teamId, status])
+  @@index([createdAt])
+}
+
+model SupportMessage {
+  id         String      @id @default(cuid())
+  ticketId   String
+  senderUserId String?
+  senderRole String      @default("CLIENT")
+  message    String      @db.Text
+  createdAt  DateTime    @default(now())
+
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  senderUser User?         @relation(fields: [senderUserId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt])
+}
+
+model PaymentSettings {
+  id                 String   @id @default("default")
+  usdtEnabled        Boolean  @default(true)
+  paypalEnabled      Boolean  @default(true)
+  gcashEnabled       Boolean  @default(true)
+  usdtTrc20Wallet    String?
+  usdtInstructions   String?  @db.Text
+  paypalInstructions String?  @db.Text
+  gcashInstructions  String?  @db.Text
+  usdtPerUsd         Float?
+  updatedAt          DateTime @updatedAt
+}
+
+model SiteSettings {
+  id                         String   @id @default("default")
+  title                      String?
+  product                    String?
+  description                String?  @db.Text
+  logoUrl                    String?
+  faviconUrl                 String?
+  activityFeedDisplayCount   Int      @default(20)
+  activityFeedSimulatedEnabled Boolean @default(true)
+  updatedAt                  DateTime @updatedAt
+}
+
+model IntegrationSettings {
+  id                  String   @id @default("default")
+  zernioApiKey        String?
+  zernioWebhookSecret String?
+  telegramEnabled     Boolean  @default(false)
+  telegramBotToken    String?
+  telegramChatId      String?
+  telegramNotifySupport   Boolean @default(true)
+  telegramNotifyPayments  Boolean @default(true)
+  telegramNotifyPosts     Boolean @default(true)
+  telegramNotifyAccounts  Boolean @default(true)
+  telegramNotifyUsers     Boolean @default(true)
+  smtpEnabled             Boolean @default(false)
+  smtpHost                String?
+  smtpPort                Int     @default(587)
+  smtpSecure              Boolean @default(false)
+  smtpUser                String?
+  smtpPassword            String?
+  smtpFromEmail           String?
+  smtpFromName            String?
+  smtpFallbackTelegram    Boolean @default(true)
+  updatedAt           DateTime @updatedAt
+}
+
+model Faq {
+  id          String   @id @default(cuid())
+  question    String
+  answer      String   @db.Text
+  sortOrder   Int      @default(0)
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isPublished, sortOrder])
+}

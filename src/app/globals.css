@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 222 47% 98%;
+  --foreground: 224 71% 4%;
+  --card: 0 0% 100%;
+  --card-foreground: 224 71% 4%;
+  --primary: 262 83% 48%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 14% 96%;
+  --secondary-foreground: 224 71% 4%;
+  --muted: 220 14% 96%;
+  --muted-foreground: 220 9% 46%;
+  --accent: 262 83% 96%;
+  --accent-foreground: 262 83% 30%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --ring: 262 83% 48%;
+  --radius: 0.75rem;
+}
+
+.dark {
+  --background: 224 71% 6%;
+  --foreground: 210 40% 98%;
+  --card: 224 47% 10%;
+  --card-foreground: 210 40% 98%;
+  --primary: 262 83% 62%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 224 32% 14%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 224 32% 14%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 262 50% 18%;
+  --accent-foreground: 262 83% 80%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 224 32% 18%;
+  --input: 224 32% 18%;
+  --ring: 262 83% 62%;
+}
+
+* {
+  @apply border-border;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+  background-image:
+    radial-gradient(circle at top left, rgba(124, 58, 237, 0.08), transparent 28%),
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.06), transparent 24%);
+  min-height: 100vh;
+}
+
+.dark body {
+  background-image:
+    radial-gradient(circle at top left, rgba(124, 58, 237, 0.15), transparent 28%),
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.1), transparent 24%);
+}
