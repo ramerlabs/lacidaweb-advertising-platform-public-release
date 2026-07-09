@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles } from "lucide-react";
+import { Sparkles, CalendarClock, Trash2 } from "lucide-react";
 import Link from "next/link";
 
 type ConnectedAccount = {
@@ -16,6 +16,22 @@ type ConnectedAccount = {
   platform: string;
   username: string | null;
   displayName: string | null;
+};
+
+type QueuePost = {
+  id: string;
+  content: string;
+  status: string;
+  scheduledFor: string | null;
+  createdAt: string;
+  mediaUrls: string[];
+  targets: Array<{
+    platform: string;
+    connectedAccount: {
+      displayName: string | null;
+      username: string | null;
+    };
+  }>;
 };
 
 type AiState = {
@@ -53,6 +69,18 @@ export default function ComposePage() {
   const [transforming, setTransforming] = useState(false);
   const [templates, setTemplates] = useState<Array<{ id: string; name: string; prompt: string; tone: string | null }>>([]);
   const [templateName, setTemplateName] = useState("");
+  const [queuePosts, setQueuePosts] = useState<QueuePost[]>([]);
+  const [loadingQueue, setLoadingQueue] = useState(false);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+  async function loadQueue() {
+    if (!teamId) return;
+    setLoadingQueue(true);
+    const res = await fetch(`/api/posts?teamId=${teamId}`);
+    const data = await res.json();
+    setQueuePosts(data.posts || []);
+    setLoadingQueue(false);
+  }
 
   useEffect(() => {
     if (!teamId) return;
@@ -67,6 +95,7 @@ export default function ComposePage() {
     fetch(`/api/post-templates?teamId=${teamId}`)
       .then((r) => r.json())
       .then((data) => setTemplates(data.templates || []));
+    void loadQueue();
   }, [teamId]);
 
   const selectedAccounts = useMemo(
@@ -83,6 +112,49 @@ export default function ComposePage() {
     selectedPlatforms.has("youtube") ||
     selectedPlatforms.has("tiktok") ||
     selectedPlatforms.has("pinterest");
+
+  const upcomingPosts = useMemo(
+    () =>
+      queuePosts
+        .filter((p) => ["SCHEDULED", "DRAFT", "PENDING"].includes(p.status))
+        .sort((a, b) => {
+          const aTime = a.scheduledFor ? new Date(a.scheduledFor).getTime() : new Date(a.createdAt).getTime();
+          const bTime = b.scheduledFor ? new Date(b.scheduledFor).getTime() : new Date(b.createdAt).getTime();
+          return aTime - bTime;
+        }),
+    [queuePosts],
+  );
+
+  function formatPostWhen(post: QueuePost) {
+    if (post.scheduledFor) {
+      return new Date(post.scheduledFor).toLocaleString(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+    }
+    return `Created ${new Date(post.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`;
+  }
+
+  function statusBadgeVariant(status: string): "default" | "secondary" | "outline" {
+    if (status === "SCHEDULED") return "default";
+    if (status === "PENDING") return "secondary";
+    return "outline";
+  }
+
+  async function cancelQueuedPost(postId: string) {
+    if (!teamId) return;
+    if (!window.confirm("Cancel this post? It will be removed from your queue.")) return;
+    setCancellingId(postId);
+    const res = await fetch(`/api/posts/${postId}?teamId=${teamId}`, { method: "DELETE" });
+    const data = await res.json();
+    setCancellingId(null);
+    if (!res.ok) {
+      setStatus(data.error || "Could not cancel post");
+      return;
+    }
+    setQueuePosts((prev) => prev.filter((p) => p.id !== postId));
+    setStatus("Post cancelled");
+  }
 
   useEffect(() => {
     if (accounts.length === 1 && selected.length === 0) {
@@ -260,10 +332,12 @@ export default function ComposePage() {
     }
 
     setStatus(`Post ${data.post.status}`);
+    await loadQueue();
     if (mode !== "draft") {
       setContent("");
       setMediaUrl("");
       setSelected([]);
+      setScheduledFor("");
     }
   }
 
@@ -581,6 +655,80 @@ export default function ComposePage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarClock className="h-5 w-5 text-primary" />
+              Scheduled &amp; drafts
+            </CardTitle>
+            <CardDescription>
+              Upcoming posts queued for publishing — manage them here or view the full{" "}
+              <Link href="/dashboard/calendar" className="text-primary underline">
+                calendar
+              </Link>
+            </CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => loadQueue()} disabled={loadingQueue}>
+            {loadingQueue ? "Refreshing..." : "Refresh"}
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {upcomingPosts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No scheduled posts yet. Pick channels, set a date and time above, then click{" "}
+              <strong>Schedule</strong>.
+            </p>
+          ) : (
+            upcomingPosts.map((post) => (
+              <div
+                key={post.id}
+                className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-start sm:justify-between"
+              >
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={statusBadgeVariant(post.status)}>{post.status}</Badge>
+                    <span className="text-sm text-muted-foreground">{formatPostWhen(post)}</span>
+                  </div>
+                  <p className="text-sm">
+                    {post.content.trim()
+                      ? post.content.length > 160
+                        ? `${post.content.slice(0, 160)}…`
+                        : post.content
+                      : <span className="text-muted-foreground italic">No caption — media only</span>}
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {post.targets.map((t, i) => (
+                      <Badge key={`${post.id}-${i}`} variant="outline" className="text-xs">
+                        {t.connectedAccount.displayName || t.connectedAccount.username || t.platform}
+                        {" · "}
+                        {t.platform}
+                      </Badge>
+                    ))}
+                  </div>
+                  {post.mediaUrls.length > 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      {post.mediaUrls.length} media file{post.mediaUrls.length === 1 ? "" : "s"} attached
+                    </p>
+                  ) : null}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 text-rose-600 hover:text-rose-700"
+                  disabled={cancellingId === post.id}
+                  onClick={() => cancelQueuedPost(post.id)}
+                >
+                  <Trash2 className="mr-1 h-4 w-4" />
+                  {cancellingId === post.id ? "Cancelling..." : "Cancel"}
+                </Button>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
