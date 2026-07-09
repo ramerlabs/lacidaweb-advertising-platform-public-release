@@ -1,0 +1,191 @@
+import type { Prisma } from "@prisma/client";
+import type {
+  AdCreativeStatus,
+  AdvertiserCreativeFormat,
+  AudienceTargeting,
+  BudgetType,
+  CampaignDto,
+  CampaignLifecycleStatus,
+  CampaignObjective,
+} from "@/types/lacidaweb";
+import type { AdCreativeInput } from "@/types/lacidaweb";
+import { prisma } from "@/lib/prisma";
+
+const OBJECTIVE_TO_GOAL: Record<CampaignObjective, string> = {
+  AWARENESS: "awareness",
+  TRAFFIC: "traffic",
+  CONVERSIONS: "engagement",
+};
+
+function parseAudienceTargeting(value: unknown): AudienceTargeting | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as AudienceTargeting;
+  if (!record.location?.countries?.length) return null;
+  return record;
+}
+
+function parseAdFormat(metadata: unknown): AdvertiserCreativeFormat {
+  if (metadata && typeof metadata === "object" && "format" in metadata) {
+    const value = (metadata as { format?: string }).format;
+    if (value === "TEXT_BOX" || value === "TEXT_INLINE" || value === "VIDEO") return value;
+  }
+  return "IMAGE";
+}
+
+function toCampaignDto(
+  campaign: Awaited<ReturnType<typeof fetchCampaignRecord>>,
+): CampaignDto {
+  return {
+    id: campaign.id,
+    teamId: campaign.teamId,
+    name: campaign.name,
+    objective: campaign.objective,
+    goal: campaign.goal,
+    status: campaign.status,
+    lifecycleStatus: campaign.lifecycleStatus as CampaignLifecycleStatus,
+    platform: campaign.platform,
+    adAccountId: campaign.adAccountId,
+    budgetAmount: campaign.budgetAmount,
+    budgetType: campaign.budgetType,
+    budgetTypeEnum: campaign.budgetTypeEnum as BudgetType | null,
+    scheduleStart: campaign.scheduleStart?.toISOString() ?? null,
+    scheduleEnd: campaign.scheduleEnd?.toISOString() ?? null,
+    targeting: parseAudienceTargeting(campaign.targeting),
+    lifetimeSpendCents: campaign.lifetimeSpendCents,
+    paymentStatus: campaign.paymentStatus,
+    rejectionReason: campaign.rejectionReason,
+    reviewedAt: campaign.reviewedAt?.toISOString() ?? null,
+    ads: campaign.ads.map((ad) => ({
+      id: ad.id,
+      campaignId: ad.campaignId,
+      name: ad.name,
+      status: ad.status as AdCreativeStatus,
+      format: parseAdFormat(ad.metadata),
+      headline: ad.headline,
+      primaryText: ad.primaryText,
+      destinationUrl: ad.destinationUrl,
+      ctaLabel: ad.ctaLabel,
+      imageUrl: ad.imageUrl,
+      videoUrl: ad.videoUrl,
+      sortOrder: ad.sortOrder,
+    })),
+    createdAt: campaign.createdAt.toISOString(),
+    updatedAt: campaign.updatedAt.toISOString(),
+  };
+}
+
+async function fetchCampaignRecord(campaignId: string, teamId: string) {
+  const campaign = await prisma.adCampaign.findFirst({
+    where: { id: campaignId, teamId },
+    include: {
+      ads: { orderBy: { sortOrder: "asc" } },
+    },
+  });
+  if (!campaign) throw new Error("Campaign not found");
+  return campaign;
+}
+
+export async function listTeamCampaigns(teamId: string): Promise<CampaignDto[]> {
+  const campaigns = await prisma.adCampaign.findMany({
+    where: { teamId, adType: "lacidaweb" },
+    include: { ads: { orderBy: { sortOrder: "asc" } } },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+  });
+  return campaigns.map(toCampaignDto);
+}
+
+export async function getTeamCampaign(teamId: string, campaignId: string): Promise<CampaignDto> {
+  const campaign = await fetchCampaignRecord(campaignId, teamId);
+  return toCampaignDto(campaign);
+}
+
+export async function createLacidawebCampaign(input: {
+  teamId: string;
+  userId: string;
+  name: string;
+  objective: CampaignObjective;
+  targeting: AudienceTargeting;
+  budgetType: BudgetType;
+  budgetAmountUsd: number;
+  scheduleStart?: string;
+  scheduleEnd?: string;
+  ads: AdCreativeInput[];
+  platform?: string;
+  connectedAccountId?: string;
+  adAccountId?: string;
+}): Promise<CampaignDto> {
+  const budgetTypeStr = input.budgetType === "DAILY" ? "daily" : "lifetime";
+  const primaryAd = input.ads[0];
+
+  const campaign = await prisma.$transaction(async (tx) => {
+    const record = await tx.adCampaign.create({
+      data: {
+        teamId: input.teamId,
+        connectedAccountId: input.connectedAccountId,
+        platform: input.platform || "lacidaweb",
+        adAccountId: input.adAccountId || input.teamId,
+        name: input.name,
+        goal: OBJECTIVE_TO_GOAL[input.objective],
+        objective: input.objective,
+        adType: "lacidaweb",
+        status: "pending_review",
+        lifecycleStatus: "PENDING_REVIEW",
+        budgetAmount: input.budgetAmountUsd,
+        budgetType: budgetTypeStr,
+        budgetTypeEnum: input.budgetType,
+        platformBudgetUsd: input.budgetAmountUsd,
+        clientChargeUsd: input.budgetAmountUsd,
+        paymentStatus: "pending_payment",
+        countries: input.targeting.location.countries,
+        targeting: input.targeting as unknown as Prisma.InputJsonValue,
+        scheduleStart: input.scheduleStart ? new Date(input.scheduleStart) : undefined,
+        scheduleEnd: input.scheduleEnd ? new Date(input.scheduleEnd) : undefined,
+        headline: primaryAd?.headline,
+        body: primaryAd?.primaryText,
+        linkUrl: primaryAd?.destinationUrl,
+        imageUrl: primaryAd?.imageUrl,
+      },
+    });
+
+    if (input.ads.length > 0) {
+      await tx.ad.createMany({
+        data: input.ads.map((ad, index) => ({
+          campaignId: record.id,
+          name: ad.name,
+          status: "PENDING_REVIEW",
+          headline: ad.headline,
+          primaryText: ad.primaryText || ad.headline,
+          destinationUrl: ad.destinationUrl,
+          ctaLabel: ad.ctaLabel || "Learn More",
+          imageUrl: ad.format === "IMAGE" ? ad.imageUrl : undefined,
+          videoUrl: ad.format === "VIDEO" ? ad.videoUrl : undefined,
+          sortOrder: index,
+          metadata: { format: ad.format },
+        })),
+      });
+    }
+
+    await tx.campaignReview.create({
+      data: {
+        campaignId: record.id,
+        action: "SUBMITTED",
+        notes: "Campaign submitted via lacidaweb wizard",
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        teamId: input.teamId,
+        userId: input.userId,
+        action: "campaign.submitted",
+        message: `Submitted campaign "${input.name}" for review`,
+        metadata: { campaignId: record.id, objective: input.objective },
+      },
+    });
+
+    return record;
+  });
+
+  return getTeamCampaign(input.teamId, campaign.id);
+}

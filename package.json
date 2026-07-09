@@ -9,6 +9,7 @@
     "lint": "next lint",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
+    "db:setup:lacidaweb": "node scripts/setup-lacidaweb-db.mjs",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate"
@@ -38,7 +39,8 @@
     "react-dom": "^19.1.0",
     "recharts": "^2.15.3",
     "tailwind-merge": "^3.3.0",
-    "zod": "^3.25.36"
+    "zod": "^3.25.36",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

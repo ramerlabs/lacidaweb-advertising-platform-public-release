@@ -8,6 +8,7 @@ const schema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   teamName: z.string().min(2),
+  accountType: z.enum(["ADVERTISER", "PUBLISHER"]).default("ADVERTISER"),
 });
 
 export async function POST(req: Request) {

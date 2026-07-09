@@ -3,44 +3,50 @@
 @tailwind utilities;
 
 :root {
-  --background: 222 47% 98%;
+  --background: 0 0% 99%;
   --foreground: 224 71% 4%;
   --card: 0 0% 100%;
   --card-foreground: 224 71% 4%;
-  --primary: 262 83% 48%;
+  --primary: 187 85% 43%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 220 14% 96%;
+  --secondary: 210 20% 96%;
   --secondary-foreground: 224 71% 4%;
-  --muted: 220 14% 96%;
-  --muted-foreground: 220 9% 46%;
-  --accent: 262 83% 96%;
-  --accent-foreground: 262 83% 30%;
+  --muted: 210 20% 96%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 187 70% 94%;
+  --accent-foreground: 187 85% 28%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-  --border: 220 13% 91%;
-  --input: 220 13% 91%;
-  --ring: 262 83% 48%;
-  --radius: 0.75rem;
+  --border: 214 20% 90%;
+  --input: 214 20% 90%;
+  --ring: 187 85% 43%;
+  --radius: 0.625rem;
+  --sidebar: 222 47% 7%;
+  --sidebar-foreground: 210 20% 88%;
+  --sidebar-accent: 187 85% 43%;
 }
 
 .dark {
-  --background: 224 71% 6%;
+  --background: 222 47% 5%;
   --foreground: 210 40% 98%;
-  --card: 224 47% 10%;
+  --card: 222 40% 8%;
   --card-foreground: 210 40% 98%;
-  --primary: 262 83% 62%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 224 32% 14%;
+  --primary: 187 80% 52%;
+  --primary-foreground: 222 47% 6%;
+  --secondary: 222 32% 12%;
   --secondary-foreground: 210 40% 98%;
-  --muted: 224 32% 14%;
+  --muted: 222 32% 12%;
   --muted-foreground: 215 20% 65%;
-  --accent: 262 50% 18%;
-  --accent-foreground: 262 83% 80%;
+  --accent: 187 40% 14%;
+  --accent-foreground: 187 80% 70%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
-  --border: 224 32% 18%;
-  --input: 224 32% 18%;
-  --ring: 262 83% 62%;
+  --border: 222 32% 16%;
+  --input: 222 32% 16%;
+  --ring: 187 80% 52%;
+  --sidebar: 222 47% 4%;
+  --sidebar-foreground: 210 20% 82%;
+  --sidebar-accent: 187 80% 52%;
 }
 
 * {
@@ -49,14 +55,27 @@
 
 body {
   @apply bg-background text-foreground antialiased;
-  background-image:
-    radial-gradient(circle at top left, rgba(124, 58, 237, 0.08), transparent 28%),
-    radial-gradient(circle at top right, rgba(59, 130, 246, 0.06), transparent 24%);
   min-height: 100vh;
 }
 
-.dark body {
-  background-image:
-    radial-gradient(circle at top left, rgba(124, 58, 237, 0.15), transparent 28%),
-    radial-gradient(circle at top right, rgba(59, 130, 246, 0.1), transparent 24%);
+@layer utilities {
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, hsl(var(--border) / 0.5) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border) / 0.5) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  .bg-dot {
+    background-image: radial-gradient(hsl(var(--muted-foreground) / 0.15) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  .text-gradient {
+    @apply bg-gradient-to-r from-cyan-500 to-emerald-500 bg-clip-text text-transparent;
+  }
+
+  .glow-cyan {
+    box-shadow: 0 0 80px -20px rgba(6, 182, 212, 0.45);
+  }
 }

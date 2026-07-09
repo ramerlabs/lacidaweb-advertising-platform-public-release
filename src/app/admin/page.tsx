@@ -2,216 +2,309 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  CreditCard,
+  Headset,
+  Link2,
+  Megaphone,
+  PenSquare,
+  TrendingUp,
+  Users,
+  Wallet,
+} from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { brand } from "@/lib/brand";
 
 type Overview = {
   users: number;
   teams: number;
-  activeSubs: number;
   pendingPayments: number;
   openTickets: number;
-  mrrApprox: number;
-};
-
-type AiStats = {
-  tokensSold: number;
-  tokenRevenueUsd: number;
-  usageCount: number;
-  tokensConsumed: number;
-  profitUsd: string;
-  topTeams: Array<{ name: string; slug: string; aiTokenBalance: number }>;
+  resolvedTickets: number;
+  revenueMonthUsd: string;
+  totalCampaigns: number;
+  pendingReview: number;
+  activeCampaigns: number;
+  walletTotalUsd: string;
+  connectedAccounts: number;
+  totalPosts: number;
+  publishedPosts: number;
+  scheduledPosts: number;
+  publishers: number;
+  publisherSites: number;
+  adPlacements: number;
+  networkImpressions: number;
 };
 
 export default function AdminOverviewPage() {
   const [overview, setOverview] = useState<Overview | null>(null);
-  const [aiStats, setAiStats] = useState<AiStats | null>(null);
-  const [siteTitle, setSiteTitle] = useState("");
 
   useEffect(() => {
-    async function load() {
-      const [overviewRes, brandingRes, aiRes] = await Promise.all([
-        fetch("/api/admin/overview"),
-        fetch("/api/branding"),
-        fetch("/api/admin/ai-stats"),
-      ]);
-      const ov = await overviewRes.json();
-      const branding = await brandingRes.json();
-      const ai = await aiRes.json();
-      if (overviewRes.ok) setOverview(ov);
-      if (brandingRes.ok) setSiteTitle(branding.settings?.title || "");
-      if (aiRes.ok) setAiStats(ai);
-    }
-    load();
+    fetch("/api/admin/overview")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.error) setOverview(data);
+      });
   }, []);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">{siteTitle || brand.name} Admin</h1>
-        <p className="text-muted-foreground">{brand.domain} — customers, revenue, and support</p>
+    <div className="space-y-8">
+      <div className="relative overflow-hidden rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/10 via-zinc-950 to-emerald-500/10 p-6 md:p-8">
+        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl" />
+        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="relative">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-500">Control panel</p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-white md:text-4xl">
+            {brand.name} Admin
+          </h1>
+          <p className="mt-2 max-w-2xl text-zinc-400">
+            Platform health across advertising, publishing, payments, and support
+          </p>
+        </div>
       </div>
 
       {overview ? (
-        <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
-          <Metric label="Users" value={overview.users} />
-          <Metric label="Teams" value={overview.teams} />
-          <Metric label="Active Subs" value={overview.activeSubs} />
-          <Metric label="Pending Payments" value={overview.pendingPayments} />
-          <Metric label="Open Tickets" value={overview.openTickets} />
-          <Metric label="Revenue (month)" value={`$${overview.mrrApprox}`} />
-        </div>
-      ) : null}
+        <>
+          <section className="space-y-4">
+            <SectionHeader title="Advertising" icon={Megaphone} accent="cyan" />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <MetricCard
+                icon={Megaphone}
+                label="Campaigns"
+                value={overview.totalCampaigns}
+                accent="cyan"
+              />
+              <MetricCard
+                icon={TrendingUp}
+                label="Active ads"
+                value={overview.activeCampaigns}
+                highlight
+                accent="cyan"
+              />
+              <MetricCard
+                icon={Wallet}
+                label="Wallet float"
+                value={`$${overview.walletTotalUsd}`}
+                accent="cyan"
+              />
+              <MetricCard
+                icon={Megaphone}
+                label="Pending review"
+                value={overview.pendingReview}
+                badge={overview.pendingReview > 0}
+                accent="cyan"
+              />
+            </div>
+          </section>
 
-      {aiStats ? (
-        <div className="space-y-3">
-          <h2 className="text-xl font-semibold">AI tokens</h2>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-            <Metric label="Token revenue" value={`$${aiStats.tokenRevenueUsd}`} />
-            <Metric label="Tokens sold" value={aiStats.tokensSold.toLocaleString()} />
-            <Metric label="Tokens used" value={aiStats.tokensConsumed.toLocaleString()} />
-            <Metric label="Generations" value={aiStats.usageCount} />
-            <Metric label="Est. profit" value={`$${aiStats.profitUsd}`} />
-          </div>
-        </div>
-      ) : null}
+          <section className="space-y-4">
+            <SectionHeader title="Publishing" icon={PenSquare} accent="emerald" />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <MetricCard
+                icon={Users}
+                label="Publisher teams"
+                value={overview.publishers}
+                accent="emerald"
+              />
+              <MetricCard
+                icon={Link2}
+                label="Publisher websites"
+                value={overview.publisherSites ?? 0}
+                accent="emerald"
+              />
+              <MetricCard
+                icon={PenSquare}
+                label="Ad placements"
+                value={overview.adPlacements ?? 0}
+                accent="emerald"
+              />
+              <MetricCard
+                icon={PenSquare}
+                label="Network impressions"
+                value={overview.networkImpressions ?? 0}
+                accent="emerald"
+              />
+            </div>
+          </section>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>Users</CardTitle>
-            <CardDescription>View, edit, manage plans, reset passwords, ban</CardDescription>
-          </CardHeader>
-          <Button asChild>
-            <Link href="/admin/users">Manage users</Link>
-          </Button>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between gap-2">
-              Payments
-              {overview && overview.pendingPayments > 0 ? (
-                <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">
-                  {overview.pendingPayments}
-                </span>
-              ) : null}
-            </CardTitle>
-            <CardDescription>Review and approve client payments</CardDescription>
-          </CardHeader>
-          <Button asChild>
-            <Link href="/admin/payments">Open payments</Link>
-          </Button>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between gap-2">
-              Support
-              {overview && overview.openTickets > 0 ? (
-                <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">
-                  {overview.openTickets}
-                </span>
-              ) : null}
-            </CardTitle>
-            <CardDescription>Reply to client support tickets</CardDescription>
-          </CardHeader>
-          <Button asChild>
-            <Link href="/admin/support">Open support queue</Link>
-          </Button>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Payment details</CardTitle>
-            <CardDescription>USDT wallet, PayPal, and GCash</CardDescription>
-          </CardHeader>
-          <Button asChild>
-            <Link href="/admin/settings/payments">Configure payments</Link>
-          </Button>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>AI & tokens</CardTitle>
-            <CardDescription>OpenAI key, margin, token packs, trial tokens</CardDescription>
-          </CardHeader>
-          <Button asChild>
-            <Link href="/admin/settings/ai">Configure AI</Link>
-          </Button>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Plans &amp; accounts</CardTitle>
-            <CardDescription>Profit margin % on subscription plans for connected accounts</CardDescription>
-          </CardHeader>
-          <Button asChild>
-            <Link href="/admin/settings/plans">Configure plans</Link>
-          </Button>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Ads</CardTitle>
-            <CardDescription>Enable paid ads — clients connect their own ad accounts (no platform fee)</CardDescription>
-          </CardHeader>
-          <Button asChild>
-            <Link href="/admin/settings/ads">Configure ads</Link>
-          </Button>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Audit log</CardTitle>
-            <CardDescription>Platform actions and admin activity</CardDescription>
-          </CardHeader>
-          <Button asChild>
-            <Link href="/admin/audit">View audit log</Link>
-          </Button>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Branding</CardTitle>
-            <CardDescription>Title, description, logo, and favicon</CardDescription>
-          </CardHeader>
-          <Button asChild>
-            <Link href="/admin/settings/branding">Configure branding</Link>
-          </Button>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>FAQs</CardTitle>
-            <CardDescription>Landing page questions and answers</CardDescription>
-          </CardHeader>
-          <Button asChild>
-            <Link href="/admin/settings/faqs">Manage FAQs</Link>
-          </Button>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Security</CardTitle>
-            <CardDescription>Reset client passwords and change admin password</CardDescription>
-          </CardHeader>
-          <Button asChild>
-            <Link href="/admin/settings/security">Open security</Link>
-          </Button>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Integrations</CardTitle>
-            <CardDescription>Zernio API and Telegram admin alerts</CardDescription>
-          </CardHeader>
-          <Button asChild>
-            <Link href="/admin/settings/integrations">Configure integrations</Link>
-          </Button>
-        </Card>
-      </div>
+          <section className="space-y-4">
+            <SectionHeader title="Platform" icon={Users} accent="zinc" />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <MetricCard icon={Users} label="Users" value={overview.users} />
+              <MetricCard icon={Users} label="Teams" value={overview.teams} />
+              <MetricCard
+                icon={CreditCard}
+                label="Pending payments"
+                value={overview.pendingPayments}
+                badge={overview.pendingPayments > 0}
+              />
+              <MetricCard
+                icon={TrendingUp}
+                label="Revenue (month)"
+                value={`$${overview.revenueMonthUsd}`}
+              />
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <SectionHeader title="Action queue" icon={Headset} accent="cyan" />
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <ActionCard
+                title="Campaign review"
+                description="Approve or reject submitted ad campaigns"
+                href="/admin/campaigns"
+                badge={overview.pendingReview}
+                accent="cyan"
+              />
+              <ActionCard
+                title="Payment verification"
+                description="Confirm wallet top-ups and transactions"
+                href="/admin/payments"
+                badge={overview.pendingPayments}
+                accent="cyan"
+              />
+              <ActionCard
+                title="Support queue"
+                description="Reply, close, or delete support tickets"
+                href="/admin/support"
+                badge={overview.openTickets}
+                accent="cyan"
+              />
+              <ActionCard
+                title="Users & teams"
+                description="Manage advertiser and publisher workspaces"
+                href="/admin/users"
+              />
+              <ActionCard
+                title="Payment gateways"
+                description="USDT, GCash, PayPal, and bank settings"
+                href="/admin/settings/payments"
+              />
+              <ActionCard
+                title="Branding & FAQs"
+                description="Logo, landing page, and site content"
+                href="/admin/settings/branding"
+              />
+            </div>
+          </section>
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">Loading platform metrics…</p>
+      )}
     </div>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string | number }) {
+function SectionHeader({
+  title,
+  icon: Icon,
+  accent = "zinc",
+}: {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  accent?: "cyan" | "emerald" | "zinc";
+}) {
+  const color =
+    accent === "cyan"
+      ? "text-cyan-500"
+      : accent === "emerald"
+        ? "text-emerald-500"
+        : "text-zinc-500";
   return (
-    <Card>
-      <CardHeader>
-        <CardDescription>{label}</CardDescription>
-        <CardTitle className="text-2xl">{value}</CardTitle>
+    <div className="flex items-center gap-2">
+      <Icon className={`h-4 w-4 ${color}`} />
+      <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-500">{title}</h2>
+    </div>
+  );
+}
+
+function MetricCard({
+  icon: Icon,
+  label,
+  value,
+  highlight,
+  badge,
+  accent = "zinc",
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string | number;
+  highlight?: boolean;
+  badge?: boolean;
+  accent?: "cyan" | "emerald" | "zinc";
+}) {
+  const border =
+    accent === "cyan"
+      ? "border-cyan-500/20"
+      : accent === "emerald"
+        ? "border-emerald-500/20"
+        : "";
+  const gradient =
+    highlight || accent !== "zinc"
+      ? accent === "emerald"
+        ? "bg-gradient-to-br from-emerald-500/5 to-cyan-500/5"
+        : "bg-gradient-to-br from-cyan-500/5 to-emerald-500/5"
+      : "";
+
+  return (
+    <Card className={`shadow-sm ${border} ${gradient}`}>
+      <CardHeader className="pb-2">
+        <CardDescription className="flex items-center gap-2">
+          <Icon
+            className={`h-4 w-4 ${
+              accent === "cyan"
+                ? "text-cyan-500"
+                : accent === "emerald"
+                  ? "text-emerald-500"
+                  : "text-muted-foreground"
+            }`}
+          />
+          {label}
+        </CardDescription>
+        <CardTitle className={`text-3xl tabular-nums ${badge ? "text-amber-600 dark:text-amber-400" : ""}`}>
+          {value}
+        </CardTitle>
       </CardHeader>
+    </Card>
+  );
+}
+
+function ActionCard({
+  title,
+  description,
+  href,
+  badge,
+  accent,
+}: {
+  title: string;
+  description: string;
+  href: string;
+  badge?: number;
+  accent?: "cyan" | "emerald";
+}) {
+  return (
+    <Card className="flex flex-col shadow-sm transition hover:border-cyan-500/20">
+      <CardHeader className="flex-1">
+        <CardTitle className="flex items-center justify-between gap-2 text-lg">
+          {title}
+          {badge && badge > 0 ? (
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-bold text-zinc-950 ${
+                accent === "emerald" ? "bg-emerald-500" : "bg-cyan-500"
+              }`}
+            >
+              {badge}
+            </span>
+          ) : null}
+        </CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button asChild variant="outline" size="sm">
+          <Link href={href}>Open</Link>
+        </Button>
+      </CardContent>
     </Card>
   );
 }

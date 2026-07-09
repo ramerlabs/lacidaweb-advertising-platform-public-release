@@ -10,44 +10,13 @@ export type FaqRecord = {
   updatedAt: Date;
 };
 
-const DEFAULT_FAQS: Array<{ question: string; answer: string; sortOrder: number }> = [
-  {
-    question: "What is VCC & Bank?",
-    answer:
-      "VCC & Bank is an all-in-one platform for scheduling social posts, managing inbox messages, running automations, and tracking analytics — built for agencies, creators, and online businesses.",
-    sortOrder: 0,
-  },
-  {
-    question: "Which social platforms are supported?",
-    answer:
-      "You can connect and publish to major platforms including Instagram, TikTok, LinkedIn, YouTube, X (Twitter), Pinterest, Facebook, and more — depending on your connected accounts.",
-    sortOrder: 1,
-  },
-  {
-    question: "How do payments work?",
-    answer:
-      "Choose a plan and pay securely with USDT (TRC20), PayPal, or GCash. USDT payments can be verified automatically using your transaction hash. Your subscription activates once payment is confirmed.",
-    sortOrder: 2,
-  },
-  {
-    question: "Can I schedule posts in advance?",
-    answer:
-      "Yes. Create a post in the compose screen, pick your channels, set a date and time, and we will publish automatically when scheduled.",
-    sortOrder: 3,
-  },
-  {
-    question: "How do I get support?",
-    answer:
-      "Open a support ticket from your dashboard at any time. Our team will respond as quickly as possible based on your plan priority.",
-    sortOrder: 4,
-  },
-  {
-    question: "How do AI tokens work?",
-    answer:
-      "New workspaces receive free trial tokens. Buy more from Billing (pay with USDT, PayPal, or GCash). Tokens are used when you generate captions or images in Compose — text uses actual API token counts; images use a fixed token cost. Enable AI in Settings first.",
-    sortOrder: 5,
-  },
-];
+import { LACIDAWEB_FAQS } from "@/lib/lacidaweb-faqs";
+
+const DEFAULT_FAQS = LACIDAWEB_FAQS.map((faq) => ({
+  question: faq.question,
+  answer: faq.answer,
+  sortOrder: faq.sortOrder,
+}));
 
 function hasFaqModel() {
   const delegate = (prisma as unknown as Record<string, unknown>).faq;
@@ -67,24 +36,6 @@ export async function ensureDefaultFaqs() {
         isPublished: true,
       })),
     });
-    return;
-  }
-
-  const aiFaq = DEFAULT_FAQS.find((f) => f.question === "How do AI tokens work?");
-  if (aiFaq) {
-    const exists = await prisma.faq.findFirst({
-      where: { question: aiFaq.question },
-    });
-    if (!exists) {
-      await prisma.faq.create({
-        data: {
-          question: aiFaq.question,
-          answer: aiFaq.answer,
-          sortOrder: aiFaq.sortOrder,
-          isPublished: true,
-        },
-      });
-    }
   }
 }
 

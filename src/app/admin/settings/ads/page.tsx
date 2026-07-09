@@ -3,9 +3,15 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import type { PublisherAdServingMode } from "@/lib/ads-settings";
 
 type AdsSettings = {
   adsEnabled: boolean;
+  publisherAdServingMode: PublisherAdServingMode;
+  publisherAdRotateSeconds: number;
+  publisherAutoAdsEnabled: boolean;
 };
 
 export default function AdminAdsSettingsPage() {
@@ -19,7 +25,14 @@ export default function AdminAdsSettingsPage() {
       .then((r) => r.json())
       .then((data) => {
         setLoading(false);
-        if (data.settings) setSettings({ adsEnabled: data.settings.adsEnabled });
+        if (data.settings) {
+          setSettings({
+            adsEnabled: data.settings.adsEnabled,
+            publisherAdServingMode: data.settings.publisherAdServingMode || "ROTATE_ALL",
+            publisherAdRotateSeconds: data.settings.publisherAdRotateSeconds ?? 8,
+            publisherAutoAdsEnabled: data.settings.publisherAutoAdsEnabled ?? true,
+          });
+        }
       });
   }, []);
 
@@ -38,50 +51,145 @@ export default function AdminAdsSettingsPage() {
       setStatus(data.error || "Save failed");
       return;
     }
-    setSettings({ adsEnabled: data.settings.adsEnabled });
-    setStatus("Ads settings saved.");
+    setSettings({
+      adsEnabled: data.settings.adsEnabled,
+      publisherAdServingMode: data.settings.publisherAdServingMode,
+      publisherAdRotateSeconds: data.settings.publisherAdRotateSeconds,
+      publisherAutoAdsEnabled: data.settings.publisherAutoAdsEnabled,
+    });
+    setStatus("Publisher ad settings saved.");
   }
 
   if (loading || !settings) {
     return <p className="text-sm text-muted-foreground">Loading ads settings...</p>;
   }
 
+  const rotateAll = settings.publisherAdServingMode === "ROTATE_ALL";
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Ads</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Publisher ads</h1>
         <p className="text-muted-foreground">
-          Clients connect their own Meta, Google, TikTok, and other ad accounts. Ad spend is billed
-          directly by the ad platform — this site does not charge a fee or collect payment for ads.
+          Control how lacidaweb fills publisher embed slots — rotate all active campaigns now, or
+          switch to cookie-based recommendations later.
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Feature toggle</CardTitle>
+          <CardTitle>Network toggle</CardTitle>
           <CardDescription>
-            When enabled, clients can connect ad accounts and publish campaigns from the dashboard. When
-            disabled, ads are hidden from the landing page and client navigation.
+            When disabled, embed slots return empty and advertiser campaign tools are hidden.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
               checked={settings.adsEnabled}
-              onChange={(e) => setSettings({ adsEnabled: e.target.checked })}
+              onChange={(e) => setSettings({ ...settings, adsEnabled: e.target.checked })}
             />
-            Enable paid advertising for clients
+            Enable lacidaweb ad network (publisher embeds + advertiser campaigns)
           </label>
-          <p className="text-xs text-muted-foreground">
-            No platform fee is applied. Budgets are sent to the client&apos;s connected ad account via Zernio.
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Ad serving mode</CardTitle>
+          <CardDescription>
+            With a small inventory, rotate all ads so every campaign gets impressions immediately.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <label className="flex items-start gap-3 rounded-lg border p-3">
+            <input
+              type="radio"
+              name="servingMode"
+              className="mt-1"
+              checked={rotateAll}
+              onChange={() => setSettings({ ...settings, publisherAdServingMode: "ROTATE_ALL" })}
+            />
+            <span>
+              <span className="font-medium">Rotate all ads (recommended now)</span>
+              <span className="mt-1 block text-sm text-muted-foreground">
+                Every approved campaign is eligible. Each page view advances the rotation fairly
+                across your inventory. Multiple ads can cycle in the same slot on one page.
+              </span>
+            </span>
+          </label>
+
+          <label className="flex items-start gap-3 rounded-lg border p-3">
+            <input
+              type="radio"
+              name="servingMode"
+              className="mt-1"
+              checked={!rotateAll}
+              onChange={() => setSettings({ ...settings, publisherAdServingMode: "PERSONALIZED" })}
+            />
+            <span>
+              <span className="font-medium">Personalized recommendations (cookie)</span>
+              <span className="mt-1 block text-sm text-muted-foreground">
+                Uses a visitor cookie to prefer relevant ads. Early version — still serves from your
+                active inventory. Full targeting rules can be added later.
+              </span>
+            </span>
+          </label>
+
+          {rotateAll ? (
+            <div className="space-y-2">
+              <Label htmlFor="rotate-seconds">Rotate every (seconds)</Label>
+              <Input
+                id="rotate-seconds"
+                type="number"
+                min={0}
+                max={120}
+                value={settings.publisherAdRotateSeconds}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    publisherAdRotateSeconds: Math.min(120, Math.max(0, Number(e.target.value) || 0)),
+                  })
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Set to 0 to only rotate on each new page load. Default 8 seconds cycles through all
+                ads in one embed slot.
+              </p>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Automatic placement</CardTitle>
+          <CardDescription>
+            Google-style Auto ads — one script per site; lacidaweb inserts slots into page content
+            automatically.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={settings.publisherAutoAdsEnabled}
+              onChange={(e) =>
+                setSettings({ ...settings, publisherAutoAdsEnabled: e.target.checked })
+              }
+            />
+            Allow publishers to use automatic ad placement
+          </label>
+          <p className="mt-2 text-xs text-muted-foreground">
+            When off, only manual embed codes work. Publishers can still toggle auto ads per site.
           </p>
         </CardContent>
       </Card>
 
       <div className="flex items-center gap-3">
         <Button onClick={save} disabled={saving}>
-          {saving ? "Saving..." : "Save ads settings"}
+          {saving ? "Saving..." : "Save settings"}
         </Button>
         {status ? <p className="text-sm text-muted-foreground">{status}</p> : null}
       </div>

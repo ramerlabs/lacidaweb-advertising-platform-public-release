@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { getSiteSettings } from "@/lib/site-settings";
 
-const inter = Inter({ subsets: ["latin"] });
-
+const sans = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-sans" });
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSiteSettings();
   const title = `${settings.title} — ${settings.product}`;
@@ -15,8 +14,11 @@ export async function generateMetadata(): Promise<Metadata> {
     description: settings.description,
     metadataBase: new URL(settings.url),
     icons: {
-      icon: settings.faviconUrl || "/branding/icon.png",
-      apple: settings.faviconUrl || "/branding/icon.png",
+      icon: [
+        { url: "/icon", type: "image/png", sizes: "32x32" },
+        { url: "/branding/icon.svg", type: "image/svg+xml" },
+      ],
+      apple: "/apple-icon",
     },
     openGraph: {
       title,
@@ -45,7 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className={inter.className}>
+      <body className={`${sans.className} ${sans.variable}`}>
         <Providers>{children}</Providers>
       </body>
     </html>

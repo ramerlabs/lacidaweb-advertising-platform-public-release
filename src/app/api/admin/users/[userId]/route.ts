@@ -1,16 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import type { SubscriptionStatus } from "@prisma/client";
 import { requirePlatformAdmin, requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getActivePlanById, plans } from "@/lib/pricing";
 import { generateTemporaryPassword, hashPassword } from "@/lib/password";
 import { sendPasswordResetEmail } from "@/services/email";
 
 const updateSchema = z.object({
   name: z.string().min(1).max(120).optional(),
   email: z.string().email().optional(),
-  planId: z.enum(["starter", "growth", "scale"]).optional(),
+  accountType: z.enum(["ADVERTISER", "PUBLISHER"]).optional(),
+  aiEnabled: z.boolean().optional(),
   aiBalanceCents: z.number().int().min(0).optional(),
   addAiCreditsCents: z.number().int().min(0).optional(),
   aiTokenBalance: z.number().int().min(0).optional(),
@@ -91,6 +90,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ userId
       data: {
         name: body.name?.trim() ?? undefined,
         email: body.email ? body.email.toLowerCase().trim() : undefined,
+        accountType: body.accountType,
         passwordHash,
         bannedAt: body.banned === undefined ? undefined : body.banned ? new Date() : null,
         banReason:
@@ -106,77 +106,26 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ userId
       (body.teamId
         ? user.memberships.find((m) => m.teamId === body.teamId)?.team
         : null) || user.memberships[0]?.team;
-    let subscription = team?.subscription || null;
-
-    if (team && (body.planId || body.subscriptionStatus || body.interval)) {
-      const plan = await getActivePlanById(body.planId || subscription?.planId || plans[0].id);
-      const interval = body.interval || subscription?.interval || "MONTHLY";
-      const amount = interval === "YEARLY" ? plan.yearlyPrice : plan.monthlyPrice;
-      const status = (body.subscriptionStatus ||
-        subscription?.status ||
-        "TRIAL") as SubscriptionStatus;
-
-      if (subscription) {
-        subscription = await prisma.subscription.update({
-          where: { id: subscription.id },
-          data: {
-            planId: plan.id,
-            accountLimit: plan.accountLimit,
-            interval,
-            amount,
-            status,
-            currentPeriodStart:
-              status === "ACTIVE" && subscription.status !== "ACTIVE" ? new Date() : undefined,
-            currentPeriodEnd:
-              status === "ACTIVE"
-                ? new Date(
-                    Date.now() +
-                      (interval === "YEARLY" ? 365 : 30) * 24 * 60 * 60 * 1000,
-                  )
-                : status === "CANCELED"
-                  ? subscription.currentPeriodEnd
-                  : undefined,
-          },
-        });
-      } else {
-        subscription = await prisma.subscription.create({
-          data: {
-            teamId: team.id,
-            planId: plan.id,
-            accountLimit: plan.accountLimit,
-            interval,
-            amount,
-            status,
-            currentPeriodStart: new Date(),
-            currentPeriodEnd:
-              status === "ACTIVE"
-                ? new Date(
-                    Date.now() +
-                      (interval === "YEARLY" ? 365 : 30) * 24 * 60 * 60 * 1000,
-                  )
-                : null,
-          },
-        });
-      }
-    }
 
     let aiTokenBalance: number | undefined;
-    if (team && (body.aiTokenBalance !== undefined || body.addAiTokens !== undefined)) {
+    if (team && (body.aiTokenBalance !== undefined || body.addAiTokens !== undefined || body.aiEnabled !== undefined)) {
       const current = await prisma.team.findUnique({
         where: { id: team.id },
-        select: { aiTokenBalance: true },
+        select: { aiTokenBalance: true, aiEnabled: true },
       });
       const nextBalance =
         body.aiTokenBalance !== undefined
           ? body.aiTokenBalance
-          : (current?.aiTokenBalance || 0) + (body.addAiTokens || 0);
+          : body.addAiTokens !== undefined
+            ? (current?.aiTokenBalance || 0) + (body.addAiTokens || 0)
+            : current?.aiTokenBalance || 0;
       const updatedTeam = await prisma.team.update({
         where: { id: team.id },
         data: {
-          aiTokenBalance: nextBalance,
-          aiEnabled: nextBalance > 0 ? true : undefined,
+          aiTokenBalance: body.aiTokenBalance !== undefined || body.addAiTokens !== undefined ? nextBalance : undefined,
+          aiEnabled: body.aiEnabled !== undefined ? body.aiEnabled : undefined,
         },
-        select: { aiTokenBalance: true },
+        select: { aiTokenBalance: true, aiEnabled: true },
       });
       aiTokenBalance = updatedTeam.aiTokenBalance;
     }
@@ -197,10 +146,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ userId
         id: updated.id,
         name: updated.name,
         email: updated.email,
+        accountType: updated.accountType,
         bannedAt: updated.bannedAt,
         banReason: updated.banReason,
       },
-      subscription,
       aiTokenBalance,
       newPassword:
         generatedPassword && (body.sendPasswordEmail === false || !emailResult?.ok)

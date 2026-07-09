@@ -42,6 +42,15 @@ const DEFAULTS: SiteSettingsData = {
   ...STATIC_DEFAULTS,
 };
 
+function normalizeAssetUrl(url: string | null | undefined, fallback: string): string {
+  const trimmed = url?.trim() || "";
+  if (!trimmed) return fallback;
+  if (trimmed.startsWith("/branding/")) return trimmed;
+  // Legacy uploads from previous product branding (e.g. VCC / Zernio purple favicon)
+  if (trimmed.includes("/uploads/")) return fallback;
+  return trimmed;
+}
+
 function mergeSettings(
   row: {
     title: string | null;
@@ -62,10 +71,10 @@ function mergeSettings(
     title: row.title?.trim() || DEFAULTS.title,
     product: row.product?.trim() || DEFAULTS.product,
     description: row.description?.trim() || DEFAULTS.description,
-    logoUrl: row.logoUrl?.trim() || DEFAULTS.logoUrl,
-    logoDarkUrl: row.logoDarkUrl?.trim() || DEFAULTS.logoDarkUrl,
+    logoUrl: normalizeAssetUrl(row.logoUrl, DEFAULTS.logoUrl),
+    logoDarkUrl: normalizeAssetUrl(row.logoDarkUrl, DEFAULTS.logoDarkUrl),
     logoHeightPx: Math.min(120, Math.max(24, row.logoHeightPx ?? DEFAULTS.logoHeightPx)),
-    faviconUrl: row.faviconUrl?.trim() || DEFAULTS.faviconUrl,
+    faviconUrl: normalizeAssetUrl(row.faviconUrl, DEFAULTS.faviconUrl),
     supportEmail: row.supportEmail?.trim() || DEFAULTS.supportEmail,
     activityFeedDisplayCount: Math.max(20, row.activityFeedDisplayCount ?? DEFAULTS.activityFeedDisplayCount),
     activityFeedSimulatedEnabled: row.activityFeedSimulatedEnabled ?? DEFAULTS.activityFeedSimulatedEnabled,

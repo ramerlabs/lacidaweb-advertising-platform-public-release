@@ -58,6 +58,87 @@ enum PaymentStatus {
   FAILED
 }
 
+// ─── lacidaweb advertising domain ───────────────────────────────────────────
+
+enum CampaignObjective {
+  AWARENESS
+  TRAFFIC
+  CONVERSIONS
+}
+
+enum CampaignLifecycleStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum AdCreativeStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  ACTIVE
+  PAUSED
+}
+
+enum BudgetType {
+  DAILY
+  LIFETIME
+}
+
+enum PublisherAdServingMode {
+  ROTATE_ALL
+  PERSONALIZED
+}
+
+enum WalletTransactionType {
+  TOP_UP
+  AD_SPEND
+  REFUND
+  ADJUSTMENT
+}
+
+enum WalletTransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REVERSED
+}
+
+enum CampaignReviewAction {
+  SUBMITTED
+  APPROVED
+  REJECTED
+  REQUESTED_CHANGES
+}
+
+enum PublisherSiteStatus {
+  ACTIVE
+  PENDING
+  SUSPENDED
+}
+
+enum AdPlacementFormat {
+  BANNER
+  LEADERBOARD
+  RECTANGLE
+  SKYSCRAPER
+  MOBILE
+  TEXT
+  TEXT_INLINE
+  TEXT_BOX
+}
+
+enum ClientAccountType {
+  ADVERTISER
+  PUBLISHER
+}
+
 enum TicketStatus {
   OPEN
   IN_PROGRESS
@@ -72,12 +153,13 @@ enum TicketPriority {
 }
 
 model User {
-  id             String    @id @default(cuid())
+  id             String            @id @default(cuid())
   name           String?
-  email          String    @unique
+  email          String            @unique
   emailVerified  DateTime?
   image          String?
   passwordHash   String?
+  accountType    ClientAccountType @default(ADVERTISER)
   bannedAt       DateTime?
   banReason      String?
   createdAt      DateTime  @default(now())
@@ -89,7 +171,9 @@ model User {
   postsCreated   Post[]           @relation("PostCreator")
   auditLogs      AuditLog[]
   supportMessages SupportMessage[]
-  supportTickets  SupportTicket[]  @relation("TicketCreator")
+  supportTickets      SupportTicket[]  @relation("TicketCreator")
+  reviewedCampaigns   AdCampaign[]     @relation("CampaignReviewedBy")
+  campaignReviewActions CampaignReview[] @relation("CampaignReviewActor")
 }
 
 model Account {
@@ -160,6 +244,8 @@ model Team {
   aiUsageLogs         AiUsageLog[]
   postTemplates       PostTemplate[]
   adCampaigns         AdCampaign[]
+  walletTransactions  WalletTransaction[]
+  publisherSites      PublisherSite[]
 }
 
 model TeamMember {
@@ -367,6 +453,7 @@ model Payment {
   team         Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
   subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
   adCampaign   AdCampaign?   @relation(fields: [adCampaignId], references: [id], onDelete: SetNull)
+  walletTransactions WalletTransaction[]
 
   @@index([teamId, status])
   @@index([createdAt])
@@ -475,6 +562,9 @@ model IntegrationSettings {
   aiTrialTokens             Int     @default(50000)
   aiLowTokenThreshold       Int     @default(50000)
   adsEnabled                Boolean @default(true)
+  publisherAdServingMode    PublisherAdServingMode @default(ROTATE_ALL)
+  publisherAdRotateSeconds  Int     @default(8)
+  publisherAutoAdsEnabled   Boolean @default(true)
   adsProfitMarginPercent    Int     @default(0)
   adWalletTopUpUsd          Float   @default(25)
   subscriptionProfitMarginPercent Int @default(80)
@@ -493,12 +583,16 @@ model AdCampaign {
   adAccountId        String
   name               String
   goal               String
+  objective          CampaignObjective?
   adType             String   @default("standalone")
   status             String   @default("pending_review")
+  lifecycleStatus    CampaignLifecycleStatus @default(PENDING_REVIEW)
   budgetAmount       Float
   budgetType         String
+  budgetTypeEnum     BudgetType?
   platformBudgetUsd  Float
   clientChargeUsd    Float
+  lifetimeSpendCents Int      @default(0)
   paymentStatus      String   @default("pending_payment")
   paymentId          String?
   currency           String   @default("USD")
@@ -507,6 +601,12 @@ model AdCampaign {
   linkUrl            String?
   imageUrl           String?
   countries          String[] @default([])
+  targeting          Json?
+  scheduleStart      DateTime?
+  scheduleEnd        DateTime?
+  reviewedAt         DateTime?
+  reviewedById       String?
+  rejectionReason    String?  @db.Text
   metrics            Json?
   metadata           Json?
   createdAt          DateTime @default(now())
@@ -514,11 +614,149 @@ model AdCampaign {
 
   team             Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
   connectedAccount ConnectedAccount? @relation(fields: [connectedAccountId], references: [id], onDelete: SetNull)
+  reviewedBy       User?             @relation("CampaignReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
   payments         Payment[]
+  ads              Ad[]
+  analyticsSnapshots AnalyticsSnapshot[]
+  reviews          CampaignReview[]
+  walletTransactions WalletTransaction[]
 
   @@index([teamId, status])
+  @@index([teamId, lifecycleStatus])
   @@index([platformCampaignId])
   @@index([paymentStatus])
+  @@index([scheduleStart, scheduleEnd])
+}
+
+/// Individual ad creative unit within a campaign (Facebook Ads "Ad" level).
+model Ad {
+  id              String           @id @default(cuid())
+  campaignId      String
+  name            String
+  status          AdCreativeStatus @default(DRAFT)
+  headline        String
+  primaryText     String           @db.Text
+  destinationUrl  String
+  ctaLabel        String           @default("Learn More")
+  imageUrl        String?
+  videoUrl        String?
+  sortOrder       Int              @default(0)
+  metadata        Json?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  campaign AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, status])
+}
+
+/// Website registered by a publisher to monetize with lacidaweb ads.
+model PublisherSite {
+  id             String              @id @default(cuid())
+  teamId         String
+  name           String
+  domain         String
+  status         PublisherSiteStatus @default(ACTIVE)
+  autoAdsEnabled Boolean             @default(true)
+  autoAdsKey     String?             @unique
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  team       Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  placements AdPlacement[]
+
+  @@unique([teamId, domain])
+  @@index([teamId])
+  @@index([autoAdsKey])
+}
+
+/// Ad slot on a publisher website — embed code uses placementKey.
+model AdPlacement {
+  id           String            @id @default(cuid())
+  siteId       String
+  name         String
+  format       AdPlacementFormat @default(BANNER)
+  width        Int               @default(728)
+  height       Int               @default(90)
+  placementKey String            @unique @default(cuid())
+  autoSlot     String?
+  isActive     Boolean           @default(true)
+  impressions  Int               @default(0)
+  clicks       Int               @default(0)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  site PublisherSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId])
+  @@index([placementKey])
+}
+
+/// Immutable admin review audit trail for campaign moderation.
+model CampaignReview {
+  id          String               @id @default(cuid())
+  campaignId  String
+  reviewerId  String?
+  action      CampaignReviewAction
+  notes       String?              @db.Text
+  createdAt   DateTime             @default(now())
+
+  campaign AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  reviewer User?      @relation("CampaignReviewActor", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId, createdAt])
+}
+
+/// Wallet ledger — every balance change (top-ups, ad spend, refunds).
+model WalletTransaction {
+  id              String                  @id @default(cuid())
+  teamId          String
+  campaignId      String?
+  paymentId       String?
+  type            WalletTransactionType
+  status          WalletTransactionStatus @default(PENDING)
+  amountCents     Int
+  balanceAfterCents Int?
+  currency        String                  @default("USD")
+  method          PaymentMethod?
+  description     String?
+  externalRef     String?
+  metadata        Json?
+  createdAt       DateTime                @default(now())
+  completedAt     DateTime?
+
+  team     Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  campaign AdCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  payment  Payment?    @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([teamId, createdAt])
+  @@index([teamId, type, status])
+  @@index([campaignId])
+  @@index([paymentId])
+}
+
+/// Time-series performance metrics for charts (daily rollups per campaign).
+model AnalyticsSnapshot {
+  id            String   @id @default(cuid())
+  campaignId    String
+  snapshotDate  DateTime @db.Date
+  impressions   Int      @default(0)
+  clicks        Int      @default(0)
+  spendCents    Int      @default(0)
+  conversions   Int      @default(0)
+  reach         Int      @default(0)
+  ctr           Float    @default(0)
+  cpcCents      Int      @default(0)
+  cpmCents      Int      @default(0)
+  metadata      Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  campaign AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, snapshotDate])
+  @@index([campaignId, snapshotDate])
+  @@index([snapshotDate])
 }
 
 model PostTemplate {

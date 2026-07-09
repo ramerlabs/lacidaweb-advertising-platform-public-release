@@ -1,15 +1,15 @@
 export const brand = {
-  name: "VCC & Bank",
-  shortName: "VCC",
-  product: "Digital Growth Suite",
-  domain: "vccandbank.com",
-  url: "https://vccandbank.com",
-  tagline: "Verified Creator Commerce — grow, publish, and engage from one platform.",
-  supportEmail: "vccandbank@gmail.com",
-  logoUrl: "/branding/logo.png",
-  faviconUrl: "/branding/icon.png",
+  name: "lacidaweb",
+  shortName: "lacidaweb",
+  product: "Advertising Platform",
+  domain: "lacidaweb.com",
+  url: "https://lacidaweb.com",
+  tagline: "Create, manage, and scale ad campaigns — like Facebook Ads, built for modern advertisers.",
+  supportEmail: "support@lacidaweb.com",
+  logoUrl: "/branding/logo.svg",
+  logoDarkUrl: "/branding/logo-on-dark.svg",
+  faviconUrl: "/branding/icon.svg",
   ogImageUrl: "/branding/og.png",
-  /** Position social automation inside the broader VCC business platform */
   positioning:
-    "VCC & Bank helps online businesses, agencies, and creators manage social growth, customer engagement, and recurring revenue — without juggling multiple tools.",
+    "lacidaweb is a self-serve advertising platform where businesses launch awareness, traffic, and conversion campaigns, fund a wallet, and track performance in real time.",
 } as const;

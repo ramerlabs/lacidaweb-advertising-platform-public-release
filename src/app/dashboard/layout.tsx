@@ -4,9 +4,9 @@ import { authOptions } from "@/lib/auth-options";
 import { isPlatformAdminEmail } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { userNeedsOnboarding } from "@/lib/auth-options";
-import { Sidebar } from "@/components/dashboard/sidebar";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { TeamProvider } from "@/components/dashboard/team-provider";
+import type { ClientAccountType } from "@/lib/account-type";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions);
@@ -19,7 +19,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const banned = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { bannedAt: true, banReason: true },
+    select: { bannedAt: true, banReason: true, accountType: true },
   });
   if (banned?.bannedAt) {
     const reason = banned.banReason ? `&reason=${encodeURIComponent(banned.banReason)}` : "";
@@ -31,10 +31,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   const isAdmin = isPlatformAdminEmail(session.user.email);
+  const accountType: ClientAccountType = banned?.accountType ?? session.user.accountType ?? "ADVERTISER";
 
   return (
     <TeamProvider>
-      <DashboardShell email={session.user.email || ""} isAdmin={isAdmin}>
+      <DashboardShell email={session.user.email || ""} isAdmin={isAdmin} accountType={accountType}>
         {children}
       </DashboardShell>
     </TeamProvider>

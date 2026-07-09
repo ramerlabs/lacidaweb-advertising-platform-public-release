@@ -64,6 +64,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           image: user.image,
+          accountType: user.accountType,
         };
       },
     }),
@@ -106,16 +107,20 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.banned = false;
+        if ("accountType" in user && user.accountType) {
+          token.accountType = user.accountType as "ADVERTISER" | "PUBLISHER";
+        }
       }
 
       if (!token.id && token.email) {
         const dbUser = await prisma.user.findUnique({
           where: { email: String(token.email).toLowerCase().trim() },
-          select: { id: true, bannedAt: true },
+          select: { id: true, bannedAt: true, accountType: true },
         });
         if (dbUser) {
           token.id = dbUser.id;
           token.banned = Boolean(dbUser.bannedAt);
+          token.accountType = dbUser.accountType;
         }
       }
 
@@ -123,10 +128,11 @@ export const authOptions: NextAuthOptions = {
         try {
           const dbUser = await prisma.user.findUnique({
             where: { id: String(token.id) },
-            select: { bannedAt: true },
+            select: { bannedAt: true, accountType: true },
           });
           if (dbUser) {
             token.banned = Boolean(dbUser.bannedAt);
+            token.accountType = dbUser.accountType;
           }
         } catch {
           // DB hiccup — keep existing session
@@ -145,6 +151,7 @@ export const authOptions: NextAuthOptions = {
       }
       if (session.user && token.id) {
         session.user.id = token.id as string;
+        session.user.accountType = (token.accountType as "ADVERTISER" | "PUBLISHER") || "ADVERTISER";
       }
       return session;
     },
@@ -160,6 +167,7 @@ export async function createUserWorkspace(input: {
   userId: string;
   teamName: string;
   grantTrialTokens?: boolean;
+  accountType?: "ADVERTISER" | "PUBLISHER";
 }) {
   const baseSlug = slugify(input.teamName) || "workspace";
   let slug = baseSlug;
@@ -169,7 +177,9 @@ export async function createUserWorkspace(input: {
   }
 
   const trialTokens =
-    input.grantTrialTokens !== false ? (await getAiSettings()).aiTrialTokens || 50_000 : 0;
+    input.grantTrialTokens !== false && input.accountType !== "PUBLISHER"
+      ? (await getAiSettings()).aiTrialTokens || 50_000
+      : 0;
 
   const team = await prisma.team.create({
     data: {
@@ -183,7 +193,9 @@ export async function createUserWorkspace(input: {
   });
 
   try {
-    await ensureTeamZernioProfile(team.id);
+    if (input.accountType !== "PUBLISHER") {
+      await ensureTeamZernioProfile(team.id);
+    }
   } catch (error) {
     console.error("[workspace] Zernio profile provisioning failed", error);
   }
@@ -196,8 +208,10 @@ export async function registerUser(input: {
   email: string;
   password: string;
   teamName: string;
+  accountType?: "ADVERTISER" | "PUBLISHER";
 }) {
   const email = input.email.toLowerCase().trim();
+  const accountType = input.accountType === "PUBLISHER" ? "PUBLISHER" : "ADVERTISER";
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     throw new Error("Email already registered");
@@ -210,13 +224,15 @@ export async function registerUser(input: {
       name: input.name,
       email,
       passwordHash,
+      accountType,
     },
   });
 
   const team = await createUserWorkspace({
     userId: user.id,
     teamName: input.teamName,
-    grantTrialTokens: true,
+    grantTrialTokens: accountType === "ADVERTISER",
+    accountType,
   });
 
   return {

@@ -6,12 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { plans } from "@/lib/pricing";
+import type { ClientAccountType } from "@/lib/account-type";
+import { accountTypeLabel } from "@/lib/account-type";
 
 type AdminUser = {
   id: string;
   name: string | null;
   email: string;
+  accountType: ClientAccountType;
   bannedAt: string | null;
   banReason: string | null;
   createdAt: string;
@@ -19,22 +21,29 @@ type AdminUser = {
     id: string;
     name: string;
     slug: string;
+    aiEnabled: boolean;
     aiTokenBalance: number;
+    adWalletBalanceCents: number;
     connectedAccounts: number;
     posts: number;
-  } | null;
-  subscription: {
-    id: string;
-    planId: string;
-    status: string;
-    accountLimit: number;
-    amount: number;
-    interval: string;
-    currentPeriodEnd: string | null;
+    campaigns: number;
+    publisherSites: number;
   } | null;
 };
 
-type Tab = "all" | "banned";
+type Tab = "all" | "banned" | "advertiser" | "publisher";
+
+function accountBadge(type: ClientAccountType) {
+  return type === "PUBLISHER" ? (
+    <Badge className="bg-emerald-600 hover:bg-emerald-600">Publisher</Badge>
+  ) : (
+    <Badge className="bg-cyan-600 hover:bg-cyan-600">Advertiser</Badge>
+  );
+}
+
+function formatWallet(cents: number) {
+  return `$${(cents / 100).toFixed(2)}`;
+}
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -50,9 +59,8 @@ export default function AdminUsersPage() {
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [planId, setPlanId] = useState("growth");
-  const [subscriptionStatus, setSubscriptionStatus] = useState("TRIAL");
-  const [interval, setIntervalBilling] = useState<"MONTHLY" | "YEARLY">("MONTHLY");
+  const [accountType, setAccountType] = useState<ClientAccountType>("ADVERTISER");
+  const [aiEnabled, setAiEnabled] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [sendPasswordEmail, setSendPasswordEmail] = useState(true);
   const [banReason, setBanReason] = useState("");
@@ -63,6 +71,8 @@ export default function AdminUsersPage() {
     () => users.find((u) => u.id === selectedId) || bannedUsers.find((u) => u.id === selectedId) || null,
     [users, bannedUsers, selectedId],
   );
+
+  const isAdvertiser = selected?.accountType === "ADVERTISER";
 
   async function loadAll(search = q) {
     const res = await fetch(`/api/admin/users${search ? `?q=${encodeURIComponent(search)}` : ""}`);
@@ -94,7 +104,6 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     void refresh();
-    // intentionally load once on mount; search uses the Search button
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -102,9 +111,8 @@ export default function AdminUsersPage() {
     if (!selected) return;
     setName(selected.name || "");
     setEmail(selected.email);
-    setPlanId(selected.subscription?.planId || "growth");
-    setSubscriptionStatus(selected.subscription?.status || "TRIAL");
-    setIntervalBilling((selected.subscription?.interval as "MONTHLY" | "YEARLY") || "MONTHLY");
+    setAccountType(selected.accountType || "ADVERTISER");
+    setAiEnabled(selected.team?.aiEnabled ?? false);
     setBanReason(selected.banReason || "");
     setNewPassword("");
     setAiTokenBalance("");
@@ -154,26 +162,25 @@ export default function AdminUsersPage() {
     await refresh();
   }
 
-  async function saveAiTokens() {
+  async function saveAiSettings() {
+    const patch: Record<string, unknown> = {
+      teamId: selected?.team?.id,
+      aiEnabled,
+    };
     const add = Number(addAiTokens);
     if (!Number.isNaN(add) && add > 0) {
-      await save({
-        addAiTokens: Math.round(add),
-        teamId: selected?.team?.id,
-      });
-      return;
+      patch.addAiTokens = Math.round(add);
+    } else {
+      const balance = Number(aiTokenBalance);
+      if (!Number.isNaN(balance) && aiTokenBalance.trim() !== "") {
+        patch.aiTokenBalance = Math.round(balance);
+      }
     }
-    const balance = Number(aiTokenBalance);
-    if (!Number.isNaN(balance) && aiTokenBalance.trim() !== "") {
-      await save({
-        aiTokenBalance: Math.round(balance),
-        teamId: selected?.team?.id,
-      });
-    }
+    await save(patch);
   }
 
   async function saveProfile() {
-    await save({ name, email, planId, subscriptionStatus, interval });
+    await save({ name, email, accountType });
   }
 
   async function changePassword() {
@@ -211,20 +218,32 @@ export default function AdminUsersPage() {
     await refresh();
   }
 
-  const list = tab === "banned" ? bannedUsers : users;
+  const filteredUsers = useMemo(() => {
+    if (tab === "advertiser") return users.filter((u) => u.accountType === "ADVERTISER");
+    if (tab === "publisher") return users.filter((u) => u.accountType === "PUBLISHER");
+    return users;
+  }, [users, tab]);
+
+  const list = tab === "banned" ? bannedUsers : filteredUsers;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Users</h1>
         <p className="text-muted-foreground">
-          View clients, edit profiles, manage plans, reset passwords, and ban access.
+          Manage advertiser and publisher accounts, optional AI assistant access, and security.
         </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <Button variant={tab === "all" ? "default" : "outline"} onClick={() => setTab("all")}>
-          All users ({users.length})
+          All ({users.length})
+        </Button>
+        <Button variant={tab === "advertiser" ? "default" : "outline"} onClick={() => setTab("advertiser")}>
+          Advertisers ({users.filter((u) => u.accountType === "ADVERTISER").length})
+        </Button>
+        <Button variant={tab === "publisher" ? "default" : "outline"} onClick={() => setTab("publisher")}>
+          Publishers ({users.filter((u) => u.accountType === "PUBLISHER").length})
         </Button>
         <Button variant={tab === "banned" ? "default" : "outline"} onClick={() => setTab("banned")}>
           Banned ({bannedUsers.length})
@@ -261,17 +280,14 @@ export default function AdminUsersPage() {
                   className="flex flex-col gap-3 rounded-lg border border-rose-200 bg-rose-50/50 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-rose-900 dark:bg-rose-950/20"
                 >
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <p className="font-medium">{user.name || "Unnamed"}</p>
+                      {accountBadge(user.accountType)}
                       <Badge variant="danger">Banned</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">{user.email}</p>
                     <p className="mt-1 text-sm text-rose-700 dark:text-rose-300">
                       <span className="font-medium">Reason:</span> {user.banReason || "No reason provided"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Banned {user.bannedAt ? new Date(user.bannedAt).toLocaleString() : "—"} · Team:{" "}
-                      {user.team?.name || "—"}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -300,12 +316,14 @@ export default function AdminUsersPage() {
         </Card>
       ) : null}
 
-      <div className={`grid gap-6 ${tab === "all" ? "lg:grid-cols-[1.1fr_1fr]" : ""}`}>
-        {tab === "all" ? (
+      <div className={`grid gap-6 ${tab !== "banned" ? "lg:grid-cols-[1.1fr_1fr]" : ""}`}>
+        {tab !== "banned" ? (
           <Card>
             <CardHeader>
-              <CardTitle>All users</CardTitle>
-              <CardDescription>{users.length} accounts</CardDescription>
+              <CardTitle>
+                {tab === "advertiser" ? "Advertisers" : tab === "publisher" ? "Publishers" : "All users"}
+              </CardTitle>
+              <CardDescription>{list.length} accounts</CardDescription>
             </CardHeader>
             <CardContent className="max-h-[70vh] space-y-2 overflow-y-auto">
               {loading ? (
@@ -324,15 +342,17 @@ export default function AdminUsersPage() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-medium">{user.name || "Unnamed"}</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium">{user.name || "Unnamed"}</p>
+                          {accountBadge(user.accountType)}
+                        </div>
                         <p className="text-sm text-muted-foreground">{user.email}</p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          {user.team?.name || "No team"} · {user.subscription?.planId || "no plan"} ·{" "}
-                          {user.subscription?.status || "free"}
+                          {user.team?.name || "No team"} ·{" "}
+                          {user.accountType === "PUBLISHER"
+                            ? `${user.team?.publisherSites ?? 0} sites`
+                            : `${user.team?.campaigns ?? 0} campaigns · wallet ${formatWallet(user.team?.adWalletBalanceCents ?? 0)}`}
                         </p>
-                        {user.bannedAt && user.banReason ? (
-                          <p className="mt-1 text-xs text-rose-600">Reason: {user.banReason}</p>
-                        ) : null}
                       </div>
                       {user.bannedAt ? <Badge variant="danger">Banned</Badge> : null}
                     </div>
@@ -343,7 +363,7 @@ export default function AdminUsersPage() {
           </Card>
         ) : null}
 
-        {tab === "all" ? (
+        {tab !== "banned" ? (
           <div className="space-y-4">
             {!selected ? (
               <Card>
@@ -355,13 +375,27 @@ export default function AdminUsersPage() {
               <>
                 <Card>
                   <CardHeader>
-                    <CardTitle>Profile & plan</CardTitle>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <CardTitle>Account profile</CardTitle>
+                      {accountBadge(selected.accountType)}
+                    </div>
                     <CardDescription>
-                      Team: {selected.team?.name || "—"} · Accounts:{" "}
-                      {selected.team?.connectedAccounts ?? 0} · Posts: {selected.team?.posts ?? 0}
+                      Workspace: {selected.team?.name || "—"} · Joined{" "}
+                      {new Date(selected.createdAt).toLocaleDateString()}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Account type</Label>
+                      <select
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                        value={accountType}
+                        onChange={(e) => setAccountType(e.target.value as ClientAccountType)}
+                      >
+                        <option value="ADVERTISER">Advertiser — runs ad campaigns</option>
+                        <option value="PUBLISHER">Publisher — embeds ads on websites</option>
+                      </select>
+                    </div>
                     <div className="space-y-2">
                       <Label>Name</Label>
                       <Input value={name} onChange={(e) => setName(e.target.value)} />
@@ -370,103 +404,98 @@ export default function AdminUsersPage() {
                       <Label>Email</Label>
                       <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
                     </div>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>Plan</Label>
-                        <select
-                          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                          value={planId}
-                          onChange={(e) => setPlanId(e.target.value)}
-                        >
-                          {plans.map((plan) => (
-                            <option key={plan.id} value={plan.id}>
-                              {plan.name} (${plan.monthlyPrice}/mo)
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Status</Label>
-                        <select
-                          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                          value={subscriptionStatus}
-                          onChange={(e) => setSubscriptionStatus(e.target.value)}
-                        >
-                          <option value="TRIAL">TRIAL (free access)</option>
-                          <option value="ACTIVE">ACTIVE (paid)</option>
-                          <option value="PAST_DUE">PAST_DUE</option>
-                          <option value="CANCELED">CANCELED</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Billing interval</Label>
-                      <select
-                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                        value={interval}
-                        onChange={(e) => setIntervalBilling(e.target.value as "MONTHLY" | "YEARLY")}
-                      >
-                        <option value="MONTHLY">Monthly</option>
-                        <option value="YEARLY">Yearly</option>
-                      </select>
-                    </div>
                     <Button onClick={saveProfile} disabled={saving}>
-                      {saving ? "Saving..." : "Save profile & plan"}
+                      {saving ? "Saving..." : "Save profile"}
                     </Button>
                   </CardContent>
                 </Card>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>AI tokens</CardTitle>
-                    <CardDescription>
-                      Manually set or add AI token balance for this client&apos;s workspace
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-sm">
-                      Current balance:{" "}
-                      <strong>{(selected.team?.aiTokenBalance || 0).toLocaleString()} tokens</strong>
-                      {selected.team?.name ? (
-                        <span className="text-muted-foreground"> · workspace: {selected.team.name}</span>
-                      ) : null}
-                    </p>
-                    <div className="space-y-2">
-                      <Label>Set token balance</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={aiTokenBalance}
-                        onChange={(e) => setAiTokenBalance(e.target.value)}
-                        placeholder={`Current: ${(selected.team?.aiTokenBalance || 0).toLocaleString()}`}
+                {isAdvertiser ? (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Advertiser workspace</CardTitle>
+                      <CardDescription>Campaigns and ad wallet for this account</CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid gap-3 sm:grid-cols-2">
+                      <Stat label="Campaigns" value={String(selected.team?.campaigns ?? 0)} />
+                      <Stat
+                        label="Wallet balance"
+                        value={formatWallet(selected.team?.adWalletBalanceCents ?? 0)}
                       />
-                      <p className="text-xs text-muted-foreground">
-                        Replaces the current balance with this exact token count.
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Publisher workspace</CardTitle>
+                      <CardDescription>Websites registered for ad embeds</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Stat label="Publisher sites" value={String(selected.team?.publisherSites ?? 0)} />
+                    </CardContent>
+                  </Card>
+                )}
+
+                {isAdvertiser ? (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>AI assistant (optional)</CardTitle>
+                      <CardDescription>
+                        Optional add-on for advertisers — helps with ad copy and content. Clients
+                        purchase token packs; you can enable access or grant support tokens here.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <label className="flex items-start gap-3 rounded-lg border p-3">
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={aiEnabled}
+                          onChange={(e) => setAiEnabled(e.target.checked)}
+                        />
+                        <span>
+                          <span className="font-medium">Enable AI assistant</span>
+                          <span className="mt-1 block text-sm text-muted-foreground">
+                            When off, the advertiser cannot use AI tools even if they have tokens.
+                            When on, usage deducts from their token balance (they buy packs in billing).
+                          </span>
+                        </span>
+                      </label>
+                      <p className="text-sm">
+                        Current balance:{" "}
+                        <strong>{(selected.team?.aiTokenBalance || 0).toLocaleString()} tokens</strong>
                       </p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Or add tokens</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={addAiTokens}
-                        onChange={(e) => setAddAiTokens(e.target.value)}
-                        placeholder="e.g. 1000000"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Adds to the current balance instead of replacing it.
-                      </p>
-                    </div>
-                    <Button variant="outline" onClick={saveAiTokens} disabled={saving}>
-                      {saving ? "Saving..." : "Update AI tokens"}
-                    </Button>
-                  </CardContent>
-                </Card>
+                      <div className="space-y-2">
+                        <Label>Set token balance (support grant)</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={aiTokenBalance}
+                          onChange={(e) => setAiTokenBalance(e.target.value)}
+                          placeholder={`Current: ${(selected.team?.aiTokenBalance || 0).toLocaleString()}`}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Or add tokens</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={addAiTokens}
+                          onChange={(e) => setAddAiTokens(e.target.value)}
+                          placeholder="e.g. 50000"
+                        />
+                      </div>
+                      <Button variant="outline" onClick={saveAiSettings} disabled={saving}>
+                        {saving ? "Saving..." : "Save AI settings"}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : null}
 
                 <Card>
                   <CardHeader>
                     <CardTitle>Change password</CardTitle>
-                    <CardDescription>Set a new password for this client</CardDescription>
+                    <CardDescription>Set a new password for this account</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
@@ -495,7 +524,7 @@ export default function AdminUsersPage() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Ban access</CardTitle>
-                    <CardDescription>Banned users cannot sign in or use the dashboard.</CardDescription>
+                    <CardDescription>Banned users cannot sign in or use their dashboard.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {selected.bannedAt ? (
@@ -538,14 +567,9 @@ export default function AdminUsersPage() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Delete user</CardTitle>
-                    <CardDescription>
-                      Permanently delete this user account and all related records.
-                    </CardDescription>
+                    <CardDescription>Permanently delete this account and all related records.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <p className="text-sm text-muted-foreground">
-                      This action cannot be undone.
-                    </p>
                     <Button
                       variant="outline"
                       className="border-rose-300 text-rose-700"
@@ -563,6 +587,15 @@ export default function AdminUsersPage() {
       </div>
 
       {status ? <p className="text-sm text-muted-foreground">{status}</p> : null}
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border bg-muted/30 px-4 py-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-xl font-semibold tabular-nums">{value}</p>
     </div>
   );
 }

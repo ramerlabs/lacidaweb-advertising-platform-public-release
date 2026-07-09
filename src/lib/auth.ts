@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/prisma";
+import { isPlatformAdminEmail } from "@/lib/platform-admin";
 import type { MembershipRole } from "@prisma/client";
 
 export async function requireSession() {
@@ -68,17 +69,7 @@ export async function getActiveTeamId(userId: string, preferredTeamId?: string |
   return first?.teamId ?? null;
 }
 
-function parseAdminEmails(): string[] {
-  return (process.env.ADMIN_EMAILS || "")
-    .split(",")
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-export function isPlatformAdminEmail(email: string | null | undefined): boolean {
-  if (!email) return false;
-  return parseAdminEmails().includes(email.toLowerCase());
-}
+export { isPlatformAdminEmail } from "@/lib/platform-admin";
 
 export async function requirePlatformAdmin(userId: string) {
   const user = await prisma.user.findUnique({

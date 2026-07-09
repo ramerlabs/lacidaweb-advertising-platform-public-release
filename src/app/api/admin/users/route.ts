@@ -29,6 +29,7 @@ export async function GET(req: Request) {
         id: true,
         name: true,
         email: true,
+        accountType: true,
         bannedAt: true,
         banReason: true,
         createdAt: true,
@@ -38,7 +39,14 @@ export async function GET(req: Request) {
             team: {
               include: {
                 subscription: true,
-                _count: { select: { connectedAccounts: true, posts: true } },
+                _count: {
+                  select: {
+                    connectedAccounts: true,
+                    posts: true,
+                    adCampaigns: true,
+                    publisherSites: true,
+                  },
+                },
               },
             },
           },
@@ -54,6 +62,7 @@ export async function GET(req: Request) {
           id: user.id,
           name: user.name,
           email: user.email,
+          accountType: user.accountType,
           bannedAt: user.bannedAt,
           banReason: user.banReason,
           createdAt: user.createdAt,
@@ -62,9 +71,13 @@ export async function GET(req: Request) {
                 id: team.id,
                 name: team.name,
                 slug: team.slug,
+                aiEnabled: team.aiEnabled,
                 aiTokenBalance: team.aiTokenBalance,
+                adWalletBalanceCents: team.adWalletBalanceCents,
                 connectedAccounts: team._count.connectedAccounts,
                 posts: team._count.posts,
+                campaigns: team._count.adCampaigns,
+                publisherSites: team._count.publisherSites,
               }
             : null,
           subscription: team?.subscription
@@ -72,10 +85,6 @@ export async function GET(req: Request) {
                 id: team.subscription.id,
                 planId: team.subscription.planId,
                 status: team.subscription.status,
-                accountLimit: team.subscription.accountLimit,
-                amount: team.subscription.amount,
-                interval: team.subscription.interval,
-                currentPeriodEnd: team.subscription.currentPeriodEnd,
               }
             : null,
         };
