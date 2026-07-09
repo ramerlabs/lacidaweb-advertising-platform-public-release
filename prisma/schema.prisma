@@ -477,6 +477,8 @@ model IntegrationSettings {
   adsEnabled                Boolean @default(true)
   adsProfitMarginPercent    Int     @default(0)
   adWalletTopUpUsd          Float   @default(25)
+  googleOAuthEnabled        Boolean @default(true)
+  facebookOAuthEnabled      Boolean @default(true)
   updatedAt           DateTime @updatedAt
 }
 

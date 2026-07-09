@@ -29,6 +29,10 @@ type IntegrationSettings = {
   smtpFromName: string;
   hasSmtpPassword: boolean;
   smtpFallbackTelegram: boolean;
+  googleOAuthEnabled: boolean;
+  facebookOAuthEnabled: boolean;
+  googleOAuthConfigured: boolean;
+  facebookOAuthConfigured: boolean;
 };
 
 function NotifyToggle({
@@ -115,6 +119,8 @@ export default function AdminIntegrationsPage() {
       smtpFromEmail: settings.smtpFromEmail || undefined,
       smtpFromName: settings.smtpFromName || undefined,
       smtpFallbackTelegram: settings.smtpFallbackTelegram,
+      googleOAuthEnabled: settings.googleOAuthEnabled,
+      facebookOAuthEnabled: settings.facebookOAuthEnabled,
     };
   }
 
@@ -237,6 +243,59 @@ export default function AdminIntegrationsPage() {
               URL must be exactly: <code>{webhookUrl}</code> (or <code>/api/webhooks/zernio</code>).
               Events: <code>comment.received</code>, <code>message.received</code>, post lifecycle, and{" "}
               <code>webhook.test</code>. Use your production domain in Zernio (not localhost).
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Social login</CardTitle>
+          <CardDescription>
+            Google and Facebook sign-in on login and register. API keys are set in environment variables on
+            your host (Vercel).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={settings.googleOAuthEnabled}
+              disabled={!settings.googleOAuthConfigured}
+              onChange={(e) =>
+                setSettings((s) => s && { ...s, googleOAuthEnabled: e.target.checked })
+              }
+            />
+            Enable Google login
+            {!settings.googleOAuthConfigured ? (
+              <span className="text-xs text-muted-foreground">(set GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET)</span>
+            ) : null}
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={settings.facebookOAuthEnabled}
+              disabled={!settings.facebookOAuthConfigured}
+              onChange={(e) =>
+                setSettings((s) => s && { ...s, facebookOAuthEnabled: e.target.checked })
+              }
+            />
+            Enable Facebook login
+            {!settings.facebookOAuthConfigured ? (
+              <span className="text-xs text-muted-foreground">
+                (set FACEBOOK_CLIENT_ID / FACEBOOK_CLIENT_SECRET)
+              </span>
+            ) : null}
+          </label>
+          <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+            <p>
+              OAuth redirect URLs (add in each provider console):
+            </p>
+            <p>
+              <code>{typeof window !== "undefined" ? window.location.origin : "https://vccandbank.com"}/api/auth/callback/google</code>
+            </p>
+            <p>
+              <code>{typeof window !== "undefined" ? window.location.origin : "https://vccandbank.com"}/api/auth/callback/facebook</code>
             </p>
           </div>
         </CardContent>

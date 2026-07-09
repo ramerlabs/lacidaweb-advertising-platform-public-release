@@ -27,6 +27,10 @@ export type IntegrationSettingsData = {
   smtpFromName: string;
   hasSmtpPassword: boolean;
   smtpFallbackTelegram: boolean;
+  googleOAuthEnabled: boolean;
+  facebookOAuthEnabled: boolean;
+  googleOAuthConfigured: boolean;
+  facebookOAuthConfigured: boolean;
 };
 
 function maskSecret(value: string): string {
@@ -75,6 +79,8 @@ type SettingsRow = {
   smtpFromEmail?: string | null;
   smtpFromName?: string | null;
   smtpFallbackTelegram?: boolean | null;
+  googleOAuthEnabled?: boolean | null;
+  facebookOAuthEnabled?: boolean | null;
 };
 
 function mergeSettings(row: SettingsRow | null): IntegrationSettingsData {
@@ -112,6 +118,14 @@ function mergeSettings(row: SettingsRow | null): IntegrationSettingsData {
     smtpFromName: row?.smtpFromName?.trim() || env.smtpFromName,
     hasSmtpPassword: Boolean(smtpPassword),
     smtpFallbackTelegram: row?.smtpFallbackTelegram ?? env.smtpFallbackTelegram,
+    googleOAuthEnabled: row?.googleOAuthEnabled ?? true,
+    facebookOAuthEnabled: row?.facebookOAuthEnabled ?? true,
+    googleOAuthConfigured: Boolean(
+      process.env.GOOGLE_CLIENT_ID?.trim() && process.env.GOOGLE_CLIENT_SECRET?.trim(),
+    ),
+    facebookOAuthConfigured: Boolean(
+      process.env.FACEBOOK_CLIENT_ID?.trim() && process.env.FACEBOOK_CLIENT_SECRET?.trim(),
+    ),
   };
 }
 
@@ -163,6 +177,8 @@ export async function updateIntegrationSettings(input: {
   smtpFromEmail?: string;
   smtpFromName?: string;
   smtpFallbackTelegram?: boolean;
+  googleOAuthEnabled?: boolean;
+  facebookOAuthEnabled?: boolean;
 }): Promise<IntegrationSettingsData> {
   if (!hasModelDelegate(prisma, "integrationSettings")) {
     throw new Error("Database not ready. Restart the dev server, then run: npx prisma generate");
@@ -205,6 +221,8 @@ export async function updateIntegrationSettings(input: {
       input.smtpFromEmail === undefined ? current.smtpFromEmail : input.smtpFromEmail.trim(),
     smtpFromName: input.smtpFromName === undefined ? current.smtpFromName : input.smtpFromName.trim(),
     smtpFallbackTelegram: input.smtpFallbackTelegram ?? current.smtpFallbackTelegram,
+    googleOAuthEnabled: input.googleOAuthEnabled ?? current.googleOAuthEnabled,
+    facebookOAuthEnabled: input.facebookOAuthEnabled ?? current.facebookOAuthEnabled,
   };
 
   const row = await prisma.integrationSettings.upsert({
@@ -230,6 +248,8 @@ export async function updateIntegrationSettings(input: {
       smtpFromEmail: next.smtpFromEmail || null,
       smtpFromName: next.smtpFromName || null,
       smtpFallbackTelegram: next.smtpFallbackTelegram,
+      googleOAuthEnabled: next.googleOAuthEnabled,
+      facebookOAuthEnabled: next.facebookOAuthEnabled,
     },
     update: {
       zernioApiKey: next.zernioApiKey || null,
@@ -251,6 +271,8 @@ export async function updateIntegrationSettings(input: {
       smtpFromEmail: next.smtpFromEmail || null,
       smtpFromName: next.smtpFromName || null,
       smtpFallbackTelegram: next.smtpFallbackTelegram,
+      googleOAuthEnabled: next.googleOAuthEnabled,
+      facebookOAuthEnabled: next.facebookOAuthEnabled,
     },
   });
 
@@ -280,5 +302,9 @@ export function toPublicIntegrationSettings(settings: IntegrationSettingsData) {
     smtpFromName: settings.smtpFromName,
     hasSmtpPassword: settings.hasSmtpPassword,
     smtpFallbackTelegram: settings.smtpFallbackTelegram,
+    googleOAuthEnabled: settings.googleOAuthEnabled,
+    facebookOAuthEnabled: settings.facebookOAuthEnabled,
+    googleOAuthConfigured: settings.googleOAuthConfigured,
+    facebookOAuthConfigured: settings.facebookOAuthConfigured,
   };
 }

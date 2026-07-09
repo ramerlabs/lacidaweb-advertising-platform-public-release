@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { getPlanById } from "@/lib/pricing";
 import { useSiteBranding } from "@/hooks/use-site-branding";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 
 function RegisterPageContent() {
   const router = useRouter();
@@ -120,6 +121,9 @@ function RegisterPageContent() {
               {loading ? "Creating..." : "Create account"}
             </Button>
           </form>
+          <div className="mt-4">
+            <SocialAuthButtons callbackUrl="/dashboard" />
+          </div>
           <p className="mt-4 text-center text-sm text-muted-foreground">
             Already have an account?{" "}
             <Link href="/login" className="text-primary underline">

@@ -28,6 +28,8 @@ const schema = z.object({
   smtpFromEmail: z.string().email().or(z.literal("")).optional(),
   smtpFromName: z.string().optional(),
   smtpFallbackTelegram: z.boolean().optional(),
+  googleOAuthEnabled: z.boolean().optional(),
+  facebookOAuthEnabled: z.boolean().optional(),
 });
 
 export async function GET() {

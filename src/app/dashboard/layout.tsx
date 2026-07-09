@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { isPlatformAdminEmail } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { userNeedsOnboarding } from "@/lib/auth-options";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { TeamProvider } from "@/components/dashboard/team-provider";
@@ -23,6 +24,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (banned?.bannedAt) {
     const reason = banned.banReason ? `&reason=${encodeURIComponent(banned.banReason)}` : "";
     redirect(`/login?error=banned${reason}`);
+  }
+
+  if (await userNeedsOnboarding(session.user.id)) {
+    redirect("/onboarding");
   }
 
   const isAdmin = isPlatformAdminEmail(session.user.email);

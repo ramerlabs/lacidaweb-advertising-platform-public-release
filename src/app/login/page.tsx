@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSiteBranding } from "@/hooks/use-site-branding";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 
 export default function LoginPage() {
   const { branding } = useSiteBranding();
@@ -23,6 +24,12 @@ export default function LoginPage() {
     if (params.get("error") === "banned") {
       setError("Your account has been banned. Contact support if you believe this is a mistake.");
       setBanReason(params.get("reason") || "");
+    }
+    if (params.get("error") === "AccessDenied") {
+      setError("Sign in was denied. Your account may be banned or this login method is disabled.");
+    }
+    if (params.get("error") === "OAuthAccountNotLinked") {
+      setError("This email is already registered with a password. Sign in with email instead.");
     }
   }, []);
 
@@ -111,6 +118,9 @@ export default function LoginPage() {
               {loading ? "Signing in..." : "Sign in"}
             </Button>
           </form>
+          <div className="mt-4">
+            <SocialAuthButtons callbackUrl="/dashboard" />
+          </div>
           <p className="mt-4 text-center text-sm text-muted-foreground">
             No account?{" "}
             <Link href="/register" className="text-primary underline">

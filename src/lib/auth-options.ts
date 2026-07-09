@@ -1,20 +1,48 @@
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
+import FacebookProvider from "next-auth/providers/facebook";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/utils";
 import { ensureTeamZernioProfile } from "@/services/profiles";
 import { getAiSettings } from "@/lib/ai-settings";
+import { isOAuthProviderAllowed } from "@/lib/oauth-settings";
 
 const useSecureCookies = process.env.NODE_ENV === "production";
 const cookieDomain = process.env.NEXTAUTH_COOKIE_DOMAIN?.trim() || undefined;
+
+function buildOAuthProviders() {
+  const providers: NextAuthOptions["providers"] = [];
+
+  if (process.env.GOOGLE_CLIENT_ID?.trim() && process.env.GOOGLE_CLIENT_SECRET?.trim()) {
+    providers.push(
+      GoogleProvider({
+        clientId: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        authorization: { params: { prompt: "consent", access_type: "offline", response_type: "code" } },
+      }),
+    );
+  }
+
+  if (process.env.FACEBOOK_CLIENT_ID?.trim() && process.env.FACEBOOK_CLIENT_SECRET?.trim()) {
+    providers.push(
+      FacebookProvider({
+        clientId: process.env.FACEBOOK_CLIENT_ID,
+        clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
+        authorization: { params: { scope: "email public_profile" } },
+      }),
+    );
+  }
+
+  return providers;
+}
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as NextAuthOptions["adapter"],
   session: { strategy: "jwt" },
   secret: process.env.NEXTAUTH_SECRET,
-  // Allow both apex and www behind Vercel; set NEXTAUTH_URL to your primary domain.
   pages: {
     signIn: "/login",
   },
@@ -50,6 +78,7 @@ export const authOptions: NextAuthOptions = {
         };
       },
     }),
+    ...buildOAuthProviders(),
   ],
   cookies: {
     sessionToken: {
@@ -66,10 +95,39 @@ export const authOptions: NextAuthOptions = {
     },
   },
   callbacks: {
+    async signIn({ user, account }) {
+      if (account?.provider && account.provider !== "credentials") {
+        if (!(await isOAuthProviderAllowed(account.provider))) {
+          return false;
+        }
+      }
+
+      const email = user.email?.toLowerCase().trim();
+      if (!email) return false;
+
+      const dbUser = await prisma.user.findUnique({
+        where: { email },
+        select: { bannedAt: true },
+      });
+      if (dbUser?.bannedAt) return false;
+
+      return true;
+    },
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
         token.banned = false;
+      }
+
+      if (!token.id && token.email) {
+        const dbUser = await prisma.user.findUnique({
+          where: { email: String(token.email).toLowerCase().trim() },
+          select: { id: true, bannedAt: true },
+        });
+        if (dbUser) {
+          token.id = dbUser.id;
+          token.banned = Boolean(dbUser.bannedAt);
+        }
       }
 
       if (token.id) {
@@ -78,8 +136,6 @@ export const authOptions: NextAuthOptions = {
             where: { id: String(token.id) },
             select: { bannedAt: true },
           });
-          // Only mark banned when we positively know the user is banned.
-          // Do not wipe sessions on transient DB misses.
           if (dbUser) {
             token.banned = Boolean(dbUser.bannedAt);
           }
@@ -103,8 +159,48 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
+    async redirect({ url, baseUrl }) {
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      if (new URL(url).origin === baseUrl) return url;
+      return baseUrl;
+    },
   },
 };
+
+export async function createUserWorkspace(input: {
+  userId: string;
+  teamName: string;
+  grantTrialTokens?: boolean;
+}) {
+  const baseSlug = slugify(input.teamName) || "workspace";
+  let slug = baseSlug;
+  let i = 1;
+  while (await prisma.team.findUnique({ where: { slug } })) {
+    slug = `${baseSlug}-${i++}`;
+  }
+
+  const trialTokens =
+    input.grantTrialTokens !== false ? (await getAiSettings()).aiTrialTokens || 50_000 : 0;
+
+  const team = await prisma.team.create({
+    data: {
+      name: input.teamName,
+      slug,
+      aiTokenBalance: trialTokens,
+      members: {
+        create: { userId: input.userId, role: "OWNER" },
+      },
+    },
+  });
+
+  try {
+    await ensureTeamZernioProfile(team.id);
+  } catch (error) {
+    console.error("[workspace] Zernio profile provisioning failed", error);
+  }
+
+  return team;
+}
 
 export async function registerUser(input: {
   name: string;
@@ -119,46 +215,28 @@ export async function registerUser(input: {
   }
 
   const passwordHash = await bcrypt.hash(input.password, 12);
-  const baseSlug = slugify(input.teamName) || "workspace";
-  let slug = baseSlug;
-  let i = 1;
-  while (await prisma.team.findUnique({ where: { slug } })) {
-    slug = `${baseSlug}-${i++}`;
-  }
-
-  const trialTokens = (await getAiSettings()).aiTrialTokens || 50_000;
 
   const user = await prisma.user.create({
     data: {
       name: input.name,
       email,
       passwordHash,
-      memberships: {
-        create: {
-          role: "OWNER",
-          team: {
-            create: {
-              name: input.teamName,
-              slug,
-              aiTokenBalance: trialTokens,
-            },
-          },
-        },
-      },
-    },
-    include: {
-      memberships: { include: { team: true } },
     },
   });
 
-  const team = user.memberships[0]?.team;
-  if (team) {
-    try {
-      await ensureTeamZernioProfile(team.id);
-    } catch (error) {
-      console.error("[register] Zernio profile provisioning failed", error);
-    }
-  }
+  const team = await createUserWorkspace({
+    userId: user.id,
+    teamName: input.teamName,
+    grantTrialTokens: true,
+  });
 
-  return user;
+  return {
+    ...user,
+    memberships: [{ teamId: team.id, team }],
+  };
+}
+
+export async function userNeedsOnboarding(userId: string): Promise<boolean> {
+  const count = await prisma.teamMember.count({ where: { userId } });
+  return count === 0;
 }
