@@ -118,15 +118,6 @@ export default function BillingPage() {
     instructions: string;
   } | null>(null);
   const [aiUsage, setAiUsage] = useState<AiUsage[]>([]);
-  const [adWalletBalanceCents, setAdWalletBalanceCents] = useState(0);
-  const [adWalletTopUpUsd, setAdWalletTopUpUsd] = useState(25);
-  const [adsEnabled, setAdsEnabled] = useState(false);
-  const [buyingAdWallet, setBuyingAdWallet] = useState(false);
-  const [pendingAdWalletBank, setPendingAdWalletBank] = useState<{
-    paymentId: string;
-    amountUsd: number;
-    instructions: string;
-  } | null>(null);
   const [uploadingProofId, setUploadingProofId] = useState<string | null>(null);
   const paymentsRef = useRef<HTMLDivElement>(null);
 
@@ -134,14 +125,13 @@ export default function BillingPage() {
 
   async function load() {
     if (!teamId) return;
-    const [subRes, payRes, methodsRes, aiRes, pricingRes, usageRes, adWalletRes] = await Promise.all([
+    const [subRes, payRes, methodsRes, aiRes, pricingRes, usageRes] = await Promise.all([
       fetch(`/api/billing/subscription?teamId=${teamId}`),
       fetch(`/api/billing/payments?teamId=${teamId}`),
       fetch("/api/billing/payment-methods"),
       fetch(`/api/ai/generate?teamId=${teamId}`),
       fetch("/api/ai/pricing"),
       fetch(`/api/ai/usage?teamId=${teamId}`),
-      fetch(`/api/billing/ad-wallet?teamId=${teamId}`),
     ]);
     const subData = await subRes.json();
     const payData = await payRes.json();
@@ -149,7 +139,6 @@ export default function BillingPage() {
     const aiData = await aiRes.json();
     const pricingData = await pricingRes.json();
     const usageData = await usageRes.json();
-    const adWalletData = await adWalletRes.json();
     setSubscription(subData.subscription || null);
     setPayments(payData.payments || []);
     if (methodsRes.ok) {
@@ -166,11 +155,6 @@ export default function BillingPage() {
       setTokensPerPack(pricingData.settings.tokensPerPack || 0);
     }
     if (usageRes.ok) setAiUsage(usageData.usage || []);
-    if (adWalletRes.ok) {
-      setAdWalletBalanceCents(adWalletData.adWalletBalanceCents || 0);
-      setAdWalletTopUpUsd(adWalletData.adWalletTopUpUsd || 25);
-      setAdsEnabled(Boolean(adWalletData.adsEnabled));
-    }
   }
 
   useEffect(() => {
@@ -251,49 +235,6 @@ export default function BillingPage() {
         instructions: data.instructions || data.payment?.notes || "",
       });
       setStatus("");
-    }
-    await load();
-    paymentsRef.current?.scrollIntoView({ behavior: "smooth" });
-  }
-
-  async function buyAdWallet(method: ClientPaymentMethod) {
-    if (!teamId) return;
-    setBuyingAdWallet(true);
-    setStatus("");
-    const res = await fetch("/api/billing/ad-wallet", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ teamId, method }),
-    });
-    const data = await res.json();
-    setBuyingAdWallet(false);
-    if (!res.ok) {
-      setStatus(data.error || "Could not start ad wallet top-up");
-      return;
-    }
-    if (method === "USDT") {
-      setPendingManual(null);
-      setPendingBank(null);
-      setPendingAdWalletBank(null);
-      setStatus(`Pay ${data.usdtAmount} USDT — see below. Ad wallet credits after verification.`);
-    } else if (method === "US_BANK") {
-      setPendingManual(null);
-      setPendingBank(null);
-      setPendingAdWalletBank({
-        paymentId: data.payment?.id,
-        amountUsd: data.payment?.amount || adWalletTopUpUsd,
-        instructions: data.instructions || "",
-      });
-      setStatus("");
-    } else {
-      setPendingAdWalletBank(null);
-      setPendingManual({
-        method,
-        amountUsd: data.payment?.amount || adWalletTopUpUsd,
-        tokensGranted: 0,
-        instructions: data.instructions || data.payment?.notes || "",
-      });
-      setStatus(`Pay $${(data.payment?.amount || adWalletTopUpUsd).toFixed(2)} for ad wallet top-up. See instructions below.`);
     }
     await load();
     paymentsRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -409,60 +350,6 @@ export default function BillingPage() {
             ) : null}
           </CardContent>
         </Card>
-      ) : null}
-
-      {adsEnabled ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Ad wallet</CardTitle>
-            <CardDescription>
-              Prepaid balance for launching ads — ${(adWalletBalanceCents / 100).toFixed(2)} available
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm">
-              Top up <strong>${adWalletTopUpUsd.toFixed(2)}</strong> to pay for ads from your wallet instead of
-              checkout each time.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {enabledMethods.USDT ? (
-                <Button size="sm" disabled={buyingAdWallet} onClick={() => buyAdWallet("USDT")}>
-                  Top up with USDT
-                </Button>
-              ) : null}
-              {enabledMethods.PAYPAL ? (
-                <Button size="sm" variant="secondary" disabled={buyingAdWallet} onClick={() => buyAdWallet("PAYPAL")}>
-                  Top up with PayPal
-                </Button>
-              ) : null}
-              {enabledMethods.GCASH ? (
-                <Button size="sm" variant="outline" disabled={buyingAdWallet} onClick={() => buyAdWallet("GCASH")}>
-                  Top up with GCash
-                </Button>
-              ) : null}
-              {enabledMethods.US_BANK ? (
-                <Button size="sm" variant="outline" disabled={buyingAdWallet} onClick={() => buyAdWallet("US_BANK")}>
-                  Top up with US Bank
-                </Button>
-              ) : null}
-            </div>
-            <Link href="/dashboard/ads" className="text-sm text-primary underline">
-              Go to Ads
-            </Link>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {pendingAdWalletBank && usBankDetails && teamId ? (
-        <BankPaymentHighlight
-          paymentId={pendingAdWalletBank.paymentId}
-          teamId={teamId}
-          amountUsd={pendingAdWalletBank.amountUsd}
-          tokensGranted={0}
-          bank={usBankDetails}
-          instructions={pendingAdWalletBank.instructions}
-          onReferenceSubmitted={load}
-        />
       ) : null}
 
       {pendingManual ? (

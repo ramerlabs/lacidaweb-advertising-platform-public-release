@@ -20,13 +20,14 @@ export function TestimonialsSection() {
             >
               <p className="font-mono text-sm leading-relaxed text-foreground/90">{item.quote}</p>
               <div className="mt-6 flex items-center gap-3">
-                <div
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                  style={{ backgroundColor: item.color }}
-                  aria-hidden
-                >
-                  {item.initials}
-                </div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={item.avatarUrl}
+                  alt=""
+                  width={40}
+                  height={40}
+                  className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-border"
+                />
                 <div className="min-w-0">
                   <p className="flex items-center gap-1.5 text-sm font-semibold">
                     <span className="truncate">{item.name}</span>

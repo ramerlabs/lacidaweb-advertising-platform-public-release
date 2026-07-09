@@ -8,7 +8,7 @@ export type AdsSettingsData = {
 
 const DEFAULTS: AdsSettingsData = {
   adsEnabled: true,
-  adsProfitMarginPercent: 30,
+  adsProfitMarginPercent: 0,
   adWalletTopUpUsd: 25,
 };
 

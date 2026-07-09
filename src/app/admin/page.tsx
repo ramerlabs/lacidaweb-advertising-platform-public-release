@@ -140,7 +140,7 @@ export default function AdminOverviewPage() {
         <Card>
           <CardHeader>
             <CardTitle>Ads</CardTitle>
-            <CardDescription>Enable paid ads, platform fee %, wallet top-up</CardDescription>
+            <CardDescription>Enable paid ads — clients connect their own ad accounts (no platform fee)</CardDescription>
           </CardHeader>
           <Button asChild>
             <Link href="/admin/settings/ads">Configure ads</Link>

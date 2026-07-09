@@ -127,8 +127,8 @@ export default function AdminBrandingPage() {
           <CardDescription>How your brand appears in the header</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center">
-          <SiteLogo branding={settings} forceTheme="light" />
-          {settings.logoDarkUrl ? <SiteLogo branding={settings} forceTheme="dark" /> : null}
+          <SiteLogo branding={settings} forceTheme="light" href={null} />
+          {settings.logoDarkUrl ? <SiteLogo branding={settings} forceTheme="dark" href={null} /> : null}
           <div>
             <p className="font-medium">{settings.title}</p>
             <p className="text-sm text-muted-foreground">{settings.product}</p>

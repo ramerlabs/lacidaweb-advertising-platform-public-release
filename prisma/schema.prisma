@@ -475,7 +475,7 @@ model IntegrationSettings {
   aiTrialTokens             Int     @default(50000)
   aiLowTokenThreshold       Int     @default(50000)
   adsEnabled                Boolean @default(true)
-  adsProfitMarginPercent    Int     @default(30)
+  adsProfitMarginPercent    Int     @default(0)
   adWalletTopUpUsd          Float   @default(25)
   updatedAt           DateTime @updatedAt
 }
