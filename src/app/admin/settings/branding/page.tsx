@@ -21,6 +21,7 @@ type BrandingSettings = {
   tagline: string;
   activityFeedDisplayCount: number;
   activityFeedSimulatedEnabled: boolean;
+  supportEmail: string;
 };
 
 export default function AdminBrandingPage() {
@@ -36,6 +37,7 @@ export default function AdminBrandingPage() {
     tagline: "",
     activityFeedDisplayCount: 20,
     activityFeedSimulatedEnabled: true,
+    supportEmail: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -158,6 +160,19 @@ export default function AdminBrandingPage() {
               placeholder="Digital Growth Suite"
             />
             <p className="text-xs text-muted-foreground">Shown in badges and browser tab (title — product).</p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="support-email">Support email</Label>
+            <Input
+              id="support-email"
+              type="email"
+              value={settings.supportEmail}
+              onChange={(e) => setSettings((s) => ({ ...s, supportEmail: e.target.value }))}
+              placeholder="vccandbank@gmail.com"
+            />
+            <p className="text-xs text-muted-foreground">
+              Shown in the landing page footer and used in system emails.
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="description">Site description</Label>

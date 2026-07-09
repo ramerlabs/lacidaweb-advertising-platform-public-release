@@ -8,9 +8,7 @@ export async function GET() {
     await requirePlatformAdmin(session.user.id);
 
     const [openTickets, pendingPayments] = await Promise.all([
-      prisma.supportTicket.count({
-        where: { status: { in: ["OPEN", "IN_PROGRESS", "WAITING_CLIENT"] } },
-      }),
+      prisma.supportTicket.count({ where: { status: "OPEN" } }),
       prisma.payment.count({ where: { status: "PENDING" } }),
     ]);
 

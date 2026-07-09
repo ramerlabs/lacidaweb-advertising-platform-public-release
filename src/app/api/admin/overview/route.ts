@@ -12,7 +12,7 @@ export async function GET() {
       prisma.team.count(),
       prisma.subscription.count({ where: { status: { in: ["ACTIVE", "TRIAL"] } } }),
       prisma.payment.count({ where: { status: "PENDING" } }),
-      prisma.supportTicket.count({ where: { status: { in: ["OPEN", "IN_PROGRESS"] } } }),
+      prisma.supportTicket.count({ where: { status: "OPEN" } }),
       prisma.payment.aggregate({
         _sum: { amount: true },
         where: {

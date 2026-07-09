@@ -13,6 +13,7 @@ const schema = z.object({
   faviconUrl: z.string().url().or(z.literal("")).optional(),
   activityFeedDisplayCount: z.number().int().min(20).max(100).optional(),
   activityFeedSimulatedEnabled: z.boolean().optional(),
+  supportEmail: z.string().email().max(120).optional(),
 });
 
 export async function GET() {

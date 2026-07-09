@@ -437,6 +437,7 @@ model SiteSettings {
   logoDarkUrl                String?
   logoHeightPx               Int      @default(40)
   faviconUrl                 String?
+  supportEmail               String?
   activityFeedDisplayCount   Int      @default(20)
   activityFeedSimulatedEnabled Boolean @default(true)
   updatedAt                  DateTime @updatedAt

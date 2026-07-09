@@ -25,7 +25,6 @@ export type DisplaySettingsData = Pick<
 const STATIC_DEFAULTS = {
   domain: brand.domain,
   tagline: brand.tagline,
-  supportEmail: brand.supportEmail,
   url: brand.url,
 };
 
@@ -37,6 +36,7 @@ const DEFAULTS: SiteSettingsData = {
   logoDarkUrl: "",
   logoHeightPx: 40,
   faviconUrl: brand.faviconUrl,
+  supportEmail: brand.supportEmail,
   activityFeedDisplayCount: 20,
   activityFeedSimulatedEnabled: true,
   ...STATIC_DEFAULTS,
@@ -51,6 +51,7 @@ function mergeSettings(
     logoDarkUrl?: string | null;
     logoHeightPx?: number | null;
     faviconUrl: string | null;
+    supportEmail?: string | null;
     activityFeedDisplayCount?: number | null;
     activityFeedSimulatedEnabled?: boolean | null;
   } | null,
@@ -65,6 +66,7 @@ function mergeSettings(
     logoDarkUrl: row.logoDarkUrl?.trim() || DEFAULTS.logoDarkUrl,
     logoHeightPx: Math.min(120, Math.max(24, row.logoHeightPx ?? DEFAULTS.logoHeightPx)),
     faviconUrl: row.faviconUrl?.trim() || DEFAULTS.faviconUrl,
+    supportEmail: row.supportEmail?.trim() || DEFAULTS.supportEmail,
     activityFeedDisplayCount: Math.max(20, row.activityFeedDisplayCount ?? DEFAULTS.activityFeedDisplayCount),
     activityFeedSimulatedEnabled: row.activityFeedSimulatedEnabled ?? DEFAULTS.activityFeedSimulatedEnabled,
     ...STATIC_DEFAULTS,
@@ -110,6 +112,7 @@ export async function updateSiteSettings(
       | "logoDarkUrl"
       | "logoHeightPx"
       | "faviconUrl"
+      | "supportEmail"
       | "activityFeedDisplayCount"
       | "activityFeedSimulatedEnabled"
     >
@@ -128,6 +131,7 @@ export async function updateSiteSettings(
     logoDarkUrl: input.logoDarkUrl?.trim() ?? current.logoDarkUrl,
     logoHeightPx: Math.min(120, Math.max(24, input.logoHeightPx ?? current.logoHeightPx)),
     faviconUrl: input.faviconUrl?.trim() ?? current.faviconUrl,
+    supportEmail: input.supportEmail?.trim() ?? current.supportEmail,
     activityFeedDisplayCount: Math.max(
       20,
       input.activityFeedDisplayCount ?? current.activityFeedDisplayCount,
@@ -147,6 +151,7 @@ export async function updateSiteSettings(
       logoDarkUrl: next.logoDarkUrl || null,
       logoHeightPx: next.logoHeightPx,
       faviconUrl: next.faviconUrl || null,
+      supportEmail: next.supportEmail || null,
       activityFeedDisplayCount: next.activityFeedDisplayCount,
       activityFeedSimulatedEnabled: next.activityFeedSimulatedEnabled,
     },
@@ -158,6 +163,7 @@ export async function updateSiteSettings(
       logoDarkUrl: next.logoDarkUrl || null,
       logoHeightPx: next.logoHeightPx,
       faviconUrl: next.faviconUrl || null,
+      supportEmail: next.supportEmail || null,
       activityFeedDisplayCount: next.activityFeedDisplayCount,
       activityFeedSimulatedEnabled: next.activityFeedSimulatedEnabled,
     },
