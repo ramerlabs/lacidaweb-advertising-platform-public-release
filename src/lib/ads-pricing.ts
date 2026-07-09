@@ -1,4 +1,4 @@
-/** Client pays platformBudget / (1 - margin). At 80% margin, $5 ad budget → $25 client charge. */
+/** Client pays platformBudget / (1 - margin). At 30% margin, $10 ad budget → ~$14.29 client charge. */
 export function clientChargeFromPlatformBudget(platformBudgetUsd: number, marginPercent: number): number {
   if (platformBudgetUsd <= 0) return 0;
   const margin = Math.min(Math.max(marginPercent, 0), 99) / 100;

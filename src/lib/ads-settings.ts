@@ -8,7 +8,7 @@ export type AdsSettingsData = {
 
 const DEFAULTS: AdsSettingsData = {
   adsEnabled: true,
-  adsProfitMarginPercent: 80,
+  adsProfitMarginPercent: 30,
   adWalletTopUpUsd: 25,
 };
 
@@ -29,7 +29,10 @@ export async function updateAdsSettings(input: Partial<AdsSettingsData>): Promis
   const current = await getAdsSettings();
   const next = {
     adsEnabled: input.adsEnabled ?? current.adsEnabled,
-    adsProfitMarginPercent: input.adsProfitMarginPercent ?? current.adsProfitMarginPercent,
+    adsProfitMarginPercent: Math.min(
+      99,
+      Math.max(0, input.adsProfitMarginPercent ?? current.adsProfitMarginPercent),
+    ),
     adWalletTopUpUsd: input.adWalletTopUpUsd ?? current.adWalletTopUpUsd,
   };
   await prisma.integrationSettings.upsert({

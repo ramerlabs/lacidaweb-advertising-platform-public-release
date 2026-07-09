@@ -139,6 +139,15 @@ export default function AdminOverviewPage() {
         </Card>
         <Card>
           <CardHeader>
+            <CardTitle>Ads</CardTitle>
+            <CardDescription>Enable paid ads, platform fee %, wallet top-up</CardDescription>
+          </CardHeader>
+          <Button asChild>
+            <Link href="/admin/settings/ads">Configure ads</Link>
+          </Button>
+        </Card>
+        <Card>
+          <CardHeader>
             <CardTitle>Audit log</CardTitle>
             <CardDescription>Platform actions and admin activity</CardDescription>
           </CardHeader>

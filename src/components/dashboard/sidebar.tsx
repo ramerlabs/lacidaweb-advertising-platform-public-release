@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   BarChart3,
   CalendarDays,
@@ -23,10 +24,10 @@ import { useSiteBranding } from "@/hooks/use-site-branding";
 import { SiteLogo } from "@/components/branding/site-logo";
 import { ThemeSelect } from "@/components/theme-toggle";
 
-const links = [
+const baseLinks = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/dashboard/compose", label: "Compose", icon: PenSquare },
-  { href: "/dashboard/ads", label: "Ads", icon: Megaphone },
+  { href: "/dashboard/ads", label: "Ads", icon: Megaphone, adsOnly: true },
   { href: "/dashboard/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/dashboard/accounts", label: "Accounts", icon: Link2 },
   { href: "/dashboard/inbox", label: "Inbox", icon: Inbox },
@@ -40,6 +41,18 @@ const links = [
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { branding } = useSiteBranding();
+  const [adsEnabled, setAdsEnabled] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/ads/settings")
+      .then((r) => r.json())
+      .then((data) => {
+        if (typeof data.adsEnabled === "boolean") setAdsEnabled(data.adsEnabled);
+      })
+      .catch(() => {});
+  }, []);
+
+  const links = baseLinks.filter((link) => !link.adsOnly || adsEnabled);
 
   return (
     <aside className="flex h-full w-64 flex-col border-r bg-card">

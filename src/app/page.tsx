@@ -5,16 +5,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { plans } from "@/lib/pricing";
 import { getSiteSettings } from "@/lib/site-settings";
+import { getAdsSettings } from "@/lib/ads-settings";
 import { getPublishedFaqs } from "@/lib/faqs";
 import { SiteLogo } from "@/components/branding/site-logo";
 import { FaqSection } from "@/components/landing/faq-section";
 import { PlatformsSection } from "@/components/landing/platforms-section";
 import { AdsSection } from "@/components/landing/ads-section";
 import { SocialProof } from "@/components/landing/social-proof";
+import { TestimonialsSection } from "@/components/landing/testimonials-section";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UNLIMITED_HIGHLIGHTS } from "@/lib/platforms";
 
-const features = [
+const allFeatures = [
   {
     icon: Sparkles,
     title: "AI post generator",
@@ -53,7 +55,15 @@ const features = [
 ];
 
 export default async function HomePage() {
-  const [site, faqs] = await Promise.all([getSiteSettings(), getPublishedFaqs()]);
+  const [site, faqs, adsSettings] = await Promise.all([
+    getSiteSettings(),
+    getPublishedFaqs(),
+    getAdsSettings(),
+  ]);
+  const adsEnabled = adsSettings.adsEnabled;
+  const features = adsEnabled
+    ? allFeatures
+    : allFeatures.filter((f) => f.title !== "Paid advertising");
 
   return (
     <main>
@@ -86,7 +96,9 @@ export default async function HomePage() {
           <p className="mx-auto mt-3 max-w-2xl text-sm text-muted-foreground">{site.tagline}</p>
           <p className="mx-auto mt-4 flex max-w-2xl items-center justify-center gap-2 text-sm font-medium text-primary">
             <Sparkles className="h-4 w-4 shrink-0" />
-            AI-powered captions &amp; images — publish organically and run paid ads from one workspace
+            {adsEnabled
+              ? "AI-powered captions & images — publish organically and run paid ads from one workspace"
+              : "AI-powered captions & images — publish organically and engage from one workspace"}
           </p>
           <div className="mx-auto mt-6 flex max-w-2xl flex-wrap items-center justify-center gap-3">
             {UNLIMITED_HIGHLIGHTS.map((text) => (
@@ -109,9 +121,11 @@ export default async function HomePage() {
             <Button asChild size="lg" variant="ghost">
               <a href="#platforms">Platforms</a>
             </Button>
-            <Button asChild size="lg" variant="ghost">
-              <a href="#ads">Advertising</a>
-            </Button>
+            {adsEnabled ? (
+              <Button asChild size="lg" variant="ghost">
+                <a href="#ads">Advertising</a>
+              </Button>
+            ) : null}
             <Button asChild size="lg" variant="ghost">
               <a href="#faq">FAQs</a>
             </Button>
@@ -120,6 +134,8 @@ export default async function HomePage() {
       </section>
 
       <SocialProof />
+
+      <TestimonialsSection />
 
       <section className="border-y bg-gradient-to-br from-primary/5 via-background to-primary/10 py-14">
         <div className="mx-auto grid max-w-6xl items-center gap-8 px-6 md:grid-cols-2">
@@ -194,7 +210,7 @@ export default async function HomePage() {
 
       <PlatformsSection />
 
-      <AdsSection />
+      {adsEnabled ? <AdsSection /> : null}
 
       <section id="pricing" className="mx-auto max-w-6xl px-6 pb-20">
         <div className="mb-8 text-center">

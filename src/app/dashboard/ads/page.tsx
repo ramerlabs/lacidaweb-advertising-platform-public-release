@@ -71,6 +71,7 @@ export default function AdsPage() {
   const [tokenBalance, setTokenBalance] = useState(0);
   const [adWalletBalanceCents, setAdWalletBalanceCents] = useState(0);
   const [adsEnabled, setAdsEnabled] = useState(true);
+  const [adsLoaded, setAdsLoaded] = useState(false);
 
   const [form, setForm] = useState({
     connectedAccountId: "",
@@ -106,12 +107,21 @@ export default function AdsPage() {
   }, [teamId]);
 
   useEffect(() => {
+    fetch("/api/ads/settings")
+      .then((r) => r.json())
+      .then((data) => {
+        if (typeof data.adsEnabled === "boolean") setAdsEnabled(data.adsEnabled);
+      })
+      .catch(() => {})
+      .finally(() => setAdsLoaded(true));
+  }, []);
+
+  useEffect(() => {
     if (!teamId) return;
     fetch(`/api/billing/ad-wallet?teamId=${teamId}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.adWalletBalanceCents !== undefined) setAdWalletBalanceCents(data.adWalletBalanceCents);
-        if (data.adsEnabled !== undefined) setAdsEnabled(data.adsEnabled);
       })
       .catch(() => {});
   }, [teamId]);
@@ -280,12 +290,40 @@ export default function AdsPage() {
   }
 
   const canCreate =
+    adsEnabled &&
     form.connectedAccountId &&
     form.adAccountId &&
     form.body.trim() &&
     form.headline.trim() &&
     form.linkUrl.trim() &&
     form.imageUrl.trim();
+
+  if (!adsLoaded) {
+    return <p className="text-sm text-muted-foreground">Loading ads...</p>;
+  }
+
+  if (!adsEnabled) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight">
+            <Megaphone className="h-8 w-8 text-primary" />
+            Ads
+          </h1>
+          <p className="text-muted-foreground">Paid advertising is not available on this platform right now.</p>
+        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Feature disabled</CardTitle>
+            <CardDescription>
+              The platform owner has turned off paid ads. You can still schedule organic posts, manage inbox,
+              and use AI from the rest of your workspace.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
