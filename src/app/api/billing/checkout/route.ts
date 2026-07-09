@@ -3,8 +3,8 @@ import { z } from "zod";
 import type { BillingInterval, PaymentMethod } from "@prisma/client";
 import { requireSession, requireTeamAccess } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getPlanAccountLimit, getPlanAmount, formatCheckoutInstructions } from "@/lib/billing";
-import { getPlanById } from "@/lib/pricing";
+import { getPlanAmount, getPlanAccountLimit, formatCheckoutInstructions } from "@/lib/billing";
+import { getActivePlanById } from "@/lib/pricing";
 import { assertPaymentMethodEnabled, getPaymentSettings, getUsBankDetails } from "@/lib/payment-settings";
 import { getUsdtWalletAddress, usdToUsdt, usdtPaymentInstructions } from "@/services/crypto-verify";
 import { notifyAdminPaymentCreated } from "@/services/admin-notify";
@@ -24,12 +24,12 @@ export async function POST(req: Request) {
     await requireTeamAccess(body.teamId, session.user.id, ["OWNER", "ADMIN"]);
     await assertPaymentMethodEnabled(body.method as PaymentMethod);
 
-    const amount = getPlanAmount(body.planId, body.interval as BillingInterval);
-    const accountLimit = getPlanAccountLimit(body.planId);
+    const amount = await getPlanAmount(body.planId, body.interval as BillingInterval);
+    const accountLimit = await getPlanAccountLimit(body.planId);
     const isUsdt = body.method === "USDT";
 
     let usdtAmount: number | undefined;
-    const plan = getPlanById(body.planId);
+    const plan = await getActivePlanById(body.planId);
     let instructions = await formatCheckoutInstructions(body.method as PaymentMethod, {
       amountUsd: amount,
       planName: plan.name,

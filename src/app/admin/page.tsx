@@ -139,6 +139,15 @@ export default function AdminOverviewPage() {
         </Card>
         <Card>
           <CardHeader>
+            <CardTitle>Plans &amp; accounts</CardTitle>
+            <CardDescription>Profit margin % on subscription plans for connected accounts</CardDescription>
+          </CardHeader>
+          <Button asChild>
+            <Link href="/admin/settings/plans">Configure plans</Link>
+          </Button>
+        </Card>
+        <Card>
+          <CardHeader>
             <CardTitle>Ads</CardTitle>
             <CardDescription>Enable paid ads — clients connect their own ad accounts (no platform fee)</CardDescription>
           </CardHeader>

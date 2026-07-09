@@ -1,14 +1,17 @@
 import type { PaymentMethod } from "@prisma/client";
-import { getPlanById } from "@/lib/pricing";
+import { getActivePlanById } from "@/lib/pricing";
 import { getPaymentSettings } from "@/lib/payment-settings";
 
-export function getPlanAmount(planId: string, interval: import("@prisma/client").BillingInterval): number {
-  const plan = getPlanById(planId);
+export async function getPlanAmount(
+  planId: string,
+  interval: import("@prisma/client").BillingInterval,
+): Promise<number> {
+  const plan = await getActivePlanById(planId);
   return interval === "YEARLY" ? plan.yearlyPrice : plan.monthlyPrice;
 }
 
-export function getPlanAccountLimit(planId: string): number {
-  return getPlanById(planId).accountLimit;
+export async function getPlanAccountLimit(planId: string): Promise<number> {
+  return (await getActivePlanById(planId)).accountLimit;
 }
 
 export async function getPaymentInstructions(method: PaymentMethod): Promise<string> {

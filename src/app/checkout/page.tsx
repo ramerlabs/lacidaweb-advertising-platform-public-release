@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { getPlanById } from "@/lib/pricing";
+import { getPlanById, type Plan } from "@/lib/pricing";
 import {
   DEFAULT_ENABLED_METHODS,
   type ClientPaymentMethod,
@@ -38,7 +38,8 @@ function CheckoutPageContent() {
   const search = useSearchParams();
   const purpose = search.get("purpose") || "subscription";
   const campaignId = search.get("campaignId");
-  const plan = useMemo(() => getPlanById(search.get("plan")), [search]);
+  const planId = search.get("plan");
+  const [plan, setPlan] = useState<Plan>(() => getPlanById(planId));
 
   const [teamId, setTeamId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
@@ -50,6 +51,17 @@ function CheckoutPageContent() {
   const [verifying, setVerifying] = useState(false);
   const [adContext, setAdContext] = useState<AdCampaignContext | null>(null);
   const [adWalletTopUpUsd, setAdWalletTopUpUsd] = useState(25);
+
+  useEffect(() => {
+    if (!planId || purpose !== "subscription") return;
+    fetch("/api/pricing/plans")
+      .then((r) => r.json())
+      .then((data) => {
+        const match = data.plans?.find((p: Plan) => p.id === planId);
+        if (match) setPlan(match);
+      })
+      .catch(() => undefined);
+  }, [planId, purpose]);
 
   useEffect(() => {
     async function loadTeam() {

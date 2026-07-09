@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
-import { plans, type PlanId } from "@/lib/pricing";
+import { plans as defaultPlans, type Plan, type PlanId } from "@/lib/pricing";
 import { UsdtPaymentHighlight } from "@/components/billing/usdt-payment-highlight";
 import { BankPaymentHighlight } from "@/components/billing/bank-payment-highlight";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,12 +49,19 @@ export function PlanPricingGrid({
   } | null>(null);
   const usdtHighlightRef = useRef<HTMLDivElement>(null);
   const [enabledMethods, setEnabledMethods] = useState<EnabledPaymentMethods>(DEFAULT_ENABLED_METHODS);
+  const [plans, setPlans] = useState<Plan[]>(defaultPlans);
 
   useEffect(() => {
     fetch("/api/billing/payment-methods")
       .then((r) => r.json())
       .then((data) => {
         if (data.methods) setEnabledMethods(data.methods);
+      })
+      .catch(() => undefined);
+    fetch("/api/pricing/plans")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.plans?.length) setPlans(data.plans);
       })
       .catch(() => undefined);
   }, []);

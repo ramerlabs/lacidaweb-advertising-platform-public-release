@@ -3,7 +3,7 @@ import { CheckCircle2, BarChart3, Inbox, Calendar, Webhook, MessageSquare, Infin
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { plans } from "@/lib/pricing";
+import { getActivePlans } from "@/lib/pricing";
 import { getSiteSettings } from "@/lib/site-settings";
 import { getAdsSettings } from "@/lib/ads-settings";
 import { getPublishedFaqs } from "@/lib/faqs";
@@ -55,10 +55,11 @@ const allFeatures = [
 ];
 
 export default async function HomePage() {
-  const [site, faqs, adsSettings] = await Promise.all([
+  const [site, faqs, adsSettings, plans] = await Promise.all([
     getSiteSettings(),
     getPublishedFaqs(),
     getAdsSettings(),
+    getActivePlans(),
   ]);
   const adsEnabled = adsSettings.adsEnabled;
   const features = adsEnabled

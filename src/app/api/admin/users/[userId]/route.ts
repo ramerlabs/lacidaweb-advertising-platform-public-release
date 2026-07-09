@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { SubscriptionStatus } from "@prisma/client";
 import { requirePlatformAdmin, requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getPlanById, plans } from "@/lib/pricing";
+import { getActivePlanById, plans } from "@/lib/pricing";
 import { generateTemporaryPassword, hashPassword } from "@/lib/password";
 import { sendPasswordResetEmail } from "@/services/email";
 
@@ -109,7 +109,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ userId
     let subscription = team?.subscription || null;
 
     if (team && (body.planId || body.subscriptionStatus || body.interval)) {
-      const plan = getPlanById(body.planId || subscription?.planId || plans[0].id);
+      const plan = await getActivePlanById(body.planId || subscription?.planId || plans[0].id);
       const interval = body.interval || subscription?.interval || "MONTHLY";
       const amount = interval === "YEARLY" ? plan.yearlyPrice : plan.monthlyPrice;
       const status = (body.subscriptionStatus ||

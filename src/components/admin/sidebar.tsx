@@ -18,6 +18,7 @@ import {
   Users,
   Wallet,
   Sparkles,
+  Layers,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,7 @@ const links = [
   { href: "/admin/payments", label: "Payments", icon: CreditCard, countKey: "pendingPayments" as const },
   { href: "/admin/support", label: "Support", icon: Headset, countKey: "openTickets" as const },
   { href: "/admin/settings/payments", label: "Payment details", icon: Wallet },
+  { href: "/admin/settings/plans", label: "Plans & accounts", icon: Layers },
   { href: "/admin/settings/branding", label: "Branding", icon: Palette },
   { href: "/admin/settings/ai", label: "AI & tokens", icon: Sparkles },
   { href: "/admin/settings/ads", label: "Ads", icon: Megaphone },
