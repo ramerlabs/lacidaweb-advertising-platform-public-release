@@ -85,6 +85,15 @@ function normalizeEventType(raw: string): string {
   if (normalized === "message_received" || normalized === "messages.received" || normalized === "inbox.message") {
     return "message.received";
   }
+  if (normalized.startsWith("post_")) {
+    return normalized.replace(/_/g, ".");
+  }
+  if (normalized === "posts.published" || normalized === "post.published.success") {
+    return "post.published";
+  }
+  if (normalized === "posts.failed" || normalized === "post.failed") {
+    return "post.failed";
+  }
   return raw;
 }
 
@@ -423,7 +432,10 @@ async function handleMessageReceived(
 
 async function handlePostLifecycle(payload: WebhookPayload, teamId: string | null) {
   const data = (payload.data || payload) as Record<string, unknown>;
-  const zernioPostId = String(data.postId || data._id || data.id || "");
+  const nestedPost = (data.post || {}) as Record<string, unknown>;
+  const zernioPostId = String(
+    data.postId || data._id || data.id || nestedPost._id || nestedPost.id || payload.postId || "",
+  );
   if (!zernioPostId) return;
 
   const post = await prisma.post.findFirst({
@@ -434,18 +446,30 @@ async function handlePostLifecycle(payload: WebhookPayload, teamId: string | nul
   });
   if (!post) return;
 
-  const eventType = String(payload.type || payload.event || "");
-  if (eventType.includes("published") || eventType.includes("succeeded")) {
+  const eventType = normalizeEventType(String(payload.type || payload.event || payload.eventType || ""));
+  const remoteStatus = String(nestedPost.status || data.status || "");
+
+  if (
+    eventType.includes("published") ||
+    eventType.includes("succeeded") ||
+    remoteStatus === "published" ||
+    remoteStatus === "partial"
+  ) {
     await prisma.post.update({
       where: { id: post.id },
-      data: { status: "PUBLISHED", publishedAt: new Date() },
+      data: {
+        status: "PUBLISHED",
+        publishedAt: new Date(),
+        targets: { updateMany: { where: { postId: post.id }, data: { status: "PUBLISHED" } } },
+      },
     });
-  } else if (eventType.includes("failed")) {
+  } else if (eventType.includes("failed") || remoteStatus === "failed") {
     await prisma.post.update({
       where: { id: post.id },
       data: {
         status: "FAILED",
-        errorMessage: String(data.error || data.message || "Remote publish failed"),
+        errorMessage: String(data.error || data.message || nestedPost.errorMessage || "Remote publish failed"),
+        targets: { updateMany: { where: { postId: post.id }, data: { status: "FAILED" } } },
       },
     });
   }

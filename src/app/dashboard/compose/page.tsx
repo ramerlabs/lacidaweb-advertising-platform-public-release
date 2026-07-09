@@ -76,7 +76,7 @@ export default function ComposePage() {
   async function loadQueue() {
     if (!teamId) return;
     setLoadingQueue(true);
-    const res = await fetch(`/api/posts?teamId=${teamId}`);
+    const res = await fetch(`/api/posts?teamId=${teamId}&sync=1`);
     const data = await res.json();
     setQueuePosts(data.posts || []);
     setLoadingQueue(false);
@@ -96,6 +96,14 @@ export default function ComposePage() {
       .then((r) => r.json())
       .then((data) => setTemplates(data.templates || []));
     void loadQueue();
+  }, [teamId]);
+
+  useEffect(() => {
+    if (!teamId) return;
+    const interval = window.setInterval(() => {
+      void loadQueue();
+    }, 45_000);
+    return () => window.clearInterval(interval);
   }, [teamId]);
 
   const selectedAccounts = useMemo(
@@ -125,6 +133,19 @@ export default function ComposePage() {
     [queuePosts],
   );
 
+  const recentlyPublished = useMemo(
+    () =>
+      queuePosts
+        .filter((p) => p.status === "PUBLISHED")
+        .sort((a, b) => {
+          const aTime = a.scheduledFor ? new Date(a.scheduledFor).getTime() : new Date(a.createdAt).getTime();
+          const bTime = b.scheduledFor ? new Date(b.scheduledFor).getTime() : new Date(b.createdAt).getTime();
+          return bTime - aTime;
+        })
+        .slice(0, 10),
+    [queuePosts],
+  );
+
   function formatPostWhen(post: QueuePost) {
     if (post.scheduledFor) {
       return new Date(post.scheduledFor).toLocaleString(undefined, {
@@ -136,9 +157,60 @@ export default function ComposePage() {
   }
 
   function statusBadgeVariant(status: string): "default" | "secondary" | "outline" {
+    if (status === "PUBLISHED") return "secondary";
     if (status === "SCHEDULED") return "default";
     if (status === "PENDING") return "secondary";
     return "outline";
+  }
+
+  function renderPostRow(post: QueuePost, showCancel: boolean) {
+    return (
+      <div
+        key={post.id}
+        className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-start sm:justify-between"
+      >
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={statusBadgeVariant(post.status)}>{post.status}</Badge>
+            <span className="text-sm text-muted-foreground">{formatPostWhen(post)}</span>
+          </div>
+          <p className="text-sm">
+            {post.content.trim()
+              ? post.content.length > 160
+                ? `${post.content.slice(0, 160)}…`
+                : post.content
+              : <span className="text-muted-foreground italic">No caption — media only</span>}
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {post.targets.map((t, i) => (
+              <Badge key={`${post.id}-${i}`} variant="outline" className="text-xs">
+                {t.connectedAccount.displayName || t.connectedAccount.username || t.platform}
+                {" · "}
+                {t.platform}
+              </Badge>
+            ))}
+          </div>
+          {post.mediaUrls.length > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              {post.mediaUrls.length} media file{post.mediaUrls.length === 1 ? "" : "s"} attached
+            </p>
+          ) : null}
+        </div>
+        {showCancel ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0 text-rose-600 hover:text-rose-700"
+            disabled={cancellingId === post.id}
+            onClick={() => cancelQueuedPost(post.id)}
+          >
+            <Trash2 className="mr-1 h-4 w-4" />
+            {cancellingId === post.id ? "Cancelling..." : "Cancel"}
+          </Button>
+        ) : null}
+      </div>
+    );
   }
 
   async function cancelQueuedPost(postId: string) {
@@ -681,54 +753,22 @@ export default function ComposePage() {
               <strong>Schedule</strong>.
             </p>
           ) : (
-            upcomingPosts.map((post) => (
-              <div
-                key={post.id}
-                className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-start sm:justify-between"
-              >
-                <div className="min-w-0 flex-1 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant={statusBadgeVariant(post.status)}>{post.status}</Badge>
-                    <span className="text-sm text-muted-foreground">{formatPostWhen(post)}</span>
-                  </div>
-                  <p className="text-sm">
-                    {post.content.trim()
-                      ? post.content.length > 160
-                        ? `${post.content.slice(0, 160)}…`
-                        : post.content
-                      : <span className="text-muted-foreground italic">No caption — media only</span>}
-                  </p>
-                  <div className="flex flex-wrap gap-1">
-                    {post.targets.map((t, i) => (
-                      <Badge key={`${post.id}-${i}`} variant="outline" className="text-xs">
-                        {t.connectedAccount.displayName || t.connectedAccount.username || t.platform}
-                        {" · "}
-                        {t.platform}
-                      </Badge>
-                    ))}
-                  </div>
-                  {post.mediaUrls.length > 0 ? (
-                    <p className="text-xs text-muted-foreground">
-                      {post.mediaUrls.length} media file{post.mediaUrls.length === 1 ? "" : "s"} attached
-                    </p>
-                  ) : null}
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 text-rose-600 hover:text-rose-700"
-                  disabled={cancellingId === post.id}
-                  onClick={() => cancelQueuedPost(post.id)}
-                >
-                  <Trash2 className="mr-1 h-4 w-4" />
-                  {cancellingId === post.id ? "Cancelling..." : "Cancel"}
-                </Button>
-              </div>
-            ))
+            upcomingPosts.map((post) => renderPostRow(post, true))
           )}
         </CardContent>
       </Card>
+
+      {recentlyPublished.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Recently published</CardTitle>
+            <CardDescription>Posts that went live on your connected channels</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {recentlyPublished.map((post) => renderPostRow(post, false))}
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

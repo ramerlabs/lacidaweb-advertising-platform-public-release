@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSession, requireTeamAccess } from "@/lib/auth";
 import { createAndPublishPost, getMediaPresignedUrl } from "@/services/publisher";
+import { syncTeamPostStatuses } from "@/services/post-sync";
 import { prisma } from "@/lib/prisma";
 
 const createSchema = z.object({
@@ -20,9 +21,14 @@ const createSchema = z.object({
 export async function GET(req: Request) {
   try {
     const session = await requireSession();
-    const teamId = new URL(req.url).searchParams.get("teamId");
+    const { searchParams } = new URL(req.url);
+    const teamId = searchParams.get("teamId");
     if (!teamId) return NextResponse.json({ error: "teamId required" }, { status: 400 });
     await requireTeamAccess(teamId, session.user.id);
+
+    if (searchParams.get("sync") === "1") {
+      await syncTeamPostStatuses(teamId);
+    }
 
     const posts = await prisma.post.findMany({
       where: { teamId },
