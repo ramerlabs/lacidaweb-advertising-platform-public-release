@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Megaphone, Plus, Sparkles, X } from "lucide-react";
+import { toClientFacingMessage } from "@/lib/client-errors";
 
 type AdsConnection = {
   id: string;
@@ -150,7 +151,7 @@ export default function AdsPage() {
     });
     const data = await res.json();
     if (!res.ok) {
-      setMessage(data.error || "Could not start ads connect");
+      setMessage(toClientFacingMessage(data.error || "Could not start ads connect"));
       return;
     }
     if (data.alreadyConnected && data.redirectUrl) {
@@ -189,16 +190,22 @@ export default function AdsPage() {
   }
 
   async function generateAdWithAi() {
-    if (!teamId || !aiPrompt.trim()) return;
+    if (!teamId || !aiReady) return;
+    const estimatedTokens = 800;
+    const confirmed = window.confirm(
+      `Generate ad copy uses approximately ${estimatedTokens.toLocaleString()} tokens.\n\nYour balance: ${tokenBalance.toLocaleString()} tokens.\n\nContinue?`,
+    );
+    if (!confirmed) return;
     setGeneratingAd(true);
     setMessage("");
     const conn = connections.find((c) => c.id === form.connectedAccountId);
+    const prompt = aiPrompt.trim() || form.body.trim() || form.name.trim();
     const res = await fetch("/api/ai/generate?action=ad", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         teamId,
-        prompt: aiPrompt,
+        prompt,
         goal: form.goal,
         platform: conn ? platformLabel(conn.platform) : "paid social",
         tone: "promotional",
@@ -312,7 +319,19 @@ export default function AdsPage() {
         </div>
       </div>
 
-      {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
+      {message ? (
+        <p className="text-sm text-muted-foreground">
+          {message}
+          {message.toLowerCase().includes("upgrade") ? (
+            <>
+              {" "}
+              <Link href="/dashboard/billing" className="text-primary underline">
+                View plans
+              </Link>
+            </>
+          ) : null}
+        </p>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -425,13 +444,13 @@ export default function AdsPage() {
                         rows={2}
                         value={aiPrompt}
                         onChange={(e) => setAiPrompt(e.target.value)}
-                        placeholder="e.g. Summer sale — 30% off our digital banking app for small businesses..."
+                        placeholder="Optional — leave blank to use campaign name or business profile"
                       />
                       <Button
                         type="button"
                         size="sm"
                         variant="secondary"
-                        disabled={generatingAd || !aiPrompt.trim()}
+                        disabled={generatingAd}
                         onClick={generateAdWithAi}
                       >
                         {generatingAd ? "Generating..." : "Generate ad copy"}

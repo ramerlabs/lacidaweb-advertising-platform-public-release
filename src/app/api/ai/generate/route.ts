@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 
 const textSchema = z.object({
   teamId: z.string().min(1),
-  prompt: z.string().min(1).max(2000),
+  prompt: z.string().max(2000).optional().default(""),
   tone: z.string().max(100).optional(),
   platform: z.string().max(50).optional(),
 });
@@ -23,12 +23,12 @@ const transformSchema = z.object({
 
 const imageSchema = z.object({
   teamId: z.string().min(1),
-  prompt: z.string().min(1).max(1000),
+  prompt: z.string().max(1000).optional().default(""),
 });
 
 const adSchema = z.object({
   teamId: z.string().min(1),
-  prompt: z.string().min(1).max(2000),
+  prompt: z.string().max(2000).optional().default(""),
   goal: z.string().max(50).optional(),
   platform: z.string().max(80).optional(),
   tone: z.string().max(100).optional(),

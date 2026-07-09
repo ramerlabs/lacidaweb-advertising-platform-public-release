@@ -3,6 +3,7 @@ import Zernio, {
   ValidationError,
   ZernioApiError,
 } from "@zernio/node";
+import { toClientFacingMessage } from "@/lib/client-errors";
 import { getZernioApiKey } from "@/lib/integration-settings";
 
 let client: Zernio | null = null;
@@ -96,7 +97,7 @@ export async function withZernioRetry<T>(
         continue;
       }
 
-      throw Object.assign(new Error(info.message), { zernio: info });
+      throw Object.assign(new Error(toClientFacingMessage(info.message)), { zernio: info });
     }
   }
 }

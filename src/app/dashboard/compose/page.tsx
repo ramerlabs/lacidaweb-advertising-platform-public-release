@@ -96,15 +96,31 @@ export default function ComposePage() {
 
   const aiReady = aiState?.aiEnabled && aiState?.teamAiEnabled;
 
+  function confirmTokenSpend(label: string, estimatedTokens: number): boolean {
+    if (!aiState) return false;
+    return window.confirm(
+      `${label} uses approximately ${estimatedTokens.toLocaleString()} tokens.\n\nYour balance: ${aiState.tokenBalance.toLocaleString()} tokens.\n\nContinue?`,
+    );
+  }
+
+  function resolveTextPromptForRequest(): string {
+    return aiPrompt.trim() || content.trim();
+  }
+
+  function resolveImagePromptForRequest(): string {
+    return imagePrompt.trim() || aiPrompt.trim() || content.trim();
+  }
+
   async function generateText() {
-    if (!teamId || !aiPrompt.trim()) return;
+    if (!teamId || !aiReady) return;
+    if (!confirmTokenSpend("Generate caption", aiState!.pricing.estimatedTextPostTokens)) return;
     setGeneratingText(true);
     setStatus("");
     const platform = selectedAccounts[0]?.platform;
     const res = await fetch("/api/ai/generate?action=text", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ teamId, prompt: aiPrompt, platform, tone: aiTone }),
+      body: JSON.stringify({ teamId, prompt: resolveTextPromptForRequest(), platform, tone: aiTone }),
     });
     const data = await res.json();
     setGeneratingText(false);
@@ -118,13 +134,14 @@ export default function ComposePage() {
   }
 
   async function generateImage() {
-    if (!teamId || !imagePrompt.trim()) return;
+    if (!teamId || !aiReady) return;
+    if (!confirmTokenSpend("Generate image", aiState!.pricing.imageTokenCost)) return;
     setGeneratingImage(true);
     setStatus("");
     const res = await fetch("/api/ai/generate?action=image", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ teamId, prompt: imagePrompt }),
+      body: JSON.stringify({ teamId, prompt: resolveImagePromptForRequest() }),
     });
     const data = await res.json();
     setGeneratingImage(false);
@@ -138,7 +155,8 @@ export default function ComposePage() {
   }
 
   async function transformContent(mode: "shorten" | "hashtags" | "regenerate") {
-    if (!teamId || !content.trim()) return;
+    if (!teamId || !content.trim() || !aiReady) return;
+    if (!confirmTokenSpend(`${mode} caption`, aiState!.pricing.estimatedTextPostTokens)) return;
     setTransforming(true);
     setStatus("");
     const res = await fetch("/api/ai/generate?action=transform", {
@@ -341,54 +359,44 @@ export default function ComposePage() {
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="ai-prompt">Generate caption</Label>
+                    <Label htmlFor="ai-prompt">Generate caption (optional)</Label>
                     <Textarea
                       id="ai-prompt"
                       rows={2}
                       value={aiPrompt}
                       onChange={(e) => setAiPrompt(e.target.value)}
-                      placeholder="e.g. Promote our new digital banking app for small businesses..."
+                      placeholder="Optional — leave blank to use your caption or business profile"
                       disabled={!aiReady}
                     />
                     <Button
                       type="button"
                       variant="secondary"
                       size="sm"
-                      disabled={!aiReady || generatingText || !aiPrompt.trim()}
+                      disabled={!aiReady || generatingText}
                       onClick={generateText}
                     >
                       {generatingText ? "Generating..." : "Generate text"}
                     </Button>
-                    {aiReady && !aiPrompt.trim() ? (
-                      <p className="text-xs text-muted-foreground">
-                        Describe what you want the post to say above — the button enables once you enter a prompt.
-                      </p>
-                    ) : null}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="ai-image">Generate image</Label>
+                    <Label htmlFor="ai-image">Generate image (optional)</Label>
                     <Textarea
                       id="ai-image"
                       rows={2}
                       value={imagePrompt}
                       onChange={(e) => setImagePrompt(e.target.value)}
-                      placeholder="e.g. Modern fintech app on a phone, purple gradient, professional..."
+                      placeholder="Optional — leave blank to match your caption or brand"
                       disabled={!aiReady}
                     />
                     <Button
                       type="button"
                       variant="secondary"
                       size="sm"
-                      disabled={!aiReady || generatingImage || !imagePrompt.trim()}
+                      disabled={!aiReady || generatingImage}
                       onClick={generateImage}
                     >
                       {generatingImage ? "Generating..." : "Generate image"}
                     </Button>
-                    {aiReady && !imagePrompt.trim() ? (
-                      <p className="text-xs text-muted-foreground">
-                        Describe the image you want above — the button enables once you enter a prompt.
-                      </p>
-                    ) : null}
                   </div>
                   {templates.length > 0 ? (
                     <div className="space-y-2">
@@ -455,7 +463,13 @@ export default function ComposePage() {
               />
               {uploading ? <p className="text-sm text-muted-foreground">Uploading...</p> : null}
               {mediaUrl ? (
-                <p className="break-all text-xs text-emerald-700">Uploaded: {mediaUrl}</p>
+                <div className="space-y-2">
+                  {mediaUrl.match(/\.(png|jpe?g|gif|webp)(\?|$)/i) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={mediaUrl} alt="Uploaded media" className="max-h-48 rounded-lg border object-contain" />
+                  ) : null}
+                  <p className="break-all text-xs text-emerald-700">Uploaded: {mediaUrl}</p>
+                </div>
               ) : null}
             </div>
 

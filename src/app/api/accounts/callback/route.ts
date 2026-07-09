@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getApiErrorMessage } from "@/lib/client-errors";
 import { syncConnectedAccounts } from "@/services/accounts";
 import { prisma } from "@/lib/prisma";
 import { notifyAdminAccountConnected } from "@/services/admin-notify";
@@ -86,7 +87,7 @@ export async function GET(req: Request) {
     return NextResponse.redirect(appUrl("/dashboard/accounts?connected=1"));
   } catch (error) {
     console.error("[accounts/callback]", error);
-    const message = error instanceof Error ? error.message : "connect_failed";
+    const message = getApiErrorMessage(error, "connect_failed");
     return NextResponse.redirect(
       appUrl(`/dashboard/accounts?error=${encodeURIComponent(message)}`),
     );

@@ -133,6 +133,75 @@ function buildImagePrompt(userPrompt: string, businessContext: string) {
   return `${userPrompt}\n\nBrand context: ${businessContext.replace(/\n/g, "; ")}`;
 }
 
+function resolveImagePrompt(input: string, businessContext: string): string {
+  const trimmed = input.trim();
+  if (trimmed) return buildImagePrompt(trimmed, businessContext);
+  if (businessContext) {
+    return buildImagePrompt(
+      `Professional social media image for: ${businessContext.slice(0, 300).replace(/\n/g, "; ")}`,
+      businessContext,
+    );
+  }
+  return "Professional, eye-catching social media marketing image";
+}
+
+function resolveTextPrompt(input: string, businessContext: string): string {
+  const trimmed = input.trim();
+  if (trimmed) return trimmed;
+  if (businessContext) {
+    return `Write an engaging social media post for this business:\n${businessContext.slice(0, 500)}`;
+  }
+  return "Write an engaging, on-brand social media post";
+}
+
+async function generateOpenAiImageBuffer(apiKey: string, prompt: string): Promise<Buffer> {
+  const attempts: Array<{ model: string; quality?: string }> = [
+    { model: "gpt-image-1", quality: "medium" },
+    { model: "dall-e-3" },
+  ];
+
+  let lastError = "OpenAI image generation failed";
+
+  for (const attempt of attempts) {
+    const body: Record<string, unknown> = {
+      model: attempt.model,
+      prompt,
+      size: "1024x1024",
+      n: 1,
+    };
+    if (attempt.quality) body.quality = attempt.quality;
+
+    const res = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      lastError = data.error?.message || `Image generation failed (${attempt.model})`;
+      continue;
+    }
+
+    const b64 = data.data?.[0]?.b64_json;
+    if (b64) return Buffer.from(b64, "base64");
+
+    const tempUrl = data.data?.[0]?.url;
+    if (tempUrl) {
+      const imageRes = await fetch(tempUrl);
+      if (!imageRes.ok) throw new Error("Failed to download generated image");
+      return Buffer.from(await imageRes.arrayBuffer());
+    }
+
+    lastError = "No image data returned from OpenAI";
+  }
+
+  throw new Error(lastError);
+}
+
 export async function generatePostText(input: {
   teamId: string;
   prompt: string;
@@ -158,8 +227,7 @@ export async function generatePostText(input: {
     businessContext: context,
     brandVoice: profile.brandVoice,
   });
-  const userPrompt = input.prompt.trim();
-  if (!userPrompt) throw new Error("Prompt is required");
+  const userPrompt = resolveTextPrompt(input.prompt, context);
 
   const { text, promptTokens, completionTokens } = await callOpenAiText(
     apiKey,
@@ -225,42 +293,24 @@ export async function generatePostImage(input: { teamId: string; prompt: string 
 
   const team = await prisma.team.findUnique({
     where: { id: input.teamId },
-    select: { aiEnabled: true },
+    select: { aiEnabled: true, aiTokenBalance: true },
   });
   if (!team?.aiEnabled) throw new Error("Enable AI in your workspace settings first");
 
   const { context } = await getTeamBusinessContext(input.teamId);
-  const userPrompt = buildImagePrompt(input.prompt.trim(), context);
-  if (!userPrompt) throw new Error("Image prompt is required");
+  const userPrompt = resolveImagePrompt(input.prompt, context);
 
   const clientInputPerMillion = settings.clientPricing.textInputPerMillionUsd;
-  const tokensToDeduct = imageCostInTokens(settings.aiImageCostUsd, clientInputPerMillion);
+  const clientImageUsd = settings.clientPricing.imageUsd;
+  const tokensToDeduct = imageCostInTokens(clientImageUsd, clientInputPerMillion);
 
-  const res = await fetch("https://api.openai.com/v1/images/generations", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "dall-e-3",
-      prompt: userPrompt,
-      size: "1024x1024",
-      n: 1,
-    }),
-  });
-
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error?.message || "OpenAI image generation failed");
+  if (team.aiTokenBalance < tokensToDeduct) {
+    throw new Error(
+      `Insufficient AI tokens. Need ${tokensToDeduct.toLocaleString()}, have ${team.aiTokenBalance.toLocaleString()}`,
+    );
   }
 
-  const tempUrl = data.data?.[0]?.url;
-  if (!tempUrl) throw new Error("No image URL returned from OpenAI");
-
-  const imageRes = await fetch(tempUrl);
-  if (!imageRes.ok) throw new Error("Failed to download generated image");
-  const buffer = Buffer.from(await imageRes.arrayBuffer());
+  const buffer = await generateOpenAiImageBuffer(apiKey, userPrompt);
 
   const presign = await getMediaPresignedUrl({
     filename: `ai-${Date.now()}.png`,
@@ -270,7 +320,7 @@ export async function generatePostImage(input: { teamId: string; prompt: string 
   const put = await fetch(presign.uploadUrl, {
     method: "PUT",
     headers: { "Content-Type": "image/png" },
-    body: buffer,
+    body: new Uint8Array(buffer),
   });
   if (!put.ok) throw new Error("Failed to store generated image");
 
@@ -306,8 +356,7 @@ export async function generateAdCreative(input: {
   if (!team?.aiEnabled) throw new Error("Enable AI in your workspace settings first");
 
   const { context, profile } = await getTeamBusinessContext(input.teamId);
-  const userPrompt = input.prompt.trim();
-  if (!userPrompt) throw new Error("Describe what you are promoting");
+  const userPrompt = resolveTextPrompt(input.prompt, context);
 
   const goal = input.goal || "engagement";
   const platform = input.platform || "Meta (Facebook/Instagram)";

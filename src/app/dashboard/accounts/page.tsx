@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import { toClientFacingMessage } from "@/lib/client-errors";
 import { useSearchParams } from "next/navigation";
 import { useTeam } from "@/components/dashboard/team-provider";
 import { PLATFORMS } from "@/lib/utils";
@@ -27,7 +28,9 @@ function AccountsPageContent() {
     if (searchParams.get("connected") === "1") {
       setMessage("Account connected successfully.");
     } else if (searchParams.get("error")) {
-      setMessage(decodeURIComponent(searchParams.get("error") || "Connection failed"));
+      setMessage(
+        toClientFacingMessage(decodeURIComponent(searchParams.get("error") || "Connection failed")),
+      );
     }
   }, [searchParams]);
 
@@ -55,7 +58,7 @@ function AccountsPageContent() {
     });
     const data = await res.json();
     if (!res.ok) {
-      setMessage(data.error || "Failed to start OAuth");
+      setMessage(toClientFacingMessage(data.error || "Failed to start OAuth"));
       return;
     }
     window.location.href = data.authUrl;
