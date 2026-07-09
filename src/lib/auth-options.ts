@@ -1,7 +1,6 @@
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
-import FacebookProvider from "next-auth/providers/facebook";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
@@ -22,16 +21,6 @@ function buildOAuthProviders() {
         clientId: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
         authorization: { params: { prompt: "consent", access_type: "offline", response_type: "code" } },
-      }),
-    );
-  }
-
-  if (process.env.FACEBOOK_CLIENT_ID?.trim() && process.env.FACEBOOK_CLIENT_SECRET?.trim()) {
-    providers.push(
-      FacebookProvider({
-        clientId: process.env.FACEBOOK_CLIENT_ID,
-        clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
-        authorization: { params: { scope: "email public_profile" } },
       }),
     );
   }

@@ -20,3 +20,17 @@ export async function GET() {
     return NextResponse.json({ error: message }, { status });
   }
 }
+
+export async function DELETE() {
+  try {
+    const session = await requireSession();
+    await requirePlatformAdmin(session.user.id);
+
+    const result = await prisma.payment.deleteMany({});
+    return NextResponse.json({ ok: true, deletedCount: result.count });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed";
+    const status = message === "UNAUTHORIZED" ? 401 : message === "FORBIDDEN" ? 403 : 400;
+    return NextResponse.json({ error: message }, { status });
+  }
+}

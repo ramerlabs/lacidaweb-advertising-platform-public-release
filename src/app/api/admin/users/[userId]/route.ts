@@ -223,3 +223,33 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ userId
     return NextResponse.json({ error: message }, { status });
   }
 }
+
+export async function DELETE(_req: Request, { params }: { params: Promise<{ userId: string }> }) {
+  try {
+    const session = await requireSession();
+    await requirePlatformAdmin(session.user.id);
+    const { userId } = await params;
+
+    if (userId === session.user.id) {
+      return NextResponse.json({ error: "You cannot delete your own admin account" }, { status: 400 });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true },
+    });
+    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+    await prisma.user.delete({ where: { id: userId } });
+
+    return NextResponse.json({
+      ok: true,
+      deletedUserId: userId,
+      message: `Deleted user ${user.email}`,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed";
+    const status = message === "UNAUTHORIZED" ? 401 : message === "FORBIDDEN" ? 403 : 400;
+    return NextResponse.json({ error: message }, { status });
+  }
+}

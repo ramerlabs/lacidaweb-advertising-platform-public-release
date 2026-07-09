@@ -46,6 +46,7 @@ export default function AdminUsersPage() {
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
   const [unbanningId, setUnbanningId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -187,6 +188,27 @@ export default function AdminUsersPage() {
       banned,
       banReason: banned ? banReason.trim() || "Banned by admin" : null,
     });
+  }
+
+  async function deleteUser() {
+    if (!selectedId || !selected) return;
+    const confirmed = window.confirm(
+      `Delete user ${selected.email}? This will permanently remove their account and related data.`,
+    );
+    if (!confirmed) return;
+
+    setDeleting(true);
+    setStatus("");
+    const res = await fetch(`/api/admin/users/${selectedId}`, { method: "DELETE" });
+    const data = await res.json();
+    setDeleting(false);
+    if (!res.ok) {
+      setStatus(data.error || "Delete failed");
+      return;
+    }
+    setStatus(data.message || "User deleted");
+    setSelectedId(null);
+    await refresh();
   }
 
   const list = tab === "banned" ? bannedUsers : users;
@@ -510,6 +532,28 @@ export default function AdminUsersPage() {
                         Ban user
                       </Button>
                     )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Delete user</CardTitle>
+                    <CardDescription>
+                      Permanently delete this user account and all related records.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      This action cannot be undone.
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="border-rose-300 text-rose-700"
+                      onClick={deleteUser}
+                      disabled={saving || deleting}
+                    >
+                      {deleting ? "Deleting..." : "Delete user"}
+                    </Button>
                   </CardContent>
                 </Card>
               </>

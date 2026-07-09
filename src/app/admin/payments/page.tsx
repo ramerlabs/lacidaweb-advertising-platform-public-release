@@ -17,6 +17,8 @@ type Payment = {
 export default function AdminPaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [status, setStatus] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingAll, setDeletingAll] = useState(false);
 
   async function load() {
     const res = await fetch("/api/admin/payments");
@@ -43,6 +45,40 @@ export default function AdminPaymentsPage() {
     await load();
   }
 
+  async function deletePayment(paymentId: string) {
+    const confirmed = window.confirm("Delete this payment record?");
+    if (!confirmed) return;
+    setDeletingId(paymentId);
+    setStatus("");
+    const res = await fetch(`/api/admin/payments/${paymentId}`, { method: "DELETE" });
+    const data = await res.json();
+    setDeletingId(null);
+    if (!res.ok) {
+      setStatus(data.error || "Delete failed");
+      return;
+    }
+    setStatus("Payment deleted");
+    await load();
+  }
+
+  async function deleteAllPayments() {
+    const confirmed = window.confirm(
+      "Delete ALL payment records? This cannot be undone.",
+    );
+    if (!confirmed) return;
+    setDeletingAll(true);
+    setStatus("");
+    const res = await fetch("/api/admin/payments", { method: "DELETE" });
+    const data = await res.json();
+    setDeletingAll(false);
+    if (!res.ok) {
+      setStatus(data.error || "Delete all failed");
+      return;
+    }
+    setStatus(`Deleted ${data.deletedCount || 0} payment records`);
+    await load();
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -54,6 +90,19 @@ export default function AdminPaymentsPage() {
         <CardHeader>
           <CardTitle>Payment queue</CardTitle>
           <CardDescription>USDT auto-verifies with a hash. PayPal, GCash, and US Bank need manual review.</CardDescription>
+          {payments.length > 0 ? (
+            <div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-rose-300 text-rose-700"
+                onClick={deleteAllPayments}
+                disabled={deletingAll}
+              >
+                {deletingAll ? "Deleting all..." : "Delete all payments"}
+              </Button>
+            </div>
+          ) : null}
         </CardHeader>
         <CardContent className="space-y-2">
           {payments.length === 0 ? (
@@ -79,8 +128,29 @@ export default function AdminPaymentsPage() {
                     <Button size="sm" variant="outline" onClick={() => reviewPayment(payment.id, "FAILED")}>
                       Mark failed
                     </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-rose-300 text-rose-700"
+                      onClick={() => deletePayment(payment.id)}
+                      disabled={deletingId === payment.id}
+                    >
+                      {deletingId === payment.id ? "Deleting..." : "Delete"}
+                    </Button>
                   </div>
-                ) : null}
+                ) : (
+                  <div className="mt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-rose-300 text-rose-700"
+                      onClick={() => deletePayment(payment.id)}
+                      disabled={deletingId === payment.id}
+                    >
+                      {deletingId === payment.id ? "Deleting..." : "Delete"}
+                    </Button>
+                  </div>
+                )}
               </div>
             ))
           )}
