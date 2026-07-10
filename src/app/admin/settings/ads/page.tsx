@@ -15,6 +15,11 @@ type AdsSettings = {
   publisherCpmCents: number;
   publisherCpcCents: number;
   publisherMinPayoutCents: number;
+  landingFakeStatsEnabled: boolean;
+  landingFakeImpressionsBase: number;
+  landingFakeClicksBase: number;
+  landingFakeImpressionsPerHour: number;
+  landingFakeClicksPerHour: number;
 };
 
 export default function AdminAdsSettingsPage() {
@@ -37,6 +42,11 @@ export default function AdminAdsSettingsPage() {
             publisherCpmCents: data.settings.publisherCpmCents ?? 100,
             publisherCpcCents: data.settings.publisherCpcCents ?? 10,
             publisherMinPayoutCents: data.settings.publisherMinPayoutCents ?? 2500,
+            landingFakeStatsEnabled: data.settings.landingFakeStatsEnabled ?? true,
+            landingFakeImpressionsBase: data.settings.landingFakeImpressionsBase ?? 18420,
+            landingFakeClicksBase: data.settings.landingFakeClicksBase ?? 612,
+            landingFakeImpressionsPerHour: data.settings.landingFakeImpressionsPerHour ?? 180,
+            landingFakeClicksPerHour: data.settings.landingFakeClicksPerHour ?? 7.2,
           });
         }
       });
@@ -65,6 +75,11 @@ export default function AdminAdsSettingsPage() {
       publisherCpmCents: data.settings.publisherCpmCents,
       publisherCpcCents: data.settings.publisherCpcCents,
       publisherMinPayoutCents: data.settings.publisherMinPayoutCents,
+      landingFakeStatsEnabled: data.settings.landingFakeStatsEnabled,
+      landingFakeImpressionsBase: data.settings.landingFakeImpressionsBase,
+      landingFakeClicksBase: data.settings.landingFakeClicksBase,
+      landingFakeImpressionsPerHour: data.settings.landingFakeImpressionsPerHour,
+      landingFakeClicksPerHour: data.settings.landingFakeClicksPerHour,
     });
     setStatus("Publisher ad settings saved.");
   }
@@ -230,6 +245,99 @@ export default function AdminAdsSettingsPage() {
               }
             />
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Landing page social proof</CardTitle>
+          <CardDescription>
+            Homepage shows Impressions and Clicks. Real ad events are always included. Fake growth
+            keeps the counters moving before you have traffic — turn it off anytime.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={settings.landingFakeStatsEnabled}
+              onChange={(e) =>
+                setSettings({ ...settings, landingFakeStatsEnabled: e.target.checked })
+              }
+            />
+            Enable fake impressions & clicks on the homepage
+          </label>
+          {settings.landingFakeStatsEnabled ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="fake-imp-base">Impressions baseline</Label>
+                <Input
+                  id="fake-imp-base"
+                  type="number"
+                  min={0}
+                  value={settings.landingFakeImpressionsBase}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      landingFakeImpressionsBase: Math.max(0, Math.floor(Number(e.target.value) || 0)),
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="fake-click-base">Clicks baseline</Label>
+                <Input
+                  id="fake-click-base"
+                  type="number"
+                  min={0}
+                  value={settings.landingFakeClicksBase}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      landingFakeClicksBase: Math.max(0, Math.floor(Number(e.target.value) || 0)),
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="fake-imp-rate">Impressions gained / hour</Label>
+                <Input
+                  id="fake-imp-rate"
+                  type="number"
+                  min={0}
+                  step="1"
+                  value={settings.landingFakeImpressionsPerHour}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      landingFakeImpressionsPerHour: Math.max(0, Number(e.target.value) || 0),
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="fake-click-rate">Clicks gained / hour</Label>
+                <Input
+                  id="fake-click-rate"
+                  type="number"
+                  min={0}
+                  step="0.1"
+                  value={settings.landingFakeClicksPerHour}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      landingFakeClicksPerHour: Math.max(0, Number(e.target.value) || 0),
+                    })
+                  }
+                />
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Fake data is off — homepage shows only real valid impressions and clicks from the
+              network.
+            </p>
+          )}
         </CardContent>
       </Card>
 

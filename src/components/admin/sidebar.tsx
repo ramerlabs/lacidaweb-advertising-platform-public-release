@@ -7,6 +7,7 @@ import {
   CreditCard,
   Headset,
   HelpCircle,
+  KeyRound,
   LayoutDashboard,
   LogOut,
   Megaphone,
@@ -36,6 +37,7 @@ const platformLinks = [
 const settingsLinks = [
   { href: "/admin/settings/payments", label: "Payment gateways", icon: Wallet },
   { href: "/admin/settings/ads", label: "Publisher ads", icon: Megaphone },
+  { href: "/admin/settings/license", label: "License", icon: KeyRound },
   { href: "/admin/settings/branding", label: "Branding", icon: Palette },
   { href: "/admin/settings/faqs", label: "FAQs", icon: HelpCircle },
   { href: "/admin/settings/security", label: "Security", icon: Shield },

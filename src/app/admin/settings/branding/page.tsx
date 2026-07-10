@@ -148,7 +148,7 @@ export default function AdminBrandingPage() {
               id="title"
               value={settings.title}
               onChange={(e) => setSettings((s) => ({ ...s, title: e.target.value }))}
-              placeholder="VCC & Bank"
+              placeholder="lacidaweb"
             />
           </div>
           <div className="space-y-2">
@@ -168,7 +168,7 @@ export default function AdminBrandingPage() {
               type="email"
               value={settings.supportEmail}
               onChange={(e) => setSettings((s) => ({ ...s, supportEmail: e.target.value }))}
-              placeholder="vccandbank@gmail.com"
+              placeholder="support@lacidaweb.com"
             />
             <p className="text-xs text-muted-foreground">
               Shown in the landing page footer and used in system emails.

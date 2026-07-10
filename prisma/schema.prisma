@@ -589,12 +589,31 @@ model IntegrationSettings {
   publisherCpmCents         Int     @default(100)
   publisherCpcCents         Int     @default(10)
   publisherMinPayoutCents   Int     @default(2500)
+  /// Landing page: show synthetic impressions/clicks that keep growing; real events add on top.
+  landingFakeStatsEnabled          Boolean  @default(true)
+  landingFakeImpressionsBase       Int      @default(18420)
+  landingFakeClicksBase            Int      @default(612)
+  landingFakeImpressionsPerHour    Float    @default(180)
+  landingFakeClicksPerHour         Float    @default(7.2)
+  landingFakeStatsStartedAt        DateTime @default(now())
   adsProfitMarginPercent    Int     @default(0)
   adWalletTopUpUsd          Float   @default(25)
   subscriptionProfitMarginPercent Int @default(80)
   googleOAuthEnabled        Boolean @default(true)
   facebookOAuthEnabled      Boolean @default(true)
   updatedAt           DateTime @updatedAt
+}
+
+/// Platform license for this lacidaweb deployment (RamerLabs License Manager).
+model PlatformLicense {
+  id              String    @id @default("default")
+  licenseKey      String
+  productSlug     String    @default("lacidaweb-advertising-platform")
+  status          String?
+  expiresAt       String?
+  lastValidatedAt DateTime?
+  payload         Json?
+  updatedAt       DateTime  @updatedAt
 }
 
 model AdCampaign {

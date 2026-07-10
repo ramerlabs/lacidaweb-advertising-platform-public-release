@@ -192,7 +192,7 @@ export default function SettingsPage() {
               <Label htmlFor="business-name">Business name</Label>
               <Input
                 id="business-name"
-                placeholder="e.g. VCC & Bank"
+                placeholder="e.g. lacidaweb"
                 value={business.businessName}
                 onChange={(e) => setBusiness((b) => ({ ...b, businessName: e.target.value }))}
               />

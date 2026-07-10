@@ -273,7 +273,7 @@ export default function AdminIntegrationsPage() {
               OAuth redirect URL (add in Google Cloud console):
             </p>
             <p>
-              <code>{typeof window !== "undefined" ? window.location.origin : "https://vccandbank.com"}/api/auth/callback/google</code>
+              <code>{typeof window !== "undefined" ? window.location.origin : "https://lacidaweb.com"}/api/auth/callback/google</code>
             </p>
           </div>
         </CardContent>

@@ -1,5 +1,5 @@
 /**
- * Bootstrap a fresh lacidaweb database (separate from vccandbank).
+ * Bootstrap a fresh lacidaweb database.
  *
  * 1. Create a NEW Neon project at https://console.neon.tech (name: lacidaweb)
  * 2. Copy the connection string into .env.local as DATABASE_URL

@@ -16,13 +16,9 @@ import { brand } from "@/lib/brand";
 import { SiteLogo } from "@/components/branding/site-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { FaqSection } from "@/components/landing/faq-section";
+import { LandingAdStats } from "@/components/landing/landing-ad-stats";
 import { LACIDAWEB_FAQS } from "@/lib/lacidaweb-faqs";
-
-const STATS = [
-  { value: "4", label: "Payment gateways" },
-  { value: "3", label: "Campaign objectives" },
-  { value: "24h", label: "Review turnaround" },
-];
+import { getLandingAdStatsDisplay } from "@/lib/ads-settings";
 
 const FEATURES = [
   {
@@ -69,7 +65,10 @@ const branding = {
   tagline: brand.tagline,
 };
 
-export default function HomePage() {
+export default async function HomePage() {
+  const landingStats = await getLandingAdStatsDisplay();
+  const serverTime = new Date().toISOString();
+
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
       <header className="sticky top-0 z-50 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-xl">
@@ -139,14 +138,16 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="mx-auto mt-16 grid max-w-2xl grid-cols-3 gap-6 border-t border-zinc-800 pt-10">
-            {STATS.map((stat) => (
-              <div key={stat.label} className="text-center">
-                <p className="text-2xl font-bold text-cyan-400 md:text-3xl">{stat.value}</p>
-                <p className="mt-1 text-xs text-zinc-500 md:text-sm">{stat.label}</p>
-              </div>
-            ))}
-          </div>
+          <LandingAdStats
+            initial={{
+              impressions: landingStats.impressions,
+              clicks: landingStats.clicks,
+              fakeEnabled: landingStats.fakeEnabled,
+              impressionsPerHour: landingStats.impressionsPerHour,
+              clicksPerHour: landingStats.clicksPerHour,
+              serverTime,
+            }}
+          />
 
           <div className="mx-auto mt-16 max-w-4xl overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/50 shadow-2xl glow-cyan">
             <div className="flex items-center gap-2 border-b border-zinc-800 px-4 py-3">

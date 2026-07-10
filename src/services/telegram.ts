@@ -26,6 +26,6 @@ export async function sendTelegramTest(botToken: string, chatId: string) {
   await sendTelegramMessage({
     botToken,
     chatId,
-    text: "✅ VCC & Bank admin notifications are connected. You will receive alerts for client activity here.",
+    text: "✅ lacidaweb admin notifications are connected. You will receive alerts for platform activity here.",
   });
 }

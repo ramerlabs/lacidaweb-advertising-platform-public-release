@@ -11,6 +11,11 @@ const schema = z.object({
   publisherCpmCents: z.number().int().min(0).max(100_000).optional(),
   publisherCpcCents: z.number().int().min(0).max(10_000).optional(),
   publisherMinPayoutCents: z.number().int().min(100).max(1_000_000).optional(),
+  landingFakeStatsEnabled: z.boolean().optional(),
+  landingFakeImpressionsBase: z.number().int().min(0).max(100_000_000).optional(),
+  landingFakeClicksBase: z.number().int().min(0).max(10_000_000).optional(),
+  landingFakeImpressionsPerHour: z.number().min(0).max(100_000).optional(),
+  landingFakeClicksPerHour: z.number().min(0).max(10_000).optional(),
 });
 
 export async function GET() {

@@ -1,77 +1,63 @@
-# VCC & Bank — Digital Growth Suite
+# lacidaweb — Advertising Platform
 
-![VCC & Bank](public/branding/og.png)
+![lacidaweb](public/branding/og.png)
 
-Multi-tenant social publishing and engagement SaaS for [vccandbank.com](https://vccandbank.com).
+Self-serve advertising SaaS for [lacidaweb.com](https://lacidaweb.com) — advertisers launch campaigns, publishers monetize sites with embed code, and the platform pays out on valid CPM/CPC.
 
-**Stack:** Next.js 15 · TypeScript · Tailwind CSS · Prisma · PostgreSQL · NextAuth · Recharts · `@zernio/node`
+**Stack:** Next.js 15 · TypeScript · Tailwind CSS · Prisma · PostgreSQL · NextAuth · Recharts
 
 ## Features
 
-1. **Multi-tenant orgs** — Users, Teams, membership roles, ConnectedAccounts
-2. **Zernio OAuth connect** — Hosted connect URL per platform, callback sync
-3. **Publisher engine** — Compose, media presign/upload, publish now / schedule / draft, platform-specific options
-4. **Unified inbox** — Webhook listener (`comment.received`, `message.received`), manual reply, keyword auto-reply rules
-5. **Analytics dashboard** — Aggregated impressions/reach/engagement/followers with Recharts
-6. **Audit log** — Publishing state transitions (`draft`, `pending`, `scheduled`, `published`, `failed`)
+1. **Advertiser campaigns** — Guided wizard (objective → audience → budget → creative types)
+2. **Publisher network** — Manual embeds + automatic ad placement (Google Auto ads style)
+3. **Ad serving** — Rotate all ads, fraud filtering, impression/click tracking
+4. **Publisher payouts** — CPM/CPC earnings with payout requests via USDT, PayPal, GCash, US Bank
+5. **Admin ops** — Campaign review, payments, publisher payouts, branding, integrations
+6. **RamerLabs licensing** — Activate a license key to unlock this deployment
 
 ## Quick start
 
 ```bash
 cp .env.example .env.local
-# fill DATABASE_URL, NEXTAUTH_SECRET, ZERNIO_API_KEY, ZERNIO_WEBHOOK_SECRET, APP_URL
+# fill DATABASE_URL, NEXTAUTH_SECRET, APP_URL, ADMIN_EMAILS
 
 npm install
 npx prisma db push
 npm run dev
 ```
 
-Open http://localhost:3000 → register a workspace → connect accounts → compose.
+Open http://localhost:3000
 
 ## Environment
 
 | Variable | Purpose |
 | --- | --- |
-| `DATABASE_URL` | Postgres connection string |
+| `DATABASE_URL` | Postgres connection string (dedicated lacidaweb Neon project) |
 | `NEXTAUTH_URL` | App URL for auth |
 | `NEXTAUTH_SECRET` | Session encryption secret |
-| `ZERNIO_API_KEY` | Zernio API key (`sk_...`) |
-| `ZERNIO_WEBHOOK_SECRET` | HMAC secret for `X-Zernio-Signature` |
-| `APP_URL` | Public app URL (OAuth callback + redirects) |
-
-## Zernio webhook setup
-
-1. In Zernio, create webhook → URL: `https://YOUR_DOMAIN/api/webhooks/zernio`
-2. Events: `comment.received`, `message.received`, `message.sent`, post status events
-3. Secret must match `ZERNIO_WEBHOOK_SECRET`
+| `APP_URL` | Public app URL |
+| `ADMIN_EMAILS` | Comma-separated platform admin emails |
+| `LACIDAWEB_LICENSE_KEY` | Optional: pre-set license key (or activate in Admin → License) |
+| `RLM_PRODUCT_SLUG` | License product slug (`lacidaweb-advertising-platform`) |
 
 ## Deploy to Vercel
 
-1. Push this repo to GitHub
-2. Import in Vercel
-3. Add env vars above (use Neon/Supabase/Vercel Postgres for `DATABASE_URL`)
-4. Deploy
-5. Run migrations: `npx prisma db push` (or `prisma migrate deploy`) against production DB
-6. Update `APP_URL` / `NEXTAUTH_URL` to the Vercel domain
-7. Register the webhook URL in Zernio
+1. Push to GitHub (`ramerlabs/lacidaweb.com-advertising-platform`)
+2. Import in Vercel / auto-deploy from `main`
+3. Add env vars (use Neon Postgres for `DATABASE_URL`)
+4. Run `npx prisma db push` against production DB once
+5. Set `APP_URL` / `NEXTAUTH_URL` to your domain
+6. Activate license in **Admin → License**
 
 ## Project structure
 
 ```
-prisma/schema.prisma          Multi-tenant relational schema
-src/lib/zernio.ts             SDK client + rate-limit retry
+prisma/schema.prisma          lacidaweb advertising domain
 src/services/
-  profiles.ts                 Ensure Zernio profile per team
-  accounts.ts                 Connect / sync / disconnect
-  publisher.ts                posts.create + media presign
-  inbox.ts                    Webhooks + auto-reply
-  analytics.ts                Aggregation for charts
-src/app/api/                  REST routers
-src/app/dashboard/            UI pages (compose, inbox, analytics, …)
+  ad-serving.ts               Serve + rotate ads
+  publisher-earnings.ts       Fraud filter + credit CPM/CPC
+  publisher-payouts.ts        Payout requests / admin review
+  campaigns.ts                Advertiser campaign lifecycle
+src/lib/license.ts            RamerLabs license client
+public/embed.js               Publisher embed + auto ads
 ```
-
-## Notes
-
-- `@zernio/node` request shapes differ slightly by SDK version; service wrappers accept both flat and `{ body }` styles.
-- Large media: use the compose uploader (Zernio presigned URL). Browser uploads are practical for typical assets; for multi-GB files, upload from a backend/worker with the same presign flow.
-- Never expose `ZERNIO_API_KEY` to the client.
