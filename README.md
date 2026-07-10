@@ -16,12 +16,15 @@
 
 ## What you get
 
-1. **Advertiser campaigns** — Guided wizard (objective → audience → budget → creative types)
-2. **Publisher network** — Manual embeds + automatic ad placement
-3. **Ad serving** — Rotate all ads, fraud filtering, impression/click tracking
-4. **Publisher payouts** — CPM/CPC earnings with payout requests (USDT, PayPal, GCash, US Bank)
-5. **Admin ops** — Campaign review, payments, publisher payouts, branding, integrations
-6. **Licensing** — Platform stays locked until you activate a license key
+1. **Advertiser campaigns** — Guided wizard (objective → audience → budget → creative), with optional AI creatives from a saved business profile
+2. **Prepaid wallet billing** — Top up with USDT, GCash, PayPal, or US Bank (min. $25); no subscription required; **no KYC**
+3. **Campaign budget reserve** — Wallet balance is reserved on submit and refunded if admin rejects the ad
+4. **AI tokens** — Optional packs (buy with wallet or other methods); advertiser overview shows a token usage bar
+5. **Transaction logs** — Advertiser wallet + publisher earnings ledgers (auto-purged after 7 days)
+6. **Publisher network** — Manual embeds + automatic ad placement; CPM/CPC payouts (USDT, PayPal, GCash, US Bank)
+7. **Ad serving** — Rotate ads, fraud filtering, impression/click tracking, house-ad fallback
+8. **Admin ops** — Campaign review (approve / reject / pause / delete), payments, payouts, branding, AI & ads settings
+9. **Licensing** — Platform stays locked until you activate a RamerLabs license key
 
 ---
 
@@ -148,6 +151,7 @@ After licensing, publishers get embed snippets that call your public `APP_URL` (
 - [ ] `APP_URL` / `NEXTAUTH_URL` match your live domain
 - [ ] Payment methods configured under **Admin → Payment gateways**
 - [ ] Publisher CPM/CPC rates set under **Admin → Publisher ads**
+- [ ] (Optional) AI token pack pricing under **Admin → AI & tokens**
 
 ---
 
@@ -168,7 +172,7 @@ We do **not** publish the license server URL in the app UI — only the license 
 ```
 prisma/schema.prisma          Database schema
 src/app/                      Next.js App Router (admin, dashboard, APIs)
-src/services/                 Ad serving, earnings, campaigns, payouts
+src/services/                 Ad serving, wallet ledger, campaigns, payouts
 src/lib/license.ts            License activation / validation
 public/embed.js               Publisher embed + auto ads
 public/uploads/               Local media uploads
