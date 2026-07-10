@@ -434,6 +434,11 @@ model IntegrationSettings {
   landingFakeStatsStartedAt        DateTime @default(now())
   adsProfitMarginPercent    Int     @default(55)
   adWalletTopUpUsd          Float   @default(25)
+  /// House / fill promo when paid inventory is short (auto-ads pad up to max slots).
+  houseAdHeadline           String?
+  houseAdBody               String?  @db.Text
+  houseAdCtaLabel           String?
+  houseAdUrl                String?
   subscriptionProfitMarginPercent Int @default(80)
   googleOAuthEnabled        Boolean @default(true)
   facebookOAuthEnabled      Boolean @default(true)

@@ -26,10 +26,16 @@ export async function GET(req: Request) {
 
     const origin = url.origin;
     const visitorId = url.searchParams.get("visitor") || undefined;
+    const slotRaw = url.searchParams.get("slotIndex");
+    const slotIndex =
+      slotRaw != null && slotRaw !== "" && Number.isFinite(Number(slotRaw))
+        ? Number(slotRaw)
+        : undefined;
 
     const result = await serveAdsForPlacement(placement, {
       visitorId,
       origin,
+      slotIndex,
       meta: {
         visitorId,
         ip: clientIpFromRequest(req),

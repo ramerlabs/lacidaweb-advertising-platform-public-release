@@ -21,6 +21,10 @@ type AdsSettings = {
   landingFakeClicksBase: number;
   landingFakeImpressionsPerHour: number;
   landingFakeClicksPerHour: number;
+  houseAdHeadline: string;
+  houseAdBody: string;
+  houseAdCtaLabel: string;
+  houseAdUrl: string;
 };
 
 export default function AdminAdsSettingsPage() {
@@ -49,6 +53,10 @@ export default function AdminAdsSettingsPage() {
             landingFakeClicksBase: data.settings.landingFakeClicksBase ?? 612,
             landingFakeImpressionsPerHour: data.settings.landingFakeImpressionsPerHour ?? 180,
             landingFakeClicksPerHour: data.settings.landingFakeClicksPerHour ?? 7.2,
+            houseAdHeadline: data.settings.houseAdHeadline || "",
+            houseAdBody: data.settings.houseAdBody || "",
+            houseAdCtaLabel: data.settings.houseAdCtaLabel || "Visit lacidaweb.com",
+            houseAdUrl: data.settings.houseAdUrl || "",
           });
         }
       });
@@ -83,6 +91,10 @@ export default function AdminAdsSettingsPage() {
       landingFakeClicksBase: data.settings.landingFakeClicksBase,
       landingFakeImpressionsPerHour: data.settings.landingFakeImpressionsPerHour,
       landingFakeClicksPerHour: data.settings.landingFakeClicksPerHour,
+      houseAdHeadline: data.settings.houseAdHeadline || "",
+      houseAdBody: data.settings.houseAdBody || "",
+      houseAdCtaLabel: data.settings.houseAdCtaLabel || "Visit lacidaweb.com",
+      houseAdUrl: data.settings.houseAdUrl || "",
     });
     setStatus("Publisher ad settings saved.");
   }
@@ -379,6 +391,56 @@ export default function AdminAdsSettingsPage() {
               served across all campaigns on publisher sites.
             </p>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>House / fill promo</CardTitle>
+          <CardDescription>
+            When a page has fewer paid ads than auto slots (max 4), leftover slots show this
+            &quot;Advertise with us&quot; promo. Leave fields blank to use the default brand copy.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="house-headline">Headline</Label>
+            <Input
+              id="house-headline"
+              value={settings.houseAdHeadline}
+              onChange={(e) => setSettings({ ...settings, houseAdHeadline: e.target.value })}
+              placeholder="Advertise with lacidaweb"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="house-body">Body text</Label>
+            <Input
+              id="house-body"
+              value={settings.houseAdBody}
+              onChange={(e) => setSettings({ ...settings, houseAdBody: e.target.value })}
+              placeholder="Reach customers across the network. Visit lacidaweb.com"
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="house-cta">CTA label</Label>
+              <Input
+                id="house-cta"
+                value={settings.houseAdCtaLabel}
+                onChange={(e) => setSettings({ ...settings, houseAdCtaLabel: e.target.value })}
+                placeholder="Visit lacidaweb.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="house-url">Destination URL</Label>
+              <Input
+                id="house-url"
+                value={settings.houseAdUrl}
+                onChange={(e) => setSettings({ ...settings, houseAdUrl: e.target.value })}
+                placeholder="https://lacidaweb.com/register/advertiser"
+              />
+            </div>
+          </div>
         </CardContent>
       </Card>
 

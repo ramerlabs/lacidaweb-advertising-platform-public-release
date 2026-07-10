@@ -103,7 +103,7 @@
     return document.querySelectorAll(".lacidaweb-ad").length;
   }
 
-  function mountAd(base, placementKey, target, rotationSeconds) {
+  function mountAd(base, placementKey, target, rotationSeconds, slotIndex) {
     if (!target || target.getAttribute("data-lw-mounted") === "1") return;
     target.setAttribute("data-lw-mounted", "1");
 
@@ -112,7 +112,8 @@
       base +
       "/api/ads/serve?placement=" +
       encodeURIComponent(placementKey) +
-      (visitor ? "&visitor=" + encodeURIComponent(visitor) : "");
+      (visitor ? "&visitor=" + encodeURIComponent(visitor) : "") +
+      (typeof slotIndex === "number" ? "&slotIndex=" + encodeURIComponent(String(slotIndex)) : "");
 
     fetch(serveUrl, { credentials: "omit" })
       .then(function (res) {
@@ -235,7 +236,8 @@
 
       if (placed) {
         used += 1;
-        mountAd(base, slot.placementKey, target, config.rotationSeconds);
+        // slotIndex spreads paid ads across units; leftover indices become house fill.
+        mountAd(base, slot.placementKey, target, config.rotationSeconds, used - 1);
       }
     });
   }

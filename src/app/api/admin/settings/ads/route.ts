@@ -17,6 +17,10 @@ const schema = z.object({
   landingFakeClicksBase: z.number().int().min(0).max(10_000_000).optional(),
   landingFakeImpressionsPerHour: z.number().min(0).max(100_000).optional(),
   landingFakeClicksPerHour: z.number().min(0).max(10_000).optional(),
+  houseAdHeadline: z.string().max(120).optional(),
+  houseAdBody: z.string().max(500).optional(),
+  houseAdCtaLabel: z.string().max(40).optional(),
+  houseAdUrl: z.string().max(500).optional(),
 });
 
 export async function GET() {

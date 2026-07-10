@@ -132,19 +132,33 @@ function pickPersonalizedIndex(visitorId: string, adCount: number): number {
 async function buildHouseAd(
   placement: { width: number; height: number; format: string },
   origin?: string,
+  settings?: AdsSettingsData,
 ): Promise<ServedAd> {
   const site = await getSiteSettings();
+  const ads = settings || (await getAdsSettings());
   const name = site.title?.trim() || String(brand.name);
   const base = (site.url || brand.url || origin || "").replace(/\/$/, "");
-  const destinationUrl = `${base}/register/advertiser`;
+  const customUrl = ads.houseAdUrl?.trim();
+  const destinationUrl = customUrl
+    ? customUrl.startsWith("http")
+      ? customUrl
+      : `${base}${customUrl.startsWith("/") ? "" : "/"}${customUrl}`
+    : `${base}/register/advertiser`;
+
+  const headline =
+    ads.houseAdHeadline?.trim() || `Advertise with ${name}`;
+  const primaryText =
+    ads.houseAdBody?.trim() ||
+    `Reach customers across the ${name} network. Launch a campaign in minutes — visit lacidaweb.com`;
+  const ctaLabel = ads.houseAdCtaLabel?.trim() || "Visit lacidaweb.com";
 
   return {
     adId: HOUSE_AD_ID,
-    headline: `Advertise with ${name}`,
-    primaryText: `Reach customers on sites across the ${name} network. Launch a campaign in minutes.`,
+    headline,
+    primaryText,
     imageUrl: null,
     destinationUrl,
-    ctaLabel: "Get started",
+    ctaLabel,
     width: placement.width,
     height: placement.height,
     format:
@@ -160,7 +174,13 @@ async function buildHouseAd(
 
 export async function serveAdsForPlacement(
   placementKey: string,
-  opts?: { visitorId?: string; origin?: string; meta?: AdEventRequestMeta },
+  opts?: {
+    visitorId?: string;
+    origin?: string;
+    meta?: AdEventRequestMeta;
+    /** Auto-ads slot index (0-based). When >= paid inventory, fill with house promo. */
+    slotIndex?: number;
+  },
 ): Promise<PlacementServeResult | null> {
   const settings = await getAdsSettings();
   if (!settings.adsEnabled) {
@@ -177,8 +197,14 @@ export async function serveAdsForPlacement(
   }
 
   const eligible = await getEligibleAds(settings);
-  if (!eligible.length) {
-    const house = await buildHouseAd(placement, opts?.origin);
+  const slotIndex =
+    typeof opts?.slotIndex === "number" && Number.isFinite(opts.slotIndex)
+      ? Math.max(0, Math.floor(opts.slotIndex))
+      : null;
+
+  // No paid inventory, or this auto slot is beyond available paid ads → house fill.
+  if (!eligible.length || (slotIndex != null && slotIndex >= eligible.length)) {
+    const house = await buildHouseAd(placement, opts?.origin, settings);
     return {
       ads: [house],
       rotationSeconds: 0,
@@ -193,7 +219,9 @@ export async function serveAdsForPlacement(
   }
 
   const ordered = rotateFromIndex(eligible, startIndex);
-  const primary = ordered[0];
+  // Spread different paid creatives across auto slots when slotIndex is provided.
+  const primary =
+    slotIndex != null ? ordered[slotIndex % ordered.length] : ordered[0];
 
   await recordTrackedImpression({
     placementId: placement.id,
@@ -208,9 +236,16 @@ export async function serveAdsForPlacement(
     },
   });
 
-  const ads = ordered.map((ad) => toServedAd(ad, placement, placementKey, opts?.origin));
+  // Auto slots: one creative per unit. Manual / rotate mode can still cycle.
+  if (slotIndex != null) {
+    return {
+      ads: [toServedAd(primary, placement, placementKey, opts?.origin)],
+      rotationSeconds: 0,
+      servingMode: settings.publisherAdServingMode,
+    };
+  }
 
-  // ROTATE_ALL: return list for timed swap in one slot. Otherwise serve a single ad.
+  const ads = ordered.map((ad) => toServedAd(ad, placement, placementKey, opts?.origin));
   const serveList =
     settings.publisherAdServingMode === "ROTATE_ALL" ? ads : ads.slice(0, 1);
 

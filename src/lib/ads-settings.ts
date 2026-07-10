@@ -28,6 +28,11 @@ export type AdsSettingsData = {
   landingFakeImpressionsPerHour: number;
   landingFakeClicksPerHour: number;
   landingFakeStatsStartedAt: string;
+  /** Fill promo when fewer paid ads than auto slots (editable in admin). */
+  houseAdHeadline: string;
+  houseAdBody: string;
+  houseAdCtaLabel: string;
+  houseAdUrl: string;
 };
 
 const DEFAULTS: AdsSettingsData = {
@@ -50,6 +55,10 @@ const DEFAULTS: AdsSettingsData = {
   landingFakeImpressionsPerHour: LANDING_FAKE_STATS_DEFAULTS.impressionsPerHour,
   landingFakeClicksPerHour: LANDING_FAKE_STATS_DEFAULTS.clicksPerHour,
   landingFakeStatsStartedAt: LANDING_FAKE_STATS_DEFAULTS.startedAt.toISOString(),
+  houseAdHeadline: "",
+  houseAdBody: "",
+  houseAdCtaLabel: "Visit lacidaweb.com",
+  houseAdUrl: "",
 };
 
 function toFakeConfig(settings: AdsSettingsData): LandingFakeStatsConfig {
@@ -102,6 +111,10 @@ export async function getAdsSettings(): Promise<AdsSettingsData> {
       landingFakeStatsStartedAt: (
         row?.landingFakeStatsStartedAt ?? new Date(DEFAULTS.landingFakeStatsStartedAt)
       ).toISOString(),
+      houseAdHeadline: row?.houseAdHeadline?.trim() || DEFAULTS.houseAdHeadline,
+      houseAdBody: row?.houseAdBody?.trim() || DEFAULTS.houseAdBody,
+      houseAdCtaLabel: row?.houseAdCtaLabel?.trim() || DEFAULTS.houseAdCtaLabel,
+      houseAdUrl: row?.houseAdUrl?.trim() || DEFAULTS.houseAdUrl,
     };
   } catch {
     return DEFAULTS;
@@ -149,6 +162,10 @@ export async function updateAdsSettings(input: Partial<AdsSettingsData>): Promis
     ),
     landingFakeStatsStartedAt:
       input.landingFakeStatsStartedAt ?? current.landingFakeStatsStartedAt,
+    houseAdHeadline: (input.houseAdHeadline ?? current.houseAdHeadline).trim().slice(0, 120),
+    houseAdBody: (input.houseAdBody ?? current.houseAdBody).trim().slice(0, 500),
+    houseAdCtaLabel: (input.houseAdCtaLabel ?? current.houseAdCtaLabel).trim().slice(0, 40),
+    houseAdUrl: (input.houseAdUrl ?? current.houseAdUrl).trim().slice(0, 500),
   };
 
   const startedAt = new Date(next.landingFakeStatsStartedAt);
@@ -175,6 +192,10 @@ export async function updateAdsSettings(input: Partial<AdsSettingsData>): Promis
       landingFakeImpressionsPerHour: next.landingFakeImpressionsPerHour,
       landingFakeClicksPerHour: next.landingFakeClicksPerHour,
       landingFakeStatsStartedAt: startedAtSafe,
+      houseAdHeadline: next.houseAdHeadline || null,
+      houseAdBody: next.houseAdBody || null,
+      houseAdCtaLabel: next.houseAdCtaLabel || null,
+      houseAdUrl: next.houseAdUrl || null,
     },
     update: {
       adsEnabled: next.adsEnabled,
@@ -192,6 +213,10 @@ export async function updateAdsSettings(input: Partial<AdsSettingsData>): Promis
       landingFakeImpressionsPerHour: next.landingFakeImpressionsPerHour,
       landingFakeClicksPerHour: next.landingFakeClicksPerHour,
       landingFakeStatsStartedAt: startedAtSafe,
+      houseAdHeadline: next.houseAdHeadline || null,
+      houseAdBody: next.houseAdBody || null,
+      houseAdCtaLabel: next.houseAdCtaLabel || null,
+      houseAdUrl: next.houseAdUrl || null,
     },
   });
   return next;
