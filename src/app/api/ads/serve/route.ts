@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { serveAdsForPlacement } from "@/services/ad-serving";
 import { clientIpFromRequest } from "@/services/publisher-earnings";
 import { isPlatformLicensed } from "@/lib/license";
+import { requestHostFromHeaders } from "@/lib/domain-approval";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,6 +37,7 @@ export async function GET(req: Request) {
       visitorId,
       origin,
       slotIndex,
+      requestHost: requestHostFromHeaders(req),
       meta: {
         visitorId,
         ip: clientIpFromRequest(req),

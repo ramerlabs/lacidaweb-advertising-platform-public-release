@@ -1,9 +1,90 @@
 import { prisma } from "@/lib/prisma";
 import { getAppOrigin } from "@/lib/publisher-embed";
+import { PERSONAL_AUTO_ADS_KEY } from "@/lib/domain-approval";
+import { parseAdminEmails } from "@/lib/platform-admin";
 import { randomBytes } from "crypto";
 
 function newAutoAdsKey() {
   return randomBytes(12).toString("base64url");
+}
+
+export { PERSONAL_AUTO_ADS_KEY };
+
+const PLATFORM_TEAM_SLUG = "lacidaweb-platform";
+const PERSONAL_SITE_DOMAIN = "personal.lacidaweb.internal";
+
+async function getOrCreatePlatformTeam() {
+  const existing = await prisma.team.findUnique({ where: { slug: PLATFORM_TEAM_SLUG } });
+  if (existing) return existing;
+
+  const adminEmails = parseAdminEmails();
+  const admin =
+    (await prisma.user.findFirst({
+      where: { email: { in: adminEmails } },
+      orderBy: { createdAt: "asc" },
+    })) ||
+    (await prisma.user.findFirst({ orderBy: { createdAt: "asc" } }));
+
+  if (!admin) {
+    throw new Error("No platform user available to own personal ads site");
+  }
+
+  return prisma.team.create({
+    data: {
+      name: "lacidaweb Platform",
+      slug: PLATFORM_TEAM_SLUG,
+      members: {
+        create: { userId: admin.id, role: "OWNER" },
+      },
+    },
+  });
+}
+
+/** Platform-owned site used for allowlisted personal domains (not a publisher registration). */
+export async function ensurePersonalAutoAdsSite() {
+  const existing = await prisma.publisherSite.findUnique({
+    where: { autoAdsKey: PERSONAL_AUTO_ADS_KEY },
+  });
+  if (existing) {
+    if (existing.status !== "ACTIVE" || !existing.autoAdsEnabled) {
+      await prisma.publisherSite.update({
+        where: { id: existing.id },
+        data: { status: "ACTIVE", autoAdsEnabled: true },
+      });
+    }
+    await ensureAutoPlacements(existing.id);
+    return prisma.publisherSite.findUniqueOrThrow({
+      where: { id: existing.id },
+      include: {
+        placements: {
+          where: { isActive: true, autoSlot: { not: null } },
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    });
+  }
+
+  const team = await getOrCreatePlatformTeam();
+  const site = await prisma.publisherSite.create({
+    data: {
+      teamId: team.id,
+      name: "Personal allowlist ads",
+      domain: PERSONAL_SITE_DOMAIN,
+      status: "ACTIVE",
+      autoAdsEnabled: true,
+      autoAdsKey: PERSONAL_AUTO_ADS_KEY,
+    },
+  });
+  await ensureAutoPlacements(site.id);
+  return prisma.publisherSite.findUniqueOrThrow({
+    where: { id: site.id },
+    include: {
+      placements: {
+        where: { isActive: true, autoSlot: { not: null } },
+        orderBy: { createdAt: "asc" },
+      },
+    },
+  });
 }
 
 export async function ensureSiteAutoAdsKey(siteId: string): Promise<string> {
@@ -119,7 +200,51 @@ export async function ensureAutoPlacements(siteId: string) {
   });
 }
 
+function configFromSite(
+  site: {
+    id: string;
+    domain: string;
+    autoAdsEnabled: boolean;
+  },
+  placements: Array<{
+    autoSlot: string | null;
+    placementKey: string;
+    format: string;
+    width: number;
+    height: number;
+  }>,
+  isPersonal = false,
+) {
+  const bySlot = new Map<string, (typeof placements)[number]>();
+  for (const p of placements) {
+    const key = p.autoSlot || p.placementKey;
+    if (!bySlot.has(key)) bySlot.set(key, p);
+  }
+  const unique = Array.from(bySlot.values()).slice(0, MAX_AUTO_ADS_PER_PAGE);
+
+  return {
+    siteId: site.id,
+    domain: site.domain,
+    autoAdsEnabled: site.autoAdsEnabled,
+    maxAds: MAX_AUTO_ADS_PER_PAGE,
+    isPersonal,
+    slots: unique.map((p) => ({
+      autoSlot: p.autoSlot,
+      placementKey: p.placementKey,
+      format: p.format,
+      width: p.width,
+      height: p.height,
+    })),
+  };
+}
+
 export async function getAutoAdsConfig(autoAdsKey: string) {
+  if (autoAdsKey === PERSONAL_AUTO_ADS_KEY) {
+    const site = await ensurePersonalAutoAdsSite();
+    const placements = await ensureAutoPlacements(site.id);
+    return configFromSite(site, placements, true);
+  }
+
   const site = await prisma.publisherSite.findUnique({
     where: { autoAdsKey },
     include: {
@@ -134,28 +259,6 @@ export async function getAutoAdsConfig(autoAdsKey: string) {
     return null;
   }
 
-  // Ensure defaults exist and deactivate duplicate autoSlot rows.
   const placements = await ensureAutoPlacements(site.id);
-
-  // One placement per autoSlot (safety net).
-  const bySlot = new Map<string, (typeof placements)[number]>();
-  for (const p of placements) {
-    const key = p.autoSlot || p.placementKey;
-    if (!bySlot.has(key)) bySlot.set(key, p);
-  }
-  const unique = Array.from(bySlot.values()).slice(0, MAX_AUTO_ADS_PER_PAGE);
-
-  return {
-    siteId: site.id,
-    domain: site.domain,
-    autoAdsEnabled: site.autoAdsEnabled,
-    maxAds: MAX_AUTO_ADS_PER_PAGE,
-    slots: unique.map((p) => ({
-      autoSlot: p.autoSlot,
-      placementKey: p.placementKey,
-      format: p.format,
-      width: p.width,
-      height: p.height,
-    })),
-  };
+  return configFromSite(site, placements, false);
 }

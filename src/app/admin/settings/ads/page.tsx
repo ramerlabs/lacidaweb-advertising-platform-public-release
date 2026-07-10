@@ -13,6 +13,8 @@ type AdsSettings = {
   publisherAdServingMode: PublisherAdServingMode;
   publisherAdRotateSeconds: number;
   publisherAutoAdsEnabled: boolean;
+  requireDomainApproval: boolean;
+  allowedAdDomains: string;
   publisherCpmCents: number;
   publisherCpcCents: number;
   publisherMinPayoutCents: number;
@@ -27,11 +29,38 @@ type AdsSettings = {
   houseAdUrl: string;
 };
 
+function mapSettings(data: Partial<AdsSettings> & Record<string, unknown>): AdsSettings {
+  return {
+    adsEnabled: Boolean(data.adsEnabled ?? true),
+    adsProfitMarginPercent: Number(data.adsProfitMarginPercent ?? 55),
+    publisherAdServingMode:
+      data.publisherAdServingMode === "PERSONALIZED" ? "PERSONALIZED" : "ROTATE_ALL",
+    publisherAdRotateSeconds: Number(data.publisherAdRotateSeconds ?? 8),
+    publisherAutoAdsEnabled: Boolean(data.publisherAutoAdsEnabled ?? true),
+    requireDomainApproval: Boolean(data.requireDomainApproval ?? false),
+    allowedAdDomains: String(data.allowedAdDomains || ""),
+    publisherCpmCents: Number(data.publisherCpmCents ?? 100),
+    publisherCpcCents: Number(data.publisherCpcCents ?? 10),
+    publisherMinPayoutCents: Number(data.publisherMinPayoutCents ?? 2500),
+    landingFakeStatsEnabled: Boolean(data.landingFakeStatsEnabled ?? true),
+    landingFakeImpressionsBase: Number(data.landingFakeImpressionsBase ?? 18420),
+    landingFakeClicksBase: Number(data.landingFakeClicksBase ?? 612),
+    landingFakeImpressionsPerHour: Number(data.landingFakeImpressionsPerHour ?? 180),
+    landingFakeClicksPerHour: Number(data.landingFakeClicksPerHour ?? 7.2),
+    houseAdHeadline: String(data.houseAdHeadline || ""),
+    houseAdBody: String(data.houseAdBody || ""),
+    houseAdCtaLabel: String(data.houseAdCtaLabel || "Visit lacidaweb.com"),
+    houseAdUrl: String(data.houseAdUrl || ""),
+  };
+}
+
 export default function AdminAdsSettingsPage() {
   const [settings, setSettings] = useState<AdsSettings | null>(null);
+  const [personalEmbedSnippet, setPersonalEmbedSnippet] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/settings/ads")
@@ -39,25 +68,8 @@ export default function AdminAdsSettingsPage() {
       .then((data) => {
         setLoading(false);
         if (data.settings) {
-          setSettings({
-            adsEnabled: data.settings.adsEnabled,
-            adsProfitMarginPercent: data.settings.adsProfitMarginPercent ?? 55,
-            publisherAdServingMode: data.settings.publisherAdServingMode || "ROTATE_ALL",
-            publisherAdRotateSeconds: data.settings.publisherAdRotateSeconds ?? 8,
-            publisherAutoAdsEnabled: data.settings.publisherAutoAdsEnabled ?? true,
-            publisherCpmCents: data.settings.publisherCpmCents ?? 100,
-            publisherCpcCents: data.settings.publisherCpcCents ?? 10,
-            publisherMinPayoutCents: data.settings.publisherMinPayoutCents ?? 2500,
-            landingFakeStatsEnabled: data.settings.landingFakeStatsEnabled ?? true,
-            landingFakeImpressionsBase: data.settings.landingFakeImpressionsBase ?? 18420,
-            landingFakeClicksBase: data.settings.landingFakeClicksBase ?? 612,
-            landingFakeImpressionsPerHour: data.settings.landingFakeImpressionsPerHour ?? 180,
-            landingFakeClicksPerHour: data.settings.landingFakeClicksPerHour ?? 7.2,
-            houseAdHeadline: data.settings.houseAdHeadline || "",
-            houseAdBody: data.settings.houseAdBody || "",
-            houseAdCtaLabel: data.settings.houseAdCtaLabel || "Visit lacidaweb.com",
-            houseAdUrl: data.settings.houseAdUrl || "",
-          });
+          setSettings(mapSettings(data.settings));
+          setPersonalEmbedSnippet(data.personalEmbedSnippet || "");
         }
       });
   }, []);
@@ -77,26 +89,16 @@ export default function AdminAdsSettingsPage() {
       setStatus(data.error || "Save failed");
       return;
     }
-    setSettings({
-      adsEnabled: data.settings.adsEnabled,
-      adsProfitMarginPercent: data.settings.adsProfitMarginPercent,
-      publisherAdServingMode: data.settings.publisherAdServingMode,
-      publisherAdRotateSeconds: data.settings.publisherAdRotateSeconds,
-      publisherAutoAdsEnabled: data.settings.publisherAutoAdsEnabled,
-      publisherCpmCents: data.settings.publisherCpmCents,
-      publisherCpcCents: data.settings.publisherCpcCents,
-      publisherMinPayoutCents: data.settings.publisherMinPayoutCents,
-      landingFakeStatsEnabled: data.settings.landingFakeStatsEnabled,
-      landingFakeImpressionsBase: data.settings.landingFakeImpressionsBase,
-      landingFakeClicksBase: data.settings.landingFakeClicksBase,
-      landingFakeImpressionsPerHour: data.settings.landingFakeImpressionsPerHour,
-      landingFakeClicksPerHour: data.settings.landingFakeClicksPerHour,
-      houseAdHeadline: data.settings.houseAdHeadline || "",
-      houseAdBody: data.settings.houseAdBody || "",
-      houseAdCtaLabel: data.settings.houseAdCtaLabel || "Visit lacidaweb.com",
-      houseAdUrl: data.settings.houseAdUrl || "",
-    });
+    setSettings(mapSettings(data.settings));
+    setPersonalEmbedSnippet(data.personalEmbedSnippet || "");
     setStatus("Publisher ad settings saved.");
+  }
+
+  async function copyPersonalSnippet() {
+    if (!personalEmbedSnippet) return;
+    await navigator.clipboard.writeText(personalEmbedSnippet);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   if (loading || !settings) {
@@ -131,6 +133,67 @@ export default function AdminAdsSettingsPage() {
             />
             Enable lacidaweb ad network (publisher embeds + advertiser campaigns)
           </label>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Domain approval</CardTitle>
+          <CardDescription>
+            For personal sites: add domains below and use the personal embed snippet. Those hosts
+            can show ads without registering a publisher site.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <label className="flex items-start gap-3 rounded-lg border p-3 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={settings.requireDomainApproval}
+              onChange={(e) =>
+                setSettings({ ...settings, requireDomainApproval: e.target.checked })
+              }
+            />
+            <span>
+              <span className="font-medium">Require domain approval</span>
+              <span className="mt-1 block text-muted-foreground">
+                When on, publisher embeds only serve if the page host matches the registered site
+                domain, or is on the allowlist below. When off, any valid embed key works on any
+                domain (current loose mode).
+              </span>
+            </span>
+          </label>
+
+          <div className="space-y-2">
+            <Label htmlFor="allowed-domains">Allowed domains</Label>
+            <textarea
+              id="allowed-domains"
+              className="min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              placeholder={"myblog.com\nshop.example.com"}
+              value={settings.allowedAdDomains}
+              onChange={(e) => setSettings({ ...settings, allowedAdDomains: e.target.value })}
+            />
+            <p className="text-xs text-muted-foreground">
+              One domain per line (or comma-separated). www is ignored. Use these with the personal
+              embed snippet on sites that are not in the publisher database.
+            </p>
+          </div>
+
+          {personalEmbedSnippet ? (
+            <div className="space-y-2">
+              <Label>Personal embed snippet</Label>
+              <pre className="overflow-x-auto rounded-lg border bg-muted/40 p-3 text-xs leading-relaxed">
+                {personalEmbedSnippet}
+              </pre>
+              <Button type="button" variant="outline" size="sm" onClick={copyPersonalSnippet}>
+                {copied ? "Copied" : "Copy snippet"}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Paste on allowlisted domains only. Traffic is tracked on the platform personal site
+                (not paid out as a publisher).
+              </p>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

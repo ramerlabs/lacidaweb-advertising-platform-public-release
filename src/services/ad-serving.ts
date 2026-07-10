@@ -3,6 +3,10 @@ import { getAdsSettings, type AdsSettingsData } from "@/lib/ads-settings";
 import { getSiteSettings } from "@/lib/site-settings";
 import { brand } from "@/lib/brand";
 import {
+  canServeOnHost,
+  PERSONAL_AUTO_ADS_KEY,
+} from "@/lib/domain-approval";
+import {
   campaignHasDeliveryBudget,
   getAdvertiserRates,
   isWithinSchedule,
@@ -180,6 +184,8 @@ export async function serveAdsForPlacement(
     meta?: AdEventRequestMeta;
     /** Auto-ads slot index (0-based). When >= paid inventory, fill with house promo. */
     slotIndex?: number;
+    /** Request page host (Origin/Referer) for domain approval checks. */
+    requestHost?: string | null;
   },
 ): Promise<PlacementServeResult | null> {
   const settings = await getAdsSettings();
@@ -193,6 +199,22 @@ export async function serveAdsForPlacement(
   });
 
   if (!placement || placement.site.status !== "ACTIVE") {
+    return null;
+  }
+
+  const isPersonal =
+    placement.site.autoAdsKey === PERSONAL_AUTO_ADS_KEY ||
+    placement.site.domain === "personal.lacidaweb.internal";
+
+  if (
+    !canServeOnHost({
+      requireDomainApproval: settings.requireDomainApproval,
+      allowedAdDomains: settings.allowedAdDomains,
+      requestHost: opts?.requestHost ?? null,
+      siteDomain: placement.site.domain,
+      isPersonalKey: isPersonal,
+    })
+  ) {
     return null;
   }
 

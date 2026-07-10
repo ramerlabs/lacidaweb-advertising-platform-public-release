@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { getAdsSettings } from "@/lib/ads-settings";
 import { getAutoAdsConfig } from "@/lib/publisher-auto-ads";
 import { isPlatformLicensed } from "@/lib/license";
+import {
+  canServeOnHost,
+  PERSONAL_AUTO_ADS_KEY,
+  requestHostFromHeaders,
+} from "@/lib/domain-approval";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,8 +34,34 @@ export async function GET(req: Request) {
       return NextResponse.json({ enabled: false, slots: [] }, { headers: corsHeaders });
     }
 
+    const isPersonal = siteKey === PERSONAL_AUTO_ADS_KEY;
+    const requestHost = requestHostFromHeaders(req);
+
+    // Personal key only works on allowlisted hosts (even when approval is off).
+    if (isPersonal && !canServeOnHost({
+      requireDomainApproval: true,
+      allowedAdDomains: platform.allowedAdDomains,
+      requestHost,
+      isPersonalKey: true,
+    })) {
+      return NextResponse.json({ enabled: false, slots: [] }, { headers: corsHeaders });
+    }
+
     const config = await getAutoAdsConfig(siteKey);
     if (!config || !config.autoAdsEnabled) {
+      return NextResponse.json({ enabled: false, slots: [] }, { headers: corsHeaders });
+    }
+
+    if (
+      !isPersonal &&
+      !canServeOnHost({
+        requireDomainApproval: platform.requireDomainApproval,
+        allowedAdDomains: platform.allowedAdDomains,
+        requestHost,
+        siteDomain: config.domain,
+        isPersonalKey: false,
+      })
+    ) {
       return NextResponse.json({ enabled: false, slots: [] }, { headers: corsHeaders });
     }
 
@@ -41,6 +72,7 @@ export async function GET(req: Request) {
         rotationSeconds: platform.publisherAdRotateSeconds,
         maxAds: config.maxAds ?? 4,
         slots: config.slots,
+        personal: Boolean(config.isPersonal),
       },
       { headers: corsHeaders },
     );
