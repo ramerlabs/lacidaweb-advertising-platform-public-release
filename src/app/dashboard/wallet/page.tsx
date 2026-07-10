@@ -16,6 +16,15 @@ import {
 
 const QUICK_AMOUNTS = [25, 50, 100, 250];
 
+type LedgerTx = {
+  id: string;
+  type: string;
+  status: string;
+  amountUsd: string;
+  description: string | null;
+  createdAt: string;
+};
+
 export default function WalletPage() {
   const { teamId } = useTeam();
   const [balanceUsd, setBalanceUsd] = useState("0.00");
@@ -25,9 +34,7 @@ export default function WalletPage() {
   const [toppingUp, setToppingUp] = useState(false);
   const [status, setStatus] = useState("");
   const [enabledMethods, setEnabledMethods] = useState<EnabledPaymentMethods>(DEFAULT_ENABLED_METHODS);
-  const [transactions, setTransactions] = useState<
-    Array<{ id: string; type: string; amountCents: number; description: string | null; createdAt: string }>
-  >([]);
+  const [ledger, setLedger] = useState<LedgerTx[]>([]);
 
   const amountUsd = useMemo(() => {
     const n = Number(topUpAmount);
@@ -40,14 +47,14 @@ export default function WalletPage() {
       return;
     }
     setLoading(true);
-    const [walletRes, methodsRes, payRes] = await Promise.all([
+    const [walletRes, methodsRes, ledgerRes] = await Promise.all([
       fetch(`/api/billing/ad-wallet?teamId=${encodeURIComponent(teamId)}`),
       fetch("/api/billing/payment-methods"),
-      fetch(`/api/billing/payments?teamId=${encodeURIComponent(teamId)}`),
+      fetch(`/api/billing/wallet-transactions?teamId=${encodeURIComponent(teamId)}`),
     ]);
     const walletData = await walletRes.json();
     const methodsData = await methodsRes.json();
-    const payData = await payRes.json();
+    const ledgerData = await ledgerRes.json();
     if (walletRes.ok) {
       if (typeof walletData.adWalletBalanceUsd === "string") setBalanceUsd(walletData.adWalletBalanceUsd);
       const min = Number(walletData.minTopUpUsd || walletData.adWalletTopUpUsd || 25);
@@ -57,20 +64,7 @@ export default function WalletPage() {
       }
     }
     if (methodsRes.ok && methodsData.methods) setEnabledMethods(methodsData.methods);
-    if (payRes.ok) {
-      setTransactions(
-        (payData.payments || [])
-          .filter((p: { purpose?: string }) => p.purpose === "AD_WALLET")
-          .slice(0, 20)
-          .map((p: { id: string; amount: number; status: string; method: string; createdAt: string }) => ({
-            id: p.id,
-            type: p.status,
-            amountCents: Math.round(p.amount * 100),
-            description: `Top-up via ${p.method}`,
-            createdAt: p.createdAt,
-          })),
-      );
-    }
+    if (ledgerRes.ok) setLedger(ledgerData.transactions || []);
     setLoading(false);
   }
 
@@ -98,7 +92,6 @@ export default function WalletPage() {
       setStatus(data.error || "Could not start top-up");
       return;
     }
-    // Continue on billing page for payment instructions / verification.
     window.location.href = `/dashboard/billing?topup=${method.toLowerCase()}`;
   }
 
@@ -124,7 +117,9 @@ export default function WalletPage() {
             <Wallet className="h-5 w-5 text-cyan-500" />
             Available balance
           </CardTitle>
-          <CardDescription>Used for campaign spend after admin approval.</CardDescription>
+          <CardDescription>
+            Reserved when you submit a campaign. Refunded if admin rejects. Transaction logs expire after 7 days.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-4xl font-bold tabular-nums tracking-tight">
@@ -202,21 +197,32 @@ export default function WalletPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Recent top-ups</CardTitle>
-          <CardDescription>Pending and completed wallet payments</CardDescription>
+          <CardTitle className="text-base">Transaction log</CardTitle>
+          <CardDescription>
+            Top-ups, campaign reserves, refunds, AI token purchases, and ad spend. Entries older than 7 days are removed automatically.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          {transactions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No wallet top-ups yet.</p>
+          {ledger.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No wallet transactions yet.</p>
           ) : (
             <ul className="space-y-3 text-sm">
-              {transactions.map((tx) => (
-                <li key={tx.id} className="flex items-center justify-between gap-3 border-b pb-2 last:border-0">
+              {ledger.map((tx) => (
+                <li
+                  key={tx.id}
+                  className="flex items-start justify-between gap-3 border-b pb-2 last:border-0"
+                >
                   <span>
-                    {tx.description} · {tx.type}
+                    <span className="font-medium">{tx.type.replace(/_/g, " ")}</span>
+                    <span className="mt-0.5 block text-muted-foreground">
+                      {tx.description || tx.status}
+                    </span>
                   </span>
-                  <span className="tabular-nums text-muted-foreground">
-                    ${(tx.amountCents / 100).toFixed(2)} · {new Date(tx.createdAt).toLocaleDateString()}
+                  <span className="shrink-0 text-right tabular-nums text-muted-foreground">
+                    ${tx.amountUsd}
+                    <span className="mt-0.5 block text-xs">
+                      {new Date(tx.createdAt).toLocaleString()}
+                    </span>
                   </span>
                 </li>
               ))}

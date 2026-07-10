@@ -9,7 +9,12 @@ import {
   transformPostText,
 } from "@/lib/ai-service";
 import { getAiSettings, toPublicAiSettings } from "@/lib/ai-settings";
-import { isBusinessProfileComplete, toBusinessProfile, BUSINESS_PROFILE_SELECT } from "@/lib/team-business";
+import {
+  isBusinessProfileComplete,
+  toBusinessProfile,
+  BUSINESS_PROFILE_SELECT,
+  getTeamBusinessContext,
+} from "@/lib/team-business";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { prisma } from "@/lib/prisma";
 
@@ -122,6 +127,17 @@ export async function POST(req: Request) {
     if (action === "ad") {
       const body = adSchema.parse(await req.json());
       await requireTeamAccess(body.teamId, session.user.id);
+      const biz = await getTeamBusinessContext(body.teamId);
+      if (!biz.complete) {
+        return NextResponse.json(
+          {
+            error:
+              "Save your business details first (name/industry + description) so AI can write on-brand creatives.",
+            businessProfileComplete: false,
+          },
+          { status: 400 },
+        );
+      }
       const result = await generateAdCreative(body);
       return NextResponse.json(result);
     }
@@ -129,6 +145,19 @@ export async function POST(req: Request) {
     if (action === "campaign") {
       const body = campaignAssistSchema.parse(await req.json());
       await requireTeamAccess(body.teamId, session.user.id);
+      if (body.step === "creative") {
+        const biz = await getTeamBusinessContext(body.teamId);
+        if (!biz.complete) {
+          return NextResponse.json(
+            {
+              error:
+                "Save your business details first (name/industry + description) so AI can write on-brand creatives.",
+              businessProfileComplete: false,
+            },
+            { status: 400 },
+          );
+        }
+      }
       const result = await generateCampaignAssist(body);
       return NextResponse.json(result);
     }

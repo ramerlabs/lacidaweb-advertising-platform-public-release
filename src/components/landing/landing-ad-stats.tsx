@@ -93,8 +93,8 @@ export function LandingAdStats({ initial }: Props) {
   );
 
   const stats = [
-    { value: formatStatCount(impressions), label: "Impressions" },
-    { value: formatStatCount(clicks), label: "Clicks" },
+    { value: formatStatCount(impressions), label: "Network impressions" },
+    { value: formatStatCount(clicks), label: "Network clicks" },
     { value: "24h", label: "Review turnaround" },
   ];
 

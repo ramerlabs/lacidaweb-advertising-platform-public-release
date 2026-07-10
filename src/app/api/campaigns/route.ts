@@ -52,7 +52,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       campaign,
-      message: "Campaign submitted for review. Fund your wallet to activate after approval.",
+      message:
+        "Campaign submitted for review. Your campaign budget was reserved from your wallet and will be refunded if the campaign is rejected.",
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

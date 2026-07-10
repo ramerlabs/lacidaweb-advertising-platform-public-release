@@ -58,9 +58,23 @@ export async function activatePayment(
   }
 
   if (payment.purpose === "AD_WALLET" && payment.adWalletTopUpCents) {
-    await prisma.team.update({
+    const team = await prisma.team.update({
       where: { id: payment.teamId },
       data: { adWalletBalanceCents: { increment: payment.adWalletTopUpCents } },
+      select: { adWalletBalanceCents: true },
+    });
+    await prisma.walletTransaction.create({
+      data: {
+        teamId: payment.teamId,
+        paymentId: payment.id,
+        type: "TOP_UP",
+        status: "COMPLETED",
+        amountCents: payment.adWalletTopUpCents,
+        balanceAfterCents: team.adWalletBalanceCents,
+        description: `Wallet top-up via ${payment.method}`,
+        metadata: { kind: "AD_WALLET_TOP_UP", paymentId: payment.id },
+        completedAt: new Date(),
+      },
     });
   }
 

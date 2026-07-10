@@ -75,7 +75,10 @@ export default function AdminCampaignsPage() {
     }
     const labels: Record<string, string> = {
       APPROVED: "Campaign approved",
-      REJECTED: "Campaign rejected",
+      REJECTED:
+        typeof data.refundUsd === "string" && Number(data.refundUsd) > 0
+          ? `Campaign rejected — $${data.refundUsd} refunded to wallet`
+          : "Campaign rejected",
       PAUSE: "Campaign paused",
       RESUME: "Campaign resumed",
       DELETE: "Campaign deleted",

@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { usdToCents } from "@/lib/ad-wallet";
 import type { AdsSettingsData } from "@/lib/ads-settings";
+import { isCampaignPrepaid } from "@/services/wallet-ledger";
 
 export type AdvertiserRates = {
   cpmCents: number;
@@ -34,17 +35,21 @@ function startOfUtcDay(d = new Date()): Date {
 
 export async function getCampaignSpendTodayCents(campaignId: string): Promise<number> {
   const since = startOfUtcDay();
-  const agg = await prisma.walletTransaction.aggregate({
+  const rows = await prisma.walletTransaction.findMany({
     where: {
       campaignId,
       type: "AD_SPEND",
       status: "COMPLETED",
       createdAt: { gte: since },
     },
-    _sum: { amountCents: true },
+    select: { amountCents: true, metadata: true },
   });
-  // AD_SPEND amounts are stored as negative deltas in some systems; we store positive spend.
-  return Math.abs(agg._sum.amountCents ?? 0);
+  // Count delivery spend only (exclude campaign budget reserve).
+  return rows.reduce((sum, row) => {
+    const meta = row.metadata as { kind?: string } | null;
+    if (meta?.kind === "CAMPAIGN_RESERVE" || meta?.kind === "AI_TOKEN_WALLET_PURCHASE") return sum;
+    return sum + Math.abs(row.amountCents);
+  }, 0);
 }
 
 export function isWithinSchedule(campaign: {
@@ -123,6 +128,7 @@ export async function chargeAdvertiserSpend(input: {
           platformBudgetUsd: true,
           lifetimeSpendCents: true,
           lifecycleStatus: true,
+          paymentStatus: true,
         },
       });
       if (!campaign || campaign.teamId !== input.advertiserTeamId) {
@@ -132,22 +138,27 @@ export async function chargeAdvertiserSpend(input: {
         return { chargedCents: 0, reason: "campaign_inactive" as const };
       }
 
+      const prepaid = isCampaignPrepaid(campaign.paymentStatus);
       const cap = campaignBudgetCapCents(campaign);
       const remainingLifetime = Math.max(0, cap - campaign.lifetimeSpendCents);
       let maxCharge = remainingLifetime;
 
       if (isDailyBudget(campaign)) {
         const since = startOfUtcDay();
-        const todayAgg = await tx.walletTransaction.aggregate({
+        const todayRows = await tx.walletTransaction.findMany({
           where: {
             campaignId: input.campaignId,
             type: "AD_SPEND",
             status: "COMPLETED",
             createdAt: { gte: since },
           },
-          _sum: { amountCents: true },
+          select: { amountCents: true, metadata: true },
         });
-        const todaySpend = Math.abs(todayAgg._sum.amountCents ?? 0);
+        const todaySpend = todayRows.reduce((sum, row) => {
+          const meta = row.metadata as { kind?: string } | null;
+          if (meta?.kind === "CAMPAIGN_RESERVE") return sum;
+          return sum + Math.abs(row.amountCents);
+        }, 0);
         maxCharge = Math.min(maxCharge, Math.max(0, cap - todaySpend));
       }
 
@@ -157,28 +168,46 @@ export async function chargeAdvertiserSpend(input: {
         return { chargedCents: 0, reason: "budget_exhausted" as const };
       }
 
-      const team = await tx.team.findUnique({
-        where: { id: input.advertiserTeamId },
-        select: { adWalletBalanceCents: true },
-      });
-      if (!team || team.adWalletBalanceCents < charge) {
-        await pauseCampaignTx(tx, input.campaignId, "insufficient_wallet");
-        return { chargedCents: 0, reason: "insufficient_wallet" as const };
+      let balanceAfter = 0;
+      if (prepaid) {
+        // Budget already reserved on submit — track usage only, do not debit wallet again.
+        const team = await tx.team.findUnique({
+          where: { id: input.advertiserTeamId },
+          select: { adWalletBalanceCents: true },
+        });
+        balanceAfter = team?.adWalletBalanceCents ?? 0;
+        await tx.adCampaign.update({
+          where: { id: input.campaignId },
+          data: {
+            lifetimeSpendCents: { increment: charge },
+            paymentStatus: "funded",
+          },
+        });
+      } else {
+        const team = await tx.team.findUnique({
+          where: { id: input.advertiserTeamId },
+          select: { adWalletBalanceCents: true },
+        });
+        if (!team || team.adWalletBalanceCents < charge) {
+          await pauseCampaignTx(tx, input.campaignId, "insufficient_wallet");
+          return { chargedCents: 0, reason: "insufficient_wallet" as const };
+        }
+
+        const updated = await tx.team.update({
+          where: { id: input.advertiserTeamId },
+          data: { adWalletBalanceCents: { decrement: charge } },
+          select: { adWalletBalanceCents: true },
+        });
+        balanceAfter = updated.adWalletBalanceCents;
+
+        await tx.adCampaign.update({
+          where: { id: input.campaignId },
+          data: {
+            lifetimeSpendCents: { increment: charge },
+            paymentStatus: "funded",
+          },
+        });
       }
-
-      const updated = await tx.team.update({
-        where: { id: input.advertiserTeamId },
-        data: { adWalletBalanceCents: { decrement: charge } },
-        select: { adWalletBalanceCents: true },
-      });
-
-      await tx.adCampaign.update({
-        where: { id: input.campaignId },
-        data: {
-          lifetimeSpendCents: { increment: charge },
-          paymentStatus: "funded",
-        },
-      });
 
       await tx.walletTransaction.create({
         data: {
@@ -187,12 +216,13 @@ export async function chargeAdvertiserSpend(input: {
           type: "AD_SPEND",
           status: "COMPLETED",
           amountCents: charge,
-          balanceAfterCents: updated.adWalletBalanceCents,
-          description: input.description,
+          balanceAfterCents: balanceAfter,
+          description: prepaid ? `${input.description} (prepaid budget)` : input.description,
           metadata: {
             kind: input.kind,
             adId: input.adId,
             requestedCents: input.amountCents,
+            prepaid,
             ...(input.metadata && typeof input.metadata === "object"
               ? (input.metadata as object)
               : {}),
@@ -209,26 +239,32 @@ export async function chargeAdvertiserSpend(input: {
           budgetType: true,
           budgetTypeEnum: true,
           platformBudgetUsd: true,
+          paymentStatus: true,
         },
       });
       if (afterCampaign) {
         const afterCap = campaignBudgetCapCents(afterCampaign);
         if (afterCampaign.lifetimeSpendCents >= afterCap) {
           await pauseCampaignTx(tx, input.campaignId, "budget_exhausted");
-        } else if (updated.adWalletBalanceCents <= 0) {
+        } else if (!prepaid && balanceAfter <= 0) {
           await pauseCampaignTx(tx, input.campaignId, "insufficient_wallet");
         } else if (isDailyBudget(afterCampaign)) {
           const since = startOfUtcDay();
-          const todayAgg = await tx.walletTransaction.aggregate({
+          const todayRows = await tx.walletTransaction.findMany({
             where: {
               campaignId: input.campaignId,
               type: "AD_SPEND",
               status: "COMPLETED",
               createdAt: { gte: since },
             },
-            _sum: { amountCents: true },
+            select: { amountCents: true, metadata: true },
           });
-          if (Math.abs(todayAgg._sum.amountCents ?? 0) >= afterCap) {
+          const todaySpend = todayRows.reduce((sum, row) => {
+            const meta = row.metadata as { kind?: string } | null;
+            if (meta?.kind === "CAMPAIGN_RESERVE") return sum;
+            return sum + Math.abs(row.amountCents);
+          }, 0);
+          if (todaySpend >= afterCap) {
             await pauseCampaignTx(tx, input.campaignId, "daily_budget_exhausted");
           }
         }

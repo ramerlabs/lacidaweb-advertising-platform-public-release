@@ -292,8 +292,9 @@ export default function AdminAdsSettingsPage() {
         <CardHeader>
           <CardTitle>Landing page social proof</CardTitle>
           <CardDescription>
-            Homepage shows Impressions and Clicks. Real ad events are always included. Fake growth
-            keeps the counters moving before you have traffic — turn it off anytime.
+            Homepage shows network Impressions and Clicks from ads served on publisher sites (valid
+            AdEvents across all campaigns) — not visits to this landing page. Optional fake growth
+            can pad the counters before you have real traffic; turn it off anytime.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -305,7 +306,7 @@ export default function AdminAdsSettingsPage() {
                 setSettings({ ...settings, landingFakeStatsEnabled: e.target.checked })
               }
             />
-            Enable fake impressions & clicks on the homepage
+            Enable fake growth on top of real network ad events
           </label>
           {settings.landingFakeStatsEnabled ? (
             <div className="grid gap-4 sm:grid-cols-2">
@@ -374,8 +375,8 @@ export default function AdminAdsSettingsPage() {
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Fake data is off — homepage shows only real valid impressions and clicks from the
-              network.
+              Fake data is off — homepage shows only real valid impressions and clicks from ads
+              served across all campaigns on publisher sites.
             </p>
           )}
         </CardContent>

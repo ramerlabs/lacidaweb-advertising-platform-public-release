@@ -251,7 +251,7 @@ export default function BillingPage() {
     paymentsRef.current?.scrollIntoView({ behavior: "smooth" });
   }
 
-  async function buyAiTokens(method: ClientPaymentMethod) {
+  async function buyAiTokens(method: ClientPaymentMethod | "WALLET") {
     if (!teamId) return;
     setBuyingTokens(true);
     setStatus("");
@@ -264,6 +264,15 @@ export default function BillingPage() {
     setBuyingTokens(false);
     if (!res.ok) {
       setStatus(data.error || "Could not start AI token purchase");
+      return;
+    }
+    if (method === "WALLET" || data.paidWithWallet) {
+      setPendingManual(null);
+      setPendingBank(null);
+      if (typeof data.aiTokenBalance === "number") setTokenBalance(data.aiTokenBalance);
+      if (typeof data.walletBalanceUsd === "string") setWalletBalanceUsd(data.walletBalanceUsd);
+      setStatus(data.message || "AI tokens purchased with wallet balance.");
+      await load();
       return;
     }
     const granted = data.aiTokensGranted || tokensPerPack;
@@ -447,8 +456,15 @@ export default function BillingPage() {
               <strong>{tokensPerPack.toLocaleString()}</strong> tokens.
             </p>
             <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                disabled={buyingTokens || Number(walletBalanceUsd) < aiPackUsd}
+                onClick={() => buyAiTokens("WALLET")}
+              >
+                {buyingTokens ? "Buying..." : `Pay with wallet ($${aiPackUsd.toFixed(2)})`}
+              </Button>
               {enabledMethods.USDT ? (
-                <Button size="sm" disabled={buyingTokens} onClick={() => buyAiTokens("USDT")}>
+                <Button size="sm" variant="secondary" disabled={buyingTokens} onClick={() => buyAiTokens("USDT")}>
                   Buy with USDT
                 </Button>
               ) : null}

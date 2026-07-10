@@ -1,4 +1,4 @@
-/** Landing hero impressions / clicks (real AdEvents + optional synthetic growth). */
+/** Landing hero impressions / clicks from network AdEvents (publisher embeds), plus optional synthetic growth. */
 
 export type LandingFakeStatsConfig = {
   enabled: boolean;

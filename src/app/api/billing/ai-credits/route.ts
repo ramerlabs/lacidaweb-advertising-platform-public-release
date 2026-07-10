@@ -9,10 +9,12 @@ import { getAiSettings } from "@/lib/ai-settings";
 import { formatTokenCount } from "@/lib/ai-pricing";
 import { getUsdtWalletAddress, usdToUsdt, usdtPaymentInstructions } from "@/services/crypto-verify";
 import { notifyAdminPaymentCreated } from "@/services/admin-notify";
+import { buyAiTokensWithWallet } from "@/services/wallet-ledger";
+import { formatAdWalletUsd } from "@/lib/ad-wallet";
 
 const schema = z.object({
   teamId: z.string().min(1),
-  method: z.enum(["USDT", "PAYPAL", "GCASH", "US_BANK"]),
+  method: z.enum(["USDT", "PAYPAL", "GCASH", "US_BANK", "WALLET"]),
   proofUrl: z.string().url().optional(),
 });
 
@@ -21,12 +23,31 @@ export async function POST(req: Request) {
     const session = await requireSession();
     const body = schema.parse(await req.json());
     await requireTeamAccess(body.teamId, session.user.id, ["OWNER", "ADMIN"]);
-    await assertPaymentMethodEnabled(body.method as PaymentMethod);
 
     const aiSettings = await getAiSettings();
     if (!aiSettings.aiEnabled) {
       return NextResponse.json({ error: "AI tokens are not available" }, { status: 400 });
     }
+
+    if (body.method === "WALLET") {
+      const result = await buyAiTokensWithWallet({
+        teamId: body.teamId,
+        userId: session.user.id,
+      });
+      return NextResponse.json({
+        paidWithWallet: true,
+        aiTokensGranted: result.tokensGranted,
+        tokensLabel: formatTokenCount(result.tokensGranted),
+        chargedCents: result.chargedCents,
+        chargedUsd: formatAdWalletUsd(result.chargedCents),
+        walletBalanceCents: result.walletBalanceCents,
+        walletBalanceUsd: formatAdWalletUsd(result.walletBalanceCents),
+        aiTokenBalance: result.aiTokenBalance,
+        message: `Purchased ${result.tokensGranted.toLocaleString()} AI tokens using wallet balance.`,
+      });
+    }
+
+    await assertPaymentMethodEnabled(body.method as PaymentMethod);
 
     const amount = Math.round(aiSettings.aiCreditPackUsd);
     const aiTokensGranted = aiSettings.clientPricing.tokensPerPack;

@@ -10,6 +10,7 @@ import type {
 } from "@/types/lacidaweb";
 import type { AdCreativeInput } from "@/types/lacidaweb";
 import { prisma } from "@/lib/prisma";
+import { refundCampaignReserve, reserveCampaignBudget } from "@/services/wallet-ledger";
 
 const OBJECTIVE_TO_GOAL: Record<CampaignObjective, string> = {
   AWARENESS: "awareness",
@@ -182,6 +183,14 @@ export async function createLacidawebCampaign(input: {
       },
     });
 
+    await reserveCampaignBudget({
+      tx,
+      teamId: input.teamId,
+      campaignId: record.id,
+      budgetAmountUsd: input.budgetAmountUsd,
+      userId: input.userId,
+    });
+
     return record;
   });
 
@@ -265,9 +274,19 @@ export async function resumeTeamCampaign(teamId: string, campaignId: string, use
 export async function deleteTeamCampaign(teamId: string, campaignId: string, userId?: string) {
   const campaign = await prisma.adCampaign.findFirst({
     where: { id: campaignId, teamId, adType: "lacidaweb" },
-    select: { id: true, name: true },
+    select: { id: true, name: true, paymentStatus: true },
   });
   if (!campaign) throw new Error("Campaign not found");
+
+  // Refund reserved budget before hard-delete (ledger keeps the REFUND row).
+  if (["reserved", "funded", "paid"].includes(campaign.paymentStatus)) {
+    await refundCampaignReserve({
+      campaignId,
+      teamId,
+      reason: "Campaign deleted",
+      adminUserId: userId,
+    });
+  }
 
   await prisma.$transaction(async (tx) => {
     if (userId) {

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requirePlatformAdmin, requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { deleteTeamCampaign, pauseTeamCampaign, resumeTeamCampaign } from "@/services/campaigns";
+import { refundCampaignReserve } from "@/services/wallet-ledger";
 
 export async function GET() {
   try {
@@ -112,7 +113,22 @@ export async function PATCH(req: Request) {
       }),
     ]);
 
-    return NextResponse.json({ ok: true, lifecycleStatus });
+    let refundCents = 0;
+    if (body.action === "REJECTED") {
+      refundCents = await refundCampaignReserve({
+        campaignId,
+        teamId: campaign.teamId,
+        reason: body.notes || "Rejected by admin",
+        adminUserId: session.user.id,
+      });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      lifecycleStatus,
+      refundCents,
+      refundUsd: (refundCents / 100).toFixed(2),
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.flatten() }, { status: 400 });

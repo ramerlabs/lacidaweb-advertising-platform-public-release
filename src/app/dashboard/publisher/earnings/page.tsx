@@ -40,6 +40,15 @@ type PayoutRow = {
   paidAt: string | null;
 };
 
+type LedgerTx = {
+  id: string;
+  type: string;
+  status: string;
+  amountUsd: string;
+  description: string | null;
+  createdAt: string;
+};
+
 function money(cents: number) {
   return `$${(cents / 100).toFixed(2)}`;
 }
@@ -56,6 +65,7 @@ export default function PublisherEarningsPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [methods, setMethods] = useState<MethodOption[]>([]);
   const [payouts, setPayouts] = useState<PayoutRow[]>([]);
+  const [ledger, setLedger] = useState<LedgerTx[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -73,8 +83,12 @@ export default function PublisherEarningsPage() {
   async function load() {
     if (!teamId) return;
     setLoading(true);
-    const res = await fetch(`/api/publisher/earnings?teamId=${encodeURIComponent(teamId)}`);
+    const [res, ledgerRes] = await Promise.all([
+      fetch(`/api/publisher/earnings?teamId=${encodeURIComponent(teamId)}`),
+      fetch(`/api/billing/wallet-transactions?teamId=${encodeURIComponent(teamId)}`),
+    ]);
     const data = await res.json();
+    const ledgerData = await ledgerRes.json();
     setLoading(false);
     if (!res.ok) {
       setStatus(data.error || "Failed to load earnings");
@@ -83,6 +97,7 @@ export default function PublisherEarningsPage() {
     setSummary(data.summary);
     setMethods(data.methods || []);
     setPayouts(data.payouts || []);
+    if (ledgerRes.ok) setLedger(ledgerData.transactions || []);
     if (!method && data.methods?.[0]) setMethod(data.methods[0].method);
     if (!amountUsd && data.summary) {
       setAmountUsd((data.summary.rates.minPayoutCents / 100).toFixed(2));
@@ -309,6 +324,42 @@ export default function PublisherEarningsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Transaction log</CardTitle>
+          <CardDescription>
+            Earnings credits and payouts. Entries older than 7 days are removed automatically.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {ledger.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No transactions yet.</p>
+          ) : (
+            <ul className="space-y-3 text-sm">
+              {ledger.map((tx) => (
+                <li
+                  key={tx.id}
+                  className="flex items-start justify-between gap-3 border-b pb-2 last:border-0"
+                >
+                  <span>
+                    <span className="font-medium">{tx.type.replace(/_/g, " ")}</span>
+                    <span className="mt-0.5 block text-muted-foreground">
+                      {tx.description || tx.status}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-right tabular-nums text-muted-foreground">
+                    ${tx.amountUsd}
+                    <span className="mt-0.5 block text-xs">
+                      {new Date(tx.createdAt).toLocaleString()}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       {status ? <p className="text-sm text-muted-foreground">{status}</p> : null}
     </div>

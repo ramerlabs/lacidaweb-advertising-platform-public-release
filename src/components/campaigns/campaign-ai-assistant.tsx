@@ -9,6 +9,7 @@ import { formatTokenCount } from "@/lib/ai-pricing";
 import { toClientFacingMessage } from "@/lib/client-errors";
 import { useTeam } from "@/components/dashboard/team-provider";
 import { cn } from "@/lib/utils";
+import { BusinessProfileGate } from "@/components/campaigns/business-profile-gate";
 
 type AiStatus = {
   aiEnabled: boolean;
@@ -25,10 +26,10 @@ type Props = {
   placeholder?: string;
   context?: Record<string, unknown>;
   onApply: (suggestion: Record<string, unknown>) => void;
-  /** When true, also offer Generate image after creative text (uses image tokens). */
   allowImage?: boolean;
   onImageGenerated?: (imageUrl: string) => void;
   className?: string;
+  requireBusinessProfile?: boolean;
 };
 
 export function CampaignAiAssistant({
@@ -40,6 +41,7 @@ export function CampaignAiAssistant({
   allowImage,
   onImageGenerated,
   className,
+  requireBusinessProfile = step === "creative",
 }: Props) {
   const { teamId } = useTeam();
   const [status, setStatus] = useState<AiStatus | null>(null);
@@ -48,6 +50,7 @@ export function CampaignAiAssistant({
   const [imageLoading, setImageLoading] = useState(false);
   const [error, setError] = useState("");
   const [lastImagePrompt, setLastImagePrompt] = useState("");
+  const [businessReady, setBusinessReady] = useState(!requireBusinessProfile);
 
   const refresh = useCallback(async () => {
     if (!teamId) return;
@@ -72,11 +75,16 @@ export function CampaignAiAssistant({
 
   const noTokens = (status?.tokenBalance ?? 0) <= 0;
   const platformOff = status != null && !status.aiEnabled;
+  const blockedByBusiness = requireBusinessProfile && !businessReady;
 
   async function runAssist() {
     if (!teamId) return;
+    if (blockedByBusiness) {
+      setError("Save your business details first so AI can write on-brand ads.");
+      return;
+    }
     if (noTokens) {
-      setError("No AI tokens left. Buy a pack or ask an admin to grant tokens.");
+      setError("No AI tokens left. Buy a pack with your wallet or another payment method.");
       return;
     }
     setLoading(true);
@@ -113,6 +121,10 @@ export function CampaignAiAssistant({
 
   async function runImage() {
     if (!teamId || !onImageGenerated) return;
+    if (blockedByBusiness) {
+      setError("Save your business details first so AI can generate on-brand images.");
+      return;
+    }
     if (noTokens) {
       setError("No AI tokens left for image generation.");
       return;
@@ -170,6 +182,12 @@ export function CampaignAiAssistant({
         </div>
       </div>
 
+      {requireBusinessProfile ? (
+        <div className="mt-3">
+          <BusinessProfileGate compact onReady={() => setBusinessReady(true)} />
+        </div>
+      ) : null}
+
       {platformOff ? (
         <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">
           AI is disabled by the platform admin. Ask them to enable it under Admin → AI & tokens.
@@ -179,7 +197,7 @@ export function CampaignAiAssistant({
       {noTokens && !platformOff ? (
         <div className="mt-3 space-y-2 text-sm">
           <p className="text-amber-700 dark:text-amber-300">
-            You have no AI tokens. Buy a pack to use the assistant.
+            You have no AI tokens. Buy a pack with your wallet balance or another payment method.
           </p>
           <Button asChild size="sm" variant="outline">
             <Link href="/dashboard/billing">Buy AI tokens</Link>
@@ -187,7 +205,7 @@ export function CampaignAiAssistant({
         </div>
       ) : null}
 
-      {!platformOff && !noTokens ? (
+      {!platformOff && !noTokens && !blockedByBusiness ? (
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
           <Input
             value={prompt}
