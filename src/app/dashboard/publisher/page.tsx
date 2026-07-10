@@ -48,7 +48,7 @@ export default function PublisherDashboardPage() {
           </p>
           <h1 className="text-3xl font-bold tracking-tight">Monetize your website</h1>
           <p className="text-muted-foreground">
-            Register your site, copy the embed code, and display ads from lacidaweb advertisers
+            Register your site, choose ad types, and copy each unit&apos;s embed code
           </p>
         </div>
         <Button asChild className="bg-emerald-600 hover:bg-emerald-500">
