@@ -558,6 +558,9 @@ export default function BillingPage() {
                       <p className="text-muted-foreground">
                         {new Date(payment.createdAt).toLocaleString()} · {payment.status}
                       </p>
+                      <p className="mt-1 font-mono text-xs text-muted-foreground">
+                        Payment ID: {payment.id}
+                      </p>
                     </div>
                     {payment.status === "PENDING" && payment.method !== "USDT" ? (
                       <label className="text-xs">

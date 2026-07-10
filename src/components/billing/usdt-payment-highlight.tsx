@@ -17,9 +17,9 @@ export function UsdtPaymentHighlight({
   paymentId,
   onVerifyClick,
 }: UsdtPaymentHighlightProps) {
-  const [copied, setCopied] = useState<"amount" | "wallet" | null>(null);
+  const [copied, setCopied] = useState<"amount" | "wallet" | "paymentId" | null>(null);
 
-  async function copy(value: string, field: "amount" | "wallet") {
+  async function copy(value: string, field: "amount" | "wallet" | "paymentId") {
     await navigator.clipboard.writeText(value);
     setCopied(field);
     setTimeout(() => setCopied(null), 2000);
@@ -33,6 +33,29 @@ export function UsdtPaymentHighlight({
       </p>
 
       <div className="mt-4 space-y-3">
+        {paymentId ? (
+          <div className="rounded-lg border border-primary/20 bg-white p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Payment ID
+            </p>
+            <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="break-all font-mono text-sm font-semibold text-slate-900">{paymentId}</p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => copy(paymentId, "paymentId")}
+              >
+                {copied === "paymentId" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {copied === "paymentId" ? "Copied" : "Copy ID"}
+              </Button>
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Keep this ID so you know which payment you are funding.
+            </p>
+          </div>
+        ) : null}
+
         <div className="rounded-lg border border-primary/20 bg-white p-3">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Amount</p>
           <div className="mt-1 flex items-center justify-between gap-2">
@@ -73,8 +96,6 @@ export function UsdtPaymentHighlight({
         <Button type="button" className="mt-3" variant="secondary" size="sm" onClick={onVerifyClick}>
           Scroll to verify payment
         </Button>
-      ) : paymentId ? (
-        <p className="mt-2 text-xs text-muted-foreground">Payment ID: {paymentId}</p>
       ) : null}
     </div>
   );
