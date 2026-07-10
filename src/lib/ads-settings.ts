@@ -55,7 +55,7 @@ const DEFAULTS: AdsSettingsData = {
   publisherAdServingMode: "ROTATE_ALL",
   publisherAdRotateSeconds: 8,
   publisherAutoAdsEnabled: true,
-  requireDomainApproval: false,
+  requireDomainApproval: true,
   allowedAdDomains: "",
   publisherCpmCents: 100,
   publisherCpcCents: 10,

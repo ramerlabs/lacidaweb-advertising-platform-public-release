@@ -37,7 +37,7 @@ function mapSettings(data: Partial<AdsSettings> & Record<string, unknown>): AdsS
       data.publisherAdServingMode === "PERSONALIZED" ? "PERSONALIZED" : "ROTATE_ALL",
     publisherAdRotateSeconds: Number(data.publisherAdRotateSeconds ?? 8),
     publisherAutoAdsEnabled: Boolean(data.publisherAutoAdsEnabled ?? true),
-    requireDomainApproval: Boolean(data.requireDomainApproval ?? false),
+    requireDomainApproval: Boolean(data.requireDomainApproval ?? true),
     allowedAdDomains: String(data.allowedAdDomains || ""),
     publisherCpmCents: Number(data.publisherCpmCents ?? 100),
     publisherCpcCents: Number(data.publisherCpcCents ?? 10),
