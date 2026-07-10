@@ -135,7 +135,7 @@ export default function PublisherDashboardPage() {
           href="/dashboard/publisher/sites"
           icon={Code2}
           title="Embed code"
-          description="Copy the script tag for your site"
+          description="Copy HTML or WordPress PHP per ad type"
         />
         <QuickAction
           href="/dashboard/publisher/performance"
