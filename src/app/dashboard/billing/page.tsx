@@ -110,6 +110,8 @@ export default function BillingPage() {
     tokensGranted?: number;
     instructions: string;
   } | null>(null);
+  /** Only the method the user just chose (or latest pending) should show instructions. */
+  const [activeCheckoutMethod, setActiveCheckoutMethod] = useState<ClientPaymentMethod | null>(null);
   const [aiUsage, setAiUsage] = useState<AiUsage[]>([]);
   const [uploadingProofId, setUploadingProofId] = useState<string | null>(null);
   const [walletBalanceUsd, setWalletBalanceUsd] = useState("0.00");
@@ -118,11 +120,40 @@ export default function BillingPage() {
   const [toppingUp, setToppingUp] = useState(false);
   const paymentsRef = useRef<HTMLDivElement>(null);
 
-  const pendingUsdtPayment = payments.find((p) => p.method === "USDT" && p.status === "PENDING");
+  const pendingUsdtPayment = useMemo(() => {
+    const pending = payments
+      .filter((p) => p.method === "USDT" && p.status === "PENDING")
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return pending[0] || null;
+  }, [payments]);
+
   const amountUsd = useMemo(() => {
     const n = Number(topUpAmount);
     return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
   }, [topUpAmount]);
+
+  // Prefer the method the user selected; otherwise show only the latest pending payment's method.
+  const checkoutMethod = useMemo(() => {
+    if (activeCheckoutMethod) return activeCheckoutMethod;
+    const latestPending = [...payments]
+      .filter((p) => p.status === "PENDING")
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+    if (!latestPending) return null;
+    if (
+      latestPending.method === "USDT" ||
+      latestPending.method === "PAYPAL" ||
+      latestPending.method === "GCASH" ||
+      latestPending.method === "US_BANK"
+    ) {
+      return latestPending.method as ClientPaymentMethod;
+    }
+    return null;
+  }, [activeCheckoutMethod, payments]);
+
+  const showUsdtCheckout = checkoutMethod === "USDT" && Boolean(pendingUsdtPayment && usdtWallet);
+  const showManualCheckout =
+    (checkoutMethod === "PAYPAL" || checkoutMethod === "GCASH") && Boolean(pendingManual);
+  const showBankCheckout = checkoutMethod === "US_BANK" && Boolean(pendingBank && usBankDetails && teamId);
 
   async function load() {
     if (!teamId) return;
@@ -167,6 +198,43 @@ export default function BillingPage() {
           return !Number.isFinite(current) || current < min ? String(min) : prev;
         });
       }
+    }
+
+    // Restore checkout panel from the latest pending payment (one method only).
+    const latestPending = [...(payData.payments || [])]
+      .filter((p: Payment) => p.status === "PENDING")
+      .sort(
+        (a: Payment, b: Payment) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      )[0] as Payment | undefined;
+
+    if (!latestPending) {
+      setPendingManual(null);
+      setPendingBank(null);
+      setActiveCheckoutMethod(null);
+    } else if (latestPending.method === "USDT") {
+      setPendingManual(null);
+      setPendingBank(null);
+      setActiveCheckoutMethod((prev) => prev ?? "USDT");
+    } else if (latestPending.method === "PAYPAL" || latestPending.method === "GCASH") {
+      const method = latestPending.method;
+      setPendingBank(null);
+      setPendingManual({
+        method,
+        amountUsd: latestPending.amount,
+        tokensGranted: latestPending.aiTokensGranted || undefined,
+        instructions: latestPending.notes || "",
+      });
+      setActiveCheckoutMethod((prev) => prev ?? method);
+    } else if (latestPending.method === "US_BANK") {
+      setPendingManual(null);
+      setPendingBank({
+        paymentId: latestPending.id,
+        amountUsd: latestPending.amount,
+        tokensGranted: latestPending.aiTokensGranted || undefined,
+        instructions: latestPending.notes || "",
+      });
+      setActiveCheckoutMethod((prev) => prev ?? "US_BANK");
     }
   }
 
@@ -228,9 +296,11 @@ export default function BillingPage() {
     if (method === "USDT") {
       setPendingManual(null);
       setPendingBank(null);
+      setActiveCheckoutMethod("USDT");
       setStatus(`Pay ${data.usdtAmount} USDT — see instructions below. Wallet credits after verification.`);
     } else if (method === "US_BANK") {
       setPendingManual(null);
+      setActiveCheckoutMethod("US_BANK");
       setPendingBank({
         paymentId: data.payment?.id,
         amountUsd: data.adWalletTopUpUsd || amountUsd,
@@ -240,6 +310,7 @@ export default function BillingPage() {
       setStatus("");
     } else {
       setPendingBank(null);
+      setActiveCheckoutMethod(method);
       setPendingManual({
         method,
         amountUsd: data.adWalletTopUpUsd || amountUsd,
@@ -269,6 +340,7 @@ export default function BillingPage() {
     if (method === "WALLET" || data.paidWithWallet) {
       setPendingManual(null);
       setPendingBank(null);
+      setActiveCheckoutMethod(null);
       if (typeof data.aiTokenBalance === "number") setTokenBalance(data.aiTokenBalance);
       if (typeof data.walletBalanceUsd === "string") setWalletBalanceUsd(data.walletBalanceUsd);
       setStatus(data.message || "AI tokens purchased with wallet balance.");
@@ -279,11 +351,13 @@ export default function BillingPage() {
     if (method === "USDT") {
       setPendingManual(null);
       setPendingBank(null);
+      setActiveCheckoutMethod("USDT");
       setStatus(
         `Pay ${data.usdtAmount} USDT — see below. You will receive ${granted.toLocaleString()} tokens after verification.`,
       );
     } else if (method === "US_BANK") {
       setPendingManual(null);
+      setActiveCheckoutMethod("US_BANK");
       setPendingBank({
         paymentId: data.payment?.id,
         amountUsd: data.payment?.amount || aiPackUsd,
@@ -293,6 +367,7 @@ export default function BillingPage() {
       setStatus("");
     } else {
       setPendingBank(null);
+      setActiveCheckoutMethod(method);
       setPendingManual({
         method,
         amountUsd: data.payment?.amount || aiPackUsd,
@@ -503,7 +578,7 @@ export default function BillingPage() {
         </Card>
       ) : null}
 
-      {pendingManual ? (
+      {showManualCheckout && pendingManual ? (
         <ManualPaymentHighlight
           method={pendingManual.method}
           amountUsd={pendingManual.amountUsd}
@@ -512,7 +587,7 @@ export default function BillingPage() {
         />
       ) : null}
 
-      {pendingBank && usBankDetails && teamId ? (
+      {showBankCheckout && pendingBank && usBankDetails && teamId ? (
         <BankPaymentHighlight
           paymentId={pendingBank.paymentId}
           teamId={teamId}
@@ -524,7 +599,7 @@ export default function BillingPage() {
         />
       ) : null}
 
-      {pendingUsdtPayment && usdtWallet ? (
+      {showUsdtCheckout && pendingUsdtPayment && usdtWallet ? (
         <UsdtPaymentHighlight
           usdtAmount={pendingUsdtPayment.usdtAmount || pendingUsdtPayment.amount}
           walletAddress={usdtWallet}
