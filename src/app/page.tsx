@@ -18,7 +18,8 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { FaqSection } from "@/components/landing/faq-section";
 import { LandingAdStats } from "@/components/landing/landing-ad-stats";
 import { LACIDAWEB_FAQS } from "@/lib/lacidaweb-faqs";
-import { getLandingAdStatsDisplay } from "@/lib/ads-settings";
+import { getAdsSettings, getLandingAdStatsDisplay } from "@/lib/ads-settings";
+import { formatAdWalletUsd } from "@/lib/ad-wallet";
 
 const FEATURES = [
   {
@@ -66,8 +67,17 @@ const branding = {
 };
 
 export default async function HomePage() {
-  const landingStats = await getLandingAdStatsDisplay();
+  const [landingStats, adsSettings] = await Promise.all([
+    getLandingAdStatsDisplay(),
+    getAdsSettings(),
+  ]);
   const serverTime = new Date().toISOString();
+  const publisherSharePercent = Math.max(
+    0,
+    100 - Math.min(99, Math.max(0, adsSettings.adsProfitMarginPercent)),
+  );
+  const publisherCpmUsd = formatAdWalletUsd(adsSettings.publisherCpmCents);
+  const publisherCpcUsd = formatAdWalletUsd(adsSettings.publisherCpcCents);
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -80,6 +90,9 @@ export default async function HomePage() {
             </a>
             <a href="#workflow" className="transition hover:text-white">
               Workflow
+            </a>
+            <a href="#publishers" className="transition hover:text-white">
+              Publishers
             </a>
             <a href="#faq" className="transition hover:text-white">
               FAQ
@@ -242,6 +255,57 @@ export default async function HomePage() {
                 ))}
               </ul>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="publishers" className="border-t border-zinc-800 py-24">
+        <div className="mx-auto max-w-6xl px-6">
+          <p className="text-sm font-semibold uppercase tracking-widest text-emerald-400">
+            For publishers
+          </p>
+          <h2 className="mt-2 max-w-xl text-3xl font-bold tracking-tight md:text-4xl">
+            Monetize your site with transparent rates
+          </h2>
+          <p className="mt-4 max-w-2xl text-zinc-400">
+            Embed lacidaweb ads and earn on every valid view and click. Publishers receive{" "}
+            <span className="font-medium text-emerald-400">{publisherSharePercent}%</span> of
+            network ad spend — paid at the rates below.
+          </p>
+
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6">
+              <p className="text-sm text-zinc-400">Your share of ad spend</p>
+              <p className="mt-2 text-4xl font-bold tabular-nums text-emerald-400">
+                {publisherSharePercent}%
+              </p>
+              <p className="mt-2 text-sm text-zinc-500">
+                Credited to your publisher balance as traffic converts.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6">
+              <p className="text-sm text-zinc-400">CPM — per 1,000 views</p>
+              <p className="mt-2 text-4xl font-bold tabular-nums text-white">${publisherCpmUsd}</p>
+              <p className="mt-2 text-sm text-zinc-500">
+                Paid in batches for every 1,000 valid impressions.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 sm:col-span-2 lg:col-span-1">
+              <p className="text-sm text-zinc-400">CPC — per valid click</p>
+              <p className="mt-2 text-4xl font-bold tabular-nums text-white">${publisherCpcUsd}</p>
+              <p className="mt-2 text-sm text-zinc-500">
+                Credited immediately on each valid click (bots filtered).
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-10">
+            <Button asChild size="lg" className="h-12 bg-emerald-600 px-8 hover:bg-emerald-500">
+              <Link href="/register/publisher">
+                Become a publisher
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
           </div>
         </div>
       </section>

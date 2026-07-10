@@ -32,10 +32,16 @@ const LACIDAWEB_FAQS = [
     sortOrder: 4,
   },
   {
+    question: "How do publishers earn?",
+    answer:
+      "Publishers embed lacidaweb ads on their sites and earn on valid impressions (CPM) and clicks (CPC). Current rates and your share of network ad spend are shown on the homepage Publishers section. Fraud filters discard bots and duplicates before earnings are credited.",
+    sortOrder: 5,
+  },
+  {
     question: "How do I get support?",
     answer:
       "Open a support ticket from your dashboard under Support. Our team will respond based on your request priority.",
-    sortOrder: 5,
+    sortOrder: 6,
   },
 ];
 
