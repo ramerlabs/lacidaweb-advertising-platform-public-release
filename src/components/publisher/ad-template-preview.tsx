@@ -24,37 +24,44 @@ export function AdTemplatePreview({
   }
 
   if (format === "TEXT_BOX" || format === "TEXT") {
-    const samples = [sample, sample, sample];
+    const headlines = [
+      sample.headline,
+      "Grow with lacidaweb",
+      "Advertise with us",
+      "Reach more customers",
+    ];
+    const bodies = [
+      sample.primaryText,
+      "Self-serve campaigns with wallet billing and fast review.",
+      "Reach customers across the network. Visit lacidaweb.com",
+      "Compact sponsored units that fit neatly in your content.",
+    ];
     return (
       <div className="w-full space-y-2">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {samples.map((item, i) => (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {headlines.map((headline, i) => (
             <div
               key={i}
-              className="rounded-lg border border-emerald-500/30 bg-zinc-900/80 p-4"
+              className="rounded-md border border-emerald-500/30 bg-zinc-900/80 p-2.5"
             >
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              <p className="text-[8px] font-semibold uppercase tracking-wider text-zinc-500">
                 Sponsored
               </p>
-              <p className="mt-2 font-semibold text-zinc-100">
-                {i === 0 ? item.headline : i === 1 ? "Grow with lacidaweb" : "Advertise with us"}
+              <p className="mt-1 text-xs font-semibold leading-snug text-zinc-100 line-clamp-2">
+                {headline}
               </p>
-              {item.primaryText ? (
-                <p className="mt-1 text-sm text-zinc-400 line-clamp-3">
-                  {i === 0
-                    ? item.primaryText
-                    : i === 1
-                      ? "Self-serve campaigns with wallet billing and fast review."
-                      : "Reach customers across the network. Visit lacidaweb.com"}
+              {bodies[i] ? (
+                <p className="mt-1 text-[10px] leading-snug text-zinc-400 line-clamp-2">
+                  {bodies[i]}
                 </p>
               ) : null}
-              <span className="mt-3 inline-block text-sm font-medium text-emerald-400">
-                {item.ctaLabel} →
+              <span className="mt-2 inline-block text-[10px] font-medium text-emerald-400">
+                {sample.ctaLabel} →
               </span>
             </div>
           ))}
         </div>
-        <p className="text-[10px] text-zinc-500">3 text box ads · Ads by lacidaweb</p>
+        <p className="text-[10px] text-zinc-500">4 compact text box ads · Ads by lacidaweb</p>
       </div>
     );
   }

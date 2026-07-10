@@ -207,9 +207,9 @@ export async function serveAdsForPlacement(
     placement.format === "TEXT" ||
     placement.autoSlot === "infeed";
 
-  // Text box template: always show 3 creatives side-by-side (pad with house promo).
+  // Text box template: always show 4 compact creatives side-by-side (pad with house promo).
   if (isTextBox) {
-    const TEXT_BOX_COUNT = 3;
+    const TEXT_BOX_COUNT = 4;
     if (!eligible.length) {
       const houses = await Promise.all(
         Array.from({ length: TEXT_BOX_COUNT }, () =>

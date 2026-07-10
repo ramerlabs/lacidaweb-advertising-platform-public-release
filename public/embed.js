@@ -21,17 +21,17 @@
     return (
       '<a href="' +
       esc(withVisitor(ad.clickUrl, visitor)) +
-      '" target="_blank" rel="noopener sponsored" style="display:block;flex:1 1 220px;max-width:360px;min-width:200px;padding:16px;border:1px solid #d4d4d8;border-radius:10px;text-decoration:none;font-family:system-ui,sans-serif;background:#fafafa;box-sizing:border-box;">' +
-      '<span style="font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:#a1a1aa;">Sponsored</span>' +
-      '<div style="margin-top:8px;font-weight:700;font-size:15px;color:#18181b;">' +
+      '" target="_blank" rel="noopener sponsored" style="display:block;flex:1 1 140px;max-width:200px;min-width:130px;padding:10px 12px;border:1px solid #e4e4e7;border-radius:8px;text-decoration:none;font-family:system-ui,sans-serif;background:#fafafa;box-sizing:border-box;">' +
+      '<span style="font-size:8px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#a1a1aa;">Sponsored</span>' +
+      '<div style="margin-top:4px;font-weight:700;font-size:12px;line-height:1.3;color:#18181b;">' +
       esc(ad.headline) +
       "</div>" +
       (ad.primaryText
-        ? '<div style="margin-top:6px;font-size:13px;color:#52525b;line-height:1.45;">' +
-          esc(ad.primaryText).slice(0, 200) +
+        ? '<div style="margin-top:4px;font-size:11px;color:#71717a;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">' +
+          esc(ad.primaryText).slice(0, 90) +
           "</div>"
         : "") +
-      '<span style="display:inline-block;margin-top:12px;font-size:13px;font-weight:600;color:#059669;">' +
+      '<span style="display:inline-block;margin-top:8px;font-size:11px;font-weight:600;color:#059669;">' +
       esc(ad.ctaLabel || "Learn more") +
       " →</span></a>"
     );
@@ -93,16 +93,16 @@
 
   function renderTextBoxRow(target, ads, visitor) {
     var cards = ads
-      .slice(0, 3)
+      .slice(0, 4)
       .map(function (ad) {
         return renderTextBoxCard(ad, visitor);
       })
       .join("");
     target.innerHTML =
-      '<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:stretch;width:100%;">' +
+      '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;width:100%;">' +
       cards +
       "</div>" +
-      '<p style="margin:8px 0 0;font:9px system-ui,sans-serif;color:#a1a1aa;">Ads by lacidaweb</p>';
+      '<p style="margin:6px 0 0;font:8px system-ui,sans-serif;color:#a1a1aa;">Ads by lacidaweb</p>';
   }
 
   function getVisitorId() {
