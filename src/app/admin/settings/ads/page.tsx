@@ -37,7 +37,7 @@ export default function AdminAdsSettingsPage() {
         if (data.settings) {
           setSettings({
             adsEnabled: data.settings.adsEnabled,
-            adsProfitMarginPercent: data.settings.adsProfitMarginPercent ?? 70,
+            adsProfitMarginPercent: data.settings.adsProfitMarginPercent ?? 55,
             publisherAdServingMode: data.settings.publisherAdServingMode || "ROTATE_ALL",
             publisherAdRotateSeconds: data.settings.publisherAdRotateSeconds ?? 8,
             publisherAutoAdsEnabled: data.settings.publisherAutoAdsEnabled ?? true,
@@ -193,9 +193,9 @@ export default function AdminAdsSettingsPage() {
         <CardHeader>
           <CardTitle>Publisher payout rates</CardTitle>
           <CardDescription>
-            Set publisher payout rates, then your profit margin. Default is 70% platform / 30%
-            publisher of every advertiser dollar. Fraud filters discard bots and duplicates before
-            spend or earnings are applied.
+            Set publisher payout rates and your platform profit margin. Default is 55% platform /
+            45% publisher — change the percent anytime below. Fraud filters discard bots and
+            duplicates before spend or earnings are applied.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -232,7 +232,7 @@ export default function AdminAdsSettingsPage() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="margin">Platform profit margin %</Label>
+            <Label htmlFor="margin">Platform profit margin % (editable anytime)</Label>
             <Input
               id="margin"
               type="number"

@@ -32,8 +32,11 @@ export type AdsSettingsData = {
 
 const DEFAULTS: AdsSettingsData = {
   adsEnabled: true,
-  /** Platform keeps this % of advertiser spend; publisher share = 100 − margin. */
-  adsProfitMarginPercent: 70,
+  /**
+   * Platform keeps this % of advertiser spend; publisher share = 100 − margin.
+   * Default 55% balances profit with competitive advertiser CPC/CPM (editable in admin).
+   */
+  adsProfitMarginPercent: 55,
   adWalletTopUpUsd: 25,
   publisherAdServingMode: "ROTATE_ALL",
   publisherAdRotateSeconds: 8,
@@ -67,7 +70,8 @@ export async function getAdsSettings(): Promise<AdsSettingsData> {
   try {
     const row = await prisma.integrationSettings.findUnique({ where: { id: "default" } });
 
-    // Legacy installs stored 0; migrate to the 70% platform / 30% publisher default.
+    // Legacy installs stored 0; apply the competitive 55% default once.
+    // After that, Admin → Publisher ads is the source of truth (any percent you save sticks).
     let margin = row?.adsProfitMarginPercent;
     if (row && (margin == null || margin === 0)) {
       await prisma.integrationSettings.update({

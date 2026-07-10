@@ -116,8 +116,8 @@ export default function AdminOverviewPage() {
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              Profit = advertiser ad spend − publisher earnings. Default split is 70% platform / 30%
-              publisher — adjust under{" "}
+              Profit = advertiser ad spend − publisher earnings. Default is 55% platform / 45%
+              publisher — change anytime under{" "}
               <Link href="/admin/settings/ads" className="underline underline-offset-2">
                 Publisher ads
               </Link>
