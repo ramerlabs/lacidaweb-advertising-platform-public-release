@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePlatformAdmin, requireSession } from "@/lib/auth";
+import { apiErrorResponse } from "@/lib/api-error";
 import {
   activateLicense,
   deactivateLicense,
@@ -10,14 +11,12 @@ import {
 
 export async function GET() {
   try {
-    const session = await requireSession();
-    await requirePlatformAdmin(session.user.id);
+    const session = await requireSession({ allowUnlicensed: true });
+    await requirePlatformAdmin(session.user.id, { allowUnlicensed: true });
     const status = await getLicenseStatus();
     return NextResponse.json({ license: status });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed";
-    const status = message === "UNAUTHORIZED" ? 401 : message === "FORBIDDEN" ? 403 : 400;
-    return NextResponse.json({ error: message }, { status });
+    return apiErrorResponse(error);
   }
 }
 
@@ -28,8 +27,8 @@ const schema = z.object({
 
 export async function POST(req: Request) {
   try {
-    const session = await requireSession();
-    await requirePlatformAdmin(session.user.id);
+    const session = await requireSession({ allowUnlicensed: true });
+    await requirePlatformAdmin(session.user.id, { allowUnlicensed: true });
     const body = schema.parse(await req.json());
 
     let license;
@@ -57,8 +56,6 @@ export async function POST(req: Request) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.flatten() }, { status: 400 });
     }
-    const message = error instanceof Error ? error.message : "Failed";
-    const status = message === "UNAUTHORIZED" ? 401 : message === "FORBIDDEN" ? 403 : 400;
-    return NextResponse.json({ error: message }, { status });
+    return apiErrorResponse(error);
   }
 }

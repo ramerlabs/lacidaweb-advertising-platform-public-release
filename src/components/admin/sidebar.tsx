@@ -50,7 +50,13 @@ type Counts = {
   pendingReview: number;
 };
 
-export function AdminSidebar({ onNavigate }: { onNavigate?: () => void }) {
+export function AdminSidebar({
+  onNavigate,
+  licensed = true,
+}: {
+  onNavigate?: () => void;
+  licensed?: boolean;
+}) {
   const pathname = usePathname();
   const { branding } = useSiteBranding();
   const [counts, setCounts] = useState<Counts>({
@@ -60,6 +66,7 @@ export function AdminSidebar({ onNavigate }: { onNavigate?: () => void }) {
   });
 
   useEffect(() => {
+    if (!licensed) return;
     async function load() {
       const [notifRes, overviewRes] = await Promise.all([
         fetch("/api/admin/notifications/count"),
@@ -76,7 +83,7 @@ export function AdminSidebar({ onNavigate }: { onNavigate?: () => void }) {
     load();
     const interval = setInterval(load, 60_000);
     return () => clearInterval(interval);
-  }, []);
+  }, [licensed]);
 
   function renderLink(link: (typeof platformLinks)[number]) {
     const Icon = link.icon;
@@ -110,6 +117,10 @@ export function AdminSidebar({ onNavigate }: { onNavigate?: () => void }) {
     );
   }
 
+  const visibleSettings = licensed
+    ? settingsLinks
+    : settingsLinks.filter((link) => link.href === "/admin/settings/license");
+
   return (
     <aside className="flex h-full flex-col bg-[hsl(var(--sidebar))] text-[hsl(var(--sidebar-foreground))]">
       <div className="border-b border-zinc-800 px-5 py-5">
@@ -121,13 +132,17 @@ export function AdminSidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <nav className="flex-1 space-y-6 overflow-y-auto p-3">
-        <div className="space-y-1">
-          <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-zinc-600">Platform</p>
-          {platformLinks.map(renderLink)}
-        </div>
+        {licensed ? (
+          <div className="space-y-1">
+            <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-zinc-600">
+              Platform
+            </p>
+            {platformLinks.map(renderLink)}
+          </div>
+        ) : null}
         <div className="space-y-1">
           <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-zinc-600">Settings</p>
-          {settingsLinks.map((link) => {
+          {visibleSettings.map((link) => {
             const Icon = link.icon;
             const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
             return (
@@ -155,30 +170,34 @@ export function AdminSidebar({ onNavigate }: { onNavigate?: () => void }) {
           <span className="text-xs text-zinc-500">Theme</span>
           <ThemeSelect className="w-28" />
         </div>
+        {licensed ? (
+          <>
+            <Button
+              asChild
+              variant="ghost"
+              className="w-full justify-start text-zinc-400 hover:bg-zinc-800 hover:text-white"
+            >
+              <Link href="/dashboard/advertiser" onClick={onNavigate}>
+                <Megaphone className="h-4 w-4" />
+                Advertiser dashboard
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="ghost"
+              className="w-full justify-start text-zinc-400 hover:bg-zinc-800 hover:text-white"
+            >
+              <Link href="/dashboard/publisher" onClick={onNavigate}>
+                <PenSquare className="h-4 w-4" />
+                Publisher dashboard
+              </Link>
+            </Button>
+          </>
+        ) : null}
         <Button
-          asChild
           variant="ghost"
           className="w-full justify-start text-zinc-400 hover:bg-zinc-800 hover:text-white"
-        >
-          <Link href="/dashboard/advertiser" onClick={onNavigate}>
-            <Megaphone className="h-4 w-4" />
-            Advertiser dashboard
-          </Link>
-        </Button>
-        <Button
-          asChild
-          variant="ghost"
-          className="w-full justify-start text-zinc-400 hover:bg-zinc-800 hover:text-white"
-        >
-          <Link href="/dashboard/publisher" onClick={onNavigate}>
-            <PenSquare className="h-4 w-4" />
-            Publisher dashboard
-          </Link>
-        </Button>
-        <Button
-          variant="ghost"
-          className="w-full justify-start text-zinc-400 hover:bg-zinc-800 hover:text-white"
-          onClick={() => signOut({ callbackUrl: "/login" })}
+          onClick={() => signOut({ callbackUrl: "/login/admin" })}
         >
           <LogOut className="h-4 w-4" />
           Sign out

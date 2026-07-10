@@ -2,9 +2,15 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/prisma";
 import { isPlatformAdminEmail } from "@/lib/platform-admin";
+import { requireActiveLicense } from "@/lib/license";
 import type { MembershipRole } from "@prisma/client";
 
-export async function requireSession() {
+type SessionOpts = {
+  /** Allow access before a platform license is activated (admin license UI only). */
+  allowUnlicensed?: boolean;
+};
+
+export async function requireSession(opts?: SessionOpts) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     if (session && "error" in session && session.error === "BANNED") {
@@ -19,6 +25,10 @@ export async function requireSession() {
   });
   if (user?.bannedAt) {
     throw new Error("BANNED");
+  }
+
+  if (!opts?.allowUnlicensed) {
+    await requireActiveLicense();
   }
 
   return session;
@@ -71,7 +81,7 @@ export async function getActiveTeamId(userId: string, preferredTeamId?: string |
 
 export { isPlatformAdminEmail } from "@/lib/platform-admin";
 
-export async function requirePlatformAdmin(userId: string) {
+export async function requirePlatformAdmin(userId: string, opts?: SessionOpts) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { email: true },
@@ -79,6 +89,10 @@ export async function requirePlatformAdmin(userId: string) {
 
   if (!isPlatformAdminEmail(user?.email)) {
     throw new Error("FORBIDDEN");
+  }
+
+  if (!opts?.allowUnlicensed) {
+    await requireActiveLicense();
   }
 
   return user;

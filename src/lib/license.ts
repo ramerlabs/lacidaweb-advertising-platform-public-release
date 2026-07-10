@@ -245,3 +245,27 @@ export async function requireActiveLicense(): Promise<void> {
     throw new Error("LICENSE_REQUIRED");
   }
 }
+
+/** Soft check for layouts (no remote re-validate every request). */
+export async function isPlatformLicensed(): Promise<boolean> {
+  if (process.env.NODE_ENV === "development" && process.env.SKIP_LICENSE_CHECK === "1") {
+    return true;
+  }
+  const status = await getLicenseStatus();
+  if (status.active) return true;
+  // Env key present but not activated yet — try one validate
+  if (process.env.LACIDAWEB_LICENSE_KEY?.trim()) {
+    const validated = await validateLicense(true);
+    return validated.active;
+  }
+  return false;
+}
+
+export function licenseErrorResponse(message = "LICENSE_REQUIRED") {
+  return {
+    error: message,
+    code: "LICENSE_REQUIRED",
+    message:
+      "This lacidaweb deployment is not licensed. An admin must activate a license key first.",
+  };
+}

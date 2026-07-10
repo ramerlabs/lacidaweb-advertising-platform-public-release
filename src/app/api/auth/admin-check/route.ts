@@ -4,7 +4,7 @@ import { isPlatformAdminEmail } from "@/lib/platform-admin";
 
 export async function GET() {
   try {
-    const session = await requireSession();
+    const session = await requireSession({ allowUnlicensed: true });
     const isAdmin = isPlatformAdminEmail(session.user.email);
     return NextResponse.json({ isAdmin });
   } catch (error) {

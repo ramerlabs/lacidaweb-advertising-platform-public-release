@@ -46,7 +46,10 @@ export default function AdminLoginPage() {
 
     const params = new URLSearchParams(window.location.search);
     const callbackUrl = params.get("callbackUrl");
-    window.location.assign(callbackUrl?.startsWith("/admin") ? callbackUrl : "/admin");
+    // Unlicensed installs are redirected to License; prefer that over a locked admin page.
+    window.location.assign(
+      callbackUrl?.startsWith("/admin") ? callbackUrl : "/admin/settings/license",
+    );
   }
 
   return (
@@ -62,12 +65,12 @@ export default function AdminLoginPage() {
 
       <form className="space-y-4" onSubmit={onSubmit}>
         <div className="space-y-2">
-          <Label htmlFor="email">Admin email</Label>
+          <Label htmlFor="email">Admin username</Label>
           <Input
             id="email"
-            type="email"
-            autoComplete="email"
-            placeholder="admin@company.com"
+            type="text"
+            autoComplete="username"
+            placeholder="admin"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required

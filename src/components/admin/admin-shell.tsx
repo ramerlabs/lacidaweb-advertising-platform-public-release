@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { ArrowLeft, Menu, X } from "lucide-react";
 import { AdminSidebar } from "@/components/admin/sidebar";
 import { Button } from "@/components/ui/button";
@@ -9,16 +10,26 @@ import { Button } from "@/components/ui/button";
 export function AdminShell({
   email,
   children,
+  licensed = true,
 }: {
   email: string;
   children: React.ReactNode;
+  licensed?: boolean;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!licensed && pathname !== "/admin/settings/license") {
+      router.replace("/admin/settings/license");
+    }
+  }, [licensed, pathname, router]);
 
   return (
     <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <aside className="hidden w-[260px] shrink-0 border-r border-zinc-800 md:block">
-        <AdminSidebar />
+        <AdminSidebar licensed={licensed} />
       </aside>
 
       {mobileOpen ? (
@@ -41,7 +52,7 @@ export function AdminShell({
                 <X className="h-5 w-5" />
               </Button>
             </div>
-            <AdminSidebar onNavigate={() => setMobileOpen(false)} />
+            <AdminSidebar licensed={licensed} onNavigate={() => setMobileOpen(false)} />
           </aside>
         </div>
       ) : null}

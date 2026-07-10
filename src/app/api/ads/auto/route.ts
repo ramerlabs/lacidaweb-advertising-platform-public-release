@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAdsSettings } from "@/lib/ads-settings";
 import { getAutoAdsConfig } from "@/lib/publisher-auto-ads";
+import { isPlatformLicensed } from "@/lib/license";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,6 +15,10 @@ export async function OPTIONS() {
 
 export async function GET(req: Request) {
   try {
+    if (!(await isPlatformLicensed())) {
+      return NextResponse.json({ enabled: false, slots: [] }, { headers: corsHeaders });
+    }
+
     const siteKey = new URL(req.url).searchParams.get("site");
     if (!siteKey) {
       return NextResponse.json({ error: "site required" }, { status: 400, headers: corsHeaders });

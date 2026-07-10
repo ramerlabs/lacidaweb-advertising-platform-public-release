@@ -1,53 +1,75 @@
 /**
- * One-off admin setup: upsert user and set password hash.
- * Usage: node scripts/seed-admin.mjs <email> <password>
+ * Bootstrap the default platform admin for lacidaweb.
+ *
+ * Defaults: user `admin` / password `admin123`
+ * Override: node scripts/seed-admin.mjs <username-or-email> <password>
+ *
+ * Also prints the ADMIN_EMAILS line to add to .env / Vercel.
  */
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
-const [email, password] = process.argv.slice(2);
+const DEFAULT_USER = "admin";
+const DEFAULT_PASSWORD = "admin123";
 
-if (!email || !password) {
-  console.error("Usage: node scripts/seed-admin.mjs <email> <password>");
-  process.exit(1);
-}
+const rawUser = (process.argv[2] || DEFAULT_USER).trim().toLowerCase();
+const password = process.argv[3] || DEFAULT_PASSWORD;
+
+/** Credentials login accepts `admin` or a full email. */
+const email = rawUser.includes("@") ? rawUser : rawUser;
 
 const prisma = new PrismaClient();
 
 async function main() {
   const passwordHash = await bcrypt.hash(password, 12);
-  const normalizedEmail = email.toLowerCase().trim();
 
-  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  const existing = await prisma.user.findUnique({ where: { email } });
 
   if (existing) {
     await prisma.user.update({
       where: { id: existing.id },
-      data: { passwordHash },
+      data: {
+        passwordHash,
+        bannedAt: null,
+        banReason: null,
+        name: existing.name || "Admin",
+      },
     });
-    console.log(`Updated password for existing user: ${normalizedEmail}`);
-    return;
+    console.log(`Updated password for existing admin: ${email}`);
+  } else {
+    const user = await prisma.user.create({
+      data: {
+        email,
+        name: "Admin",
+        passwordHash,
+        accountType: "ADVERTISER",
+      },
+    });
+
+    await prisma.team.create({
+      data: {
+        name: "Platform Admin",
+        slug: `admin-${user.id.slice(-8)}`,
+        members: {
+          create: { userId: user.id, role: "OWNER" },
+        },
+      },
+    });
+
+    console.log(`Created admin user: ${email}`);
   }
 
-  const user = await prisma.user.create({
-    data: {
-      email: normalizedEmail,
-      name: normalizedEmail.split("@")[0],
-      passwordHash,
-    },
-  });
-
-  const team = await prisma.team.create({
-    data: {
-      name: `${user.name}'s Team`,
-      slug: `team-${user.id.slice(-8)}`,
-      members: {
-        create: { userId: user.id, role: "OWNER" },
-      },
-    },
-  });
-
-  console.log(`Created admin user ${normalizedEmail} with team ${team.id}`);
+  console.log("");
+  console.log("Login at /login/admin");
+  console.log(`  Username: ${email}`);
+  console.log(`  Password: ${password}`);
+  console.log("");
+  console.log("Add to .env / Vercel (required for admin panel access):");
+  console.log(`  ADMIN_EMAILS="${email}"`);
+  if (password === DEFAULT_PASSWORD) {
+    console.log("");
+    console.log("WARNING: Change the default password after first login.");
+  }
 }
 
 main()

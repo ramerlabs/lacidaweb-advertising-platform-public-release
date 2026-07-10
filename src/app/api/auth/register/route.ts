@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { registerUser } from "@/lib/auth-options";
 import { notifyAdminUserRegistered } from "@/services/admin-notify";
+import { requireActiveLicense } from "@/lib/license";
+import { apiErrorResponse } from "@/lib/api-error";
 
 const schema = z.object({
   name: z.string().min(2),
@@ -13,6 +15,7 @@ const schema = z.object({
 
 export async function POST(req: Request) {
   try {
+    await requireActiveLicense();
     const body = schema.parse(await req.json());
     const user = await registerUser(body);
     notifyAdminUserRegistered({
@@ -27,6 +30,9 @@ export async function POST(req: Request) {
       teamId: user.memberships[0]?.teamId,
     });
   } catch (error) {
+    if (error instanceof Error && error.message === "LICENSE_REQUIRED") {
+      return apiErrorResponse(error);
+    }
     const message = error instanceof Error ? error.message : "Registration failed";
     return NextResponse.json({ error: message }, { status: 400 });
   }

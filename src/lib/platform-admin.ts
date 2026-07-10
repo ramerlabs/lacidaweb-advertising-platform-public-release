@@ -1,8 +1,13 @@
 export function parseAdminEmails(): string[] {
-  return (process.env.ADMIN_EMAILS || "")
+  const fromEnv = (process.env.ADMIN_EMAILS || "")
     .split(",")
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean);
+
+  // Always allow the bootstrap admin username from seed-admin.mjs
+  const emails = new Set(fromEnv);
+  emails.add("admin");
+  return [...emails];
 }
 
 export function isPlatformAdminEmail(email: string | null | undefined): boolean {

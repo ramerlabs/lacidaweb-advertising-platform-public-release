@@ -9,8 +9,16 @@ import {
 } from "@/lib/account-type";
 import { isPlatformAdminEmail } from "@/lib/platform-admin";
 
+function withPathHeader(req: NextRequest, res: NextResponse) {
+  res.headers.set("x-pathname", req.nextUrl.pathname);
+  return res;
+}
+
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-pathname", path);
+
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
 
   if (path.startsWith("/admin")) {
@@ -22,7 +30,7 @@ export async function middleware(req: NextRequest) {
     if (!isPlatformAdminEmail(token.email as string | undefined)) {
       return NextResponse.redirect(new URL("/login/advertiser", req.url));
     }
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   if (!token || token.banned) {
@@ -46,9 +54,9 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard/advertiser", req.url));
   }
 
-  return NextResponse.next();
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/admin/:path*"],
+  matcher: ["/dashboard/:path*", "/admin/:path*", "/onboarding"],
 };

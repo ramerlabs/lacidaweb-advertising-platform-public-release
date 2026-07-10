@@ -1,24 +1,25 @@
 /**
  * Bootstrap a fresh lacidaweb database.
  *
+ * Defaults: admin / admin123 (override with args)
+ *
  * 1. Create a NEW Neon project at https://console.neon.tech (name: lacidaweb)
  * 2. Copy the connection string into .env.local as DATABASE_URL
  * 3. Run:
- *      node scripts/setup-lacidaweb-db.mjs <admin-email> <admin-password>
- *
- * Or with explicit URL:
- *      DATABASE_URL="postgresql://..." node scripts/setup-lacidaweb-db.mjs <email> <password>
+ *      npm run db:setup:lacidaweb
+ *      # or: node scripts/setup-lacidaweb-db.mjs [admin-user] [password] [team-name]
  */
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { execSync } from "node:child_process";
 
-const [email, password, teamNameArg] = process.argv.slice(2);
+const DEFAULT_USER = "admin";
+const DEFAULT_PASSWORD = "admin123";
 
-if (!email || !password) {
-  console.error("Usage: node scripts/setup-lacidaweb-db.mjs <admin-email> <admin-password> [team-name]");
-  process.exit(1);
-}
+const [userArg, passwordArg, teamNameArg] = process.argv.slice(2);
+const rawUser = (userArg || DEFAULT_USER).trim().toLowerCase();
+const password = passwordArg || DEFAULT_PASSWORD;
+const email = rawUser.includes("@") ? rawUser : rawUser;
 
 if (!process.env.DATABASE_URL) {
   console.error("DATABASE_URL is not set. Add it to .env.local first.");
@@ -120,22 +121,22 @@ async function main() {
     ],
   });
 
-  const normalizedEmail = email.toLowerCase().trim();
   const passwordHash = await bcrypt.hash(password, 12);
-  const displayName = normalizedEmail.split("@")[0];
-  const teamName = teamNameArg?.trim() || "My Business";
+  const teamName = teamNameArg?.trim() || "Platform Admin";
 
   const user = await prisma.user.upsert({
-    where: { email: normalizedEmail },
+    where: { email },
     create: {
-      email: normalizedEmail,
-      name: displayName,
+      email,
+      name: "Admin",
       passwordHash,
+      accountType: "ADVERTISER",
     },
     update: {
       passwordHash,
       bannedAt: null,
       banReason: null,
+      name: "Admin",
     },
   });
 
@@ -148,7 +149,7 @@ async function main() {
     const team = await prisma.team.create({
       data: {
         name: teamName,
-        slug: `lw-${user.id.slice(-8)}`,
+        slug: `admin-${user.id.slice(-8)}`,
         members: {
           create: { userId: user.id, role: "OWNER" },
         },
@@ -162,13 +163,17 @@ async function main() {
 
   console.log("");
   console.log("lacidaweb database ready.");
-  console.log(`  Admin:  ${normalizedEmail}`);
-  console.log(`  Team:   ${membership.team.name} (${membership.team.id})`);
+  console.log(`  Admin user: ${email}`);
+  console.log(`  Password:   ${password}`);
+  console.log(`  Team:       ${membership.team.name} (${membership.team.id})`);
   console.log("");
-  console.log("Add to .env.local:");
-  console.log(`  ADMIN_EMAILS="${normalizedEmail}"`);
+  console.log("Add to .env.local / Vercel:");
+  console.log(`  ADMIN_EMAILS="${email}"`);
   console.log("");
-  console.log("Restart dev server: npm run dev");
+  console.log("Next: sign in at /login/admin and activate your license key.");
+  if (password === DEFAULT_PASSWORD) {
+    console.log("WARNING: Change the default password after first login.");
+  }
 }
 
 main()

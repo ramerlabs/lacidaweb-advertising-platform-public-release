@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { serveAdsForPlacement } from "@/services/ad-serving";
 import { clientIpFromRequest } from "@/services/publisher-earnings";
+import { isPlatformLicensed } from "@/lib/license";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,6 +15,9 @@ export async function OPTIONS() {
 
 export async function GET(req: Request) {
   try {
+    if (!(await isPlatformLicensed())) {
+      return NextResponse.json({ ad: null, ads: [] }, { headers: corsHeaders });
+    }
     const url = new URL(req.url);
     const placement = url.searchParams.get("placement");
     if (!placement) {
