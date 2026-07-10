@@ -172,6 +172,19 @@ export function buildAutoEmbedSnippet(autoAdsKey: string, origin?: string) {
 <script async src="${base}/embed.js" data-site="${autoAdsKey}"></script>`;
 }
 
+/** WordPress PHP snippet using this publisher's unique auto-ads key. */
+export function buildWpAutoAdsPhpSnippet(autoAdsKey: string, origin?: string) {
+  const base = getAppOrigin(origin);
+  return `<?php
+// lacidaweb automatic ads — paste into your theme functions.php or a small custom plugin
+add_action('wp_footer', function () {
+  if (is_admin()) {
+    return;
+  }
+  echo '<script async src="${base}/embed.js" data-site="${autoAdsKey}"></script>';
+}, 99);`;
+}
+
 export async function ensureAutoPlacements(siteId: string) {
   const site = await prisma.publisherSite.findUnique({
     where: { id: siteId },

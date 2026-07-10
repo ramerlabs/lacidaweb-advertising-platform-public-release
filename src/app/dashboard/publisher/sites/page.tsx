@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { buildEmbedSnippet } from "@/lib/publisher-embed";
-import { buildAutoEmbedSnippet } from "@/lib/publisher-auto-ads";
+import { buildAutoEmbedSnippet, buildWpAutoAdsPhpSnippet } from "@/lib/publisher-auto-ads";
 import { PUBLISHER_AD_TEMPLATES } from "@/lib/publisher-ad-templates";
 import { AdTemplatePreview } from "@/components/publisher/ad-template-preview";
 
@@ -40,6 +40,7 @@ export default function PublisherSitesPage() {
   const [status, setStatus] = useState("");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [copiedAutoKey, setCopiedAutoKey] = useState<string | null>(null);
+  const [copiedWpKey, setCopiedWpKey] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [domain, setDomain] = useState("");
@@ -90,6 +91,13 @@ export default function PublisherSitesPage() {
     await navigator.clipboard.writeText(snippet);
     setCopiedAutoKey(autoAdsKey);
     setTimeout(() => setCopiedAutoKey(null), 2000);
+  }
+
+  async function copyWpSnippet(autoAdsKey: string) {
+    const snippet = buildWpAutoAdsPhpSnippet(autoAdsKey);
+    await navigator.clipboard.writeText(snippet);
+    setCopiedWpKey(autoAdsKey);
+    setTimeout(() => setCopiedWpKey(null), 2000);
   }
 
   async function toggleAutoAds(site: Site, enabled: boolean) {
@@ -242,11 +250,60 @@ export default function PublisherSitesPage() {
                           </>
                         )}
                       </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => site.autoAdsKey && copyWpSnippet(site.autoAdsKey)}
+                      >
+                        {copiedWpKey === site.autoAdsKey ? (
+                          <>
+                            <Check className="h-4 w-4" />
+                            Copied PHP
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-4 w-4" />
+                            Copy WordPress PHP
+                          </>
+                        )}
+                      </Button>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Paste once before <code>&lt;/body&gt;</code> on {site.domain}. Manual placements
-                      below still work if you want fixed slots.
-                    </p>
+
+                    <div className="space-y-3 rounded-lg border bg-background/80 p-4 text-sm">
+                      <p className="font-medium">How to install on {site.domain}</p>
+                      <ol className="list-decimal space-y-2 pl-5 text-muted-foreground">
+                        <li>
+                          Keep this site registered here as <strong className="text-foreground">{site.domain}</strong>.
+                          Use the same domain visitors see in the browser (www is optional).
+                        </li>
+                        <li>
+                          <strong className="text-foreground">Any website:</strong> copy the automatic ads
+                          code above and paste it once before the closing{" "}
+                          <code className="text-foreground">&lt;/body&gt;</code> tag.
+                        </li>
+                        <li>
+                          <strong className="text-foreground">WordPress:</strong> copy the WordPress PHP
+                          snippet and add it to your theme&apos;s{" "}
+                          <code className="text-foreground">functions.php</code>, or put it in a small
+                          custom plugin. Ads load in the footer on public pages only.
+                        </li>
+                        <li>
+                          Publish a page, hard-refresh, and confirm ads appear. Earnings show under{" "}
+                          <a href="/dashboard/publisher/performance" className="text-emerald-600 underline">
+                            Performance
+                          </a>
+                          .
+                        </li>
+                      </ol>
+                      <pre className="overflow-x-auto rounded-lg bg-zinc-950 p-3 text-[11px] leading-relaxed text-emerald-300/90">
+                        {buildWpAutoAdsPhpSnippet(site.autoAdsKey)}
+                      </pre>
+                      <p className="text-xs text-muted-foreground">
+                        This code is unique to your account. Do not share it publicly if you want only
+                        your sites to earn. Manual placements below are optional fixed slots.
+                      </p>
+                    </div>
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground">
