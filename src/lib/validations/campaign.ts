@@ -70,7 +70,17 @@ export const adCreativeSchema = z
 
     ctaLabel: z.string().min(1).max(30).default("Learn More"),
 
-    imageUrl: z.string().url().optional(),
+    imageUrl: z
+      .string()
+      .refine(
+        (value) =>
+          /^https?:\/\//i.test(value) ||
+          value.startsWith("/uploads/") ||
+          value.startsWith("/api/media/file") ||
+          value.startsWith("data:image/"),
+        "Invalid image URL",
+      )
+      .optional(),
 
     videoUrl: z.string().url().optional(),
 

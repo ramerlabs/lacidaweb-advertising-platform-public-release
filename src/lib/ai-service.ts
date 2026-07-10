@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { applyProfitMargin, imageCostInTokens, usdToCents } from "@/lib/ai-pricing";
 import { getAiSettings, getOpenAiApiKey } from "@/lib/ai-settings";
 import { getTeamBusinessContext } from "@/lib/team-business";
-import { createLocalUploadSlot } from "@/lib/local-media";
+import { createLocalUploadSlot, saveLocalUpload } from "@/lib/local-media";
 import { maybeNotifyLowTokens } from "@/services/client-notify";
 
 async function chargeTeamTokens(
@@ -320,22 +320,24 @@ export async function generatePostImage(input: { teamId: string; prompt: string 
 
   const buffer = await generateOpenAiImageBuffer(apiKey, userPrompt);
 
-  const slot = await createLocalUploadSlot({
-    filename: `ai-${Date.now()}.png`,
-    contentType: "image/png",
-  });
-
-  const baseUrl = process.env.APP_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
-  const uploadUrl = slot.uploadUrl.startsWith("/")
-    ? `${baseUrl.replace(/\/$/, "")}${slot.uploadUrl}`
-    : slot.uploadUrl;
-
-  const put = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": "image/png" },
-    body: new Uint8Array(buffer),
-  });
-  if (!put.ok) throw new Error("Failed to store generated image");
+  // Persist the image without an authenticated HTTP round-trip to /api/media/put
+  // (server-side fetch has no session cookie → "Failed to store generated image").
+  // On Vercel, /tmp is ephemeral across instances, so embed as a data URL for durability.
+  let imageUrl: string;
+  if (process.env.VERCEL) {
+    imageUrl = `data:image/png;base64,${buffer.toString("base64")}`;
+  } else {
+    try {
+      const slot = await createLocalUploadSlot({
+        filename: `ai-${Date.now()}.png`,
+        contentType: "image/png",
+      });
+      imageUrl = await saveLocalUpload(slot.key, buffer);
+    } catch (storeError) {
+      console.error("AI image local store failed, using data URL fallback:", storeError);
+      imageUrl = `data:image/png;base64,${buffer.toString("base64")}`;
+    }
+  }
 
   const billing = await chargeTeamTokens(
     input.teamId,
@@ -347,7 +349,7 @@ export async function generatePostImage(input: { teamId: string; prompt: string 
 
   await maybeNotifyLowTokens(input.teamId, billing.tokenBalance);
 
-  return { imageUrl: slot.publicUrl, ...billing, providerCostUsd: settings.aiImageCostUsd };
+  return { imageUrl, ...billing, providerCostUsd: settings.aiImageCostUsd };
 }
 
 export async function generateAdCreative(input: {
