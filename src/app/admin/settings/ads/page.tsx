@@ -9,6 +9,7 @@ import type { PublisherAdServingMode } from "@/lib/ads-settings";
 
 type AdsSettings = {
   adsEnabled: boolean;
+  adsProfitMarginPercent: number;
   publisherAdServingMode: PublisherAdServingMode;
   publisherAdRotateSeconds: number;
   publisherAutoAdsEnabled: boolean;
@@ -36,6 +37,7 @@ export default function AdminAdsSettingsPage() {
         if (data.settings) {
           setSettings({
             adsEnabled: data.settings.adsEnabled,
+            adsProfitMarginPercent: data.settings.adsProfitMarginPercent ?? 0,
             publisherAdServingMode: data.settings.publisherAdServingMode || "ROTATE_ALL",
             publisherAdRotateSeconds: data.settings.publisherAdRotateSeconds ?? 8,
             publisherAutoAdsEnabled: data.settings.publisherAutoAdsEnabled ?? true,
@@ -69,6 +71,7 @@ export default function AdminAdsSettingsPage() {
     }
     setSettings({
       adsEnabled: data.settings.adsEnabled,
+      adsProfitMarginPercent: data.settings.adsProfitMarginPercent,
       publisherAdServingMode: data.settings.publisherAdServingMode,
       publisherAdRotateSeconds: data.settings.publisherAdRotateSeconds,
       publisherAutoAdsEnabled: data.settings.publisherAutoAdsEnabled,
@@ -190,13 +193,14 @@ export default function AdminAdsSettingsPage() {
         <CardHeader>
           <CardTitle>Publisher payout rates</CardTitle>
           <CardDescription>
-            Pay publishers by impression (CPM) and by click (CPC). Fraud filters discard bots and
-            duplicate events before earnings are credited.
+            Pay publishers by impression (CPM) and by click (CPC). Advertisers are billed the same
+            rates plus your profit margin. Fraud filters discard bots and duplicate events before
+            earnings or spend are applied.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-3">
+        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-2">
-            <Label htmlFor="cpm">CPM (USD per 1,000 views)</Label>
+            <Label htmlFor="cpm">Publisher CPM (USD / 1,000)</Label>
             <Input
               id="cpm"
               type="number"
@@ -212,7 +216,7 @@ export default function AdminAdsSettingsPage() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="cpc">CPC (USD per click)</Label>
+            <Label htmlFor="cpc">Publisher CPC (USD / click)</Label>
             <Input
               id="cpc"
               type="number"
@@ -226,6 +230,44 @@ export default function AdminAdsSettingsPage() {
                 })
               }
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="margin">Advertiser margin %</Label>
+            <Input
+              id="margin"
+              type="number"
+              min={0}
+              max={99}
+              step="1"
+              value={settings.adsProfitMarginPercent}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  adsProfitMarginPercent: Math.min(
+                    99,
+                    Math.max(0, Math.floor(Number(e.target.value) || 0)),
+                  ),
+                })
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              Advertiser pays publisher rate ÷ (1 − margin). At {settings.adsProfitMarginPercent}%:
+              CPC $
+              {(
+                (settings.publisherCpcCents /
+                  100 /
+                  (1 - Math.min(99, settings.adsProfitMarginPercent) / 100 || 1)) ||
+                0
+              ).toFixed(2)}
+              , CPM $
+              {(
+                (settings.publisherCpmCents /
+                  100 /
+                  (1 - Math.min(99, settings.adsProfitMarginPercent) / 100 || 1)) ||
+                0
+              ).toFixed(2)}
+              .
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="min-payout">Minimum payout (USD)</Label>

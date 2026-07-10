@@ -1,10 +1,21 @@
 import { prisma } from "@/lib/prisma";
 import { getAdsSettings, type AdsSettingsData } from "@/lib/ads-settings";
+import { getSiteSettings } from "@/lib/site-settings";
+import { brand } from "@/lib/brand";
+import {
+  campaignHasDeliveryBudget,
+  getAdvertiserRates,
+  isWithinSchedule,
+  minChargeCents,
+} from "@/services/advertiser-billing";
 import {
   recordTrackedClick,
   recordTrackedImpression,
   type AdEventRequestMeta,
 } from "@/services/publisher-earnings";
+
+/** Synthetic promo when no paid campaigns are eligible to serve. */
+export const HOUSE_AD_ID = "house";
 
 export type ServedAd = {
   adId: string;
@@ -17,6 +28,8 @@ export type ServedAd = {
   height: number;
   format: string;
   clickUrl: string;
+  /** True for platform promo fill — no advertiser charge / publisher earn. */
+  isHouseAd?: boolean;
 };
 
 export type PlacementServeResult = {
@@ -25,7 +38,9 @@ export type PlacementServeResult = {
   servingMode: AdsSettingsData["publisherAdServingMode"];
 };
 
-async function getEligibleAds() {
+type EligibleAd = Awaited<ReturnType<typeof fetchCandidateAds>>[number];
+
+async function fetchCandidateAds() {
   return prisma.ad.findMany({
     where: {
       status: { in: ["ACTIVE", "APPROVED"] },
@@ -34,13 +49,44 @@ async function getEligibleAds() {
         lifecycleStatus: { in: ["ACTIVE", "APPROVED"] },
       },
     },
-    include: { campaign: true },
+    include: {
+      campaign: {
+        include: {
+          team: { select: { id: true, adWalletBalanceCents: true } },
+        },
+      },
+    },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
 }
 
+async function getEligibleAds(settings: AdsSettingsData): Promise<EligibleAd[]> {
+  const candidates = await fetchCandidateAds();
+  const rates = getAdvertiserRates(settings);
+  const need = minChargeCents(rates);
+  const eligible: EligibleAd[] = [];
+
+  for (const ad of candidates) {
+    const campaign = ad.campaign;
+    if (!isWithinSchedule(campaign)) continue;
+    if (need > 0 && campaign.team.adWalletBalanceCents < need) continue;
+    const hasBudget = await campaignHasDeliveryBudget({
+      campaignId: campaign.id,
+      budgetAmount: campaign.budgetAmount,
+      budgetTypeEnum: campaign.budgetTypeEnum,
+      budgetType: campaign.budgetType,
+      lifetimeSpendCents: campaign.lifetimeSpendCents,
+      platformBudgetUsd: campaign.platformBudgetUsd,
+    });
+    if (!hasBudget) continue;
+    eligible.push(ad);
+  }
+
+  return eligible;
+}
+
 function toServedAd(
-  ad: Awaited<ReturnType<typeof getEligibleAds>>[number],
+  ad: EligibleAd,
   placement: { width: number; height: number; format: string },
   placementKey: string,
   origin?: string,
@@ -83,6 +129,35 @@ function pickPersonalizedIndex(visitorId: string, adCount: number): number {
   return hash % adCount;
 }
 
+async function buildHouseAd(
+  placement: { width: number; height: number; format: string },
+  origin?: string,
+): Promise<ServedAd> {
+  const site = await getSiteSettings();
+  const name = site.title?.trim() || String(brand.name);
+  const base = (site.url || brand.url || origin || "").replace(/\/$/, "");
+  const destinationUrl = `${base}/register/advertiser`;
+
+  return {
+    adId: HOUSE_AD_ID,
+    headline: `Advertise with ${name}`,
+    primaryText: `Reach customers on sites across the ${name} network. Launch a campaign in minutes.`,
+    imageUrl: null,
+    destinationUrl,
+    ctaLabel: "Get started",
+    width: placement.width,
+    height: placement.height,
+    format:
+      placement.format === "BANNER" ||
+      placement.format === "RECTANGLE" ||
+      placement.format === "SKYSCRAPER"
+        ? "TEXT_BOX"
+        : placement.format || "TEXT_BOX",
+    clickUrl: destinationUrl,
+    isHouseAd: true,
+  };
+}
+
 export async function serveAdsForPlacement(
   placementKey: string,
   opts?: { visitorId?: string; origin?: string; meta?: AdEventRequestMeta },
@@ -101,8 +176,15 @@ export async function serveAdsForPlacement(
     return null;
   }
 
-  const eligible = await getEligibleAds();
-  if (!eligible.length) return null;
+  const eligible = await getEligibleAds(settings);
+  if (!eligible.length) {
+    const house = await buildHouseAd(placement, opts?.origin);
+    return {
+      ads: [house],
+      rotationSeconds: 0,
+      servingMode: settings.publisherAdServingMode,
+    };
+  }
 
   let startIndex = placement.impressions % eligible.length;
 
@@ -118,6 +200,7 @@ export async function serveAdsForPlacement(
     teamId: placement.site.teamId,
     adId: primary.id,
     campaignId: primary.campaignId,
+    advertiserTeamId: primary.campaign.teamId,
     meta: {
       visitorId: opts?.visitorId || opts?.meta?.visitorId,
       ip: opts?.meta?.ip,
@@ -146,6 +229,11 @@ export async function recordAdClick(
   placementKey: string,
   meta?: AdEventRequestMeta,
 ) {
+  if (adId === HOUSE_AD_ID) {
+    const house = await buildHouseAd({ width: 300, height: 250, format: "TEXT_BOX" });
+    return house.destinationUrl;
+  }
+
   const placement = await prisma.adPlacement.findUnique({
     where: { placementKey, isActive: true },
     include: { site: true },
@@ -154,7 +242,12 @@ export async function recordAdClick(
 
   const ad = await prisma.ad.findFirst({
     where: { id: adId, status: { in: ["ACTIVE", "APPROVED"] } },
-    select: { id: true, destinationUrl: true, campaignId: true },
+    select: {
+      id: true,
+      destinationUrl: true,
+      campaignId: true,
+      campaign: { select: { teamId: true } },
+    },
   });
   if (!ad) return null;
 
@@ -163,6 +256,7 @@ export async function recordAdClick(
     teamId: placement.site.teamId,
     adId: ad.id,
     campaignId: ad.campaignId,
+    advertiserTeamId: ad.campaign.teamId,
     meta: meta || {},
   });
 

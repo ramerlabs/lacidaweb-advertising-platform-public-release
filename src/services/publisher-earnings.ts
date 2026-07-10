@@ -3,6 +3,11 @@ import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getAdsSettings } from "@/lib/ads-settings";
+import {
+  chargeAdvertiserClick,
+  getAdvertiserRates,
+  maybeChargeAdvertiserCpmBatch,
+} from "@/services/advertiser-billing";
 
 const BOT_UA =
   /bot|crawl|spider|slurp|mediapartners|facebookexternalhit|preview|headless|phantom|selenium|puppeteer|curl|wget|python-requests|scrapy/i;
@@ -53,8 +58,9 @@ export async function recordTrackedImpression(input: {
   teamId: string;
   adId: string;
   campaignId: string;
+  advertiserTeamId: string;
   meta: AdEventRequestMeta;
-}): Promise<{ counted: boolean; earnedCents: number }> {
+}): Promise<{ counted: boolean; earnedCents: number; chargedCents: number }> {
   const settings = await getAdsSettings();
   const visitorHash = hashValue(input.meta.visitorId);
   const ipHash = hashValue(input.meta.ip);
@@ -76,14 +82,6 @@ export async function recordTrackedImpression(input: {
   }
 
   const isValid = !fraudReason;
-  // Fractional CPM: credits accumulate per impression in millicents then we use integer cents.
-  // Simpler: credit floor(cpmCents/1000) + chance remainder is ugly; instead track earned as
-  // (cpmCents) every 1000 valid impressions via running math: earnedCents = cpm for batches.
-  // For immediate feedback to publishers, credit 1 cent per max(1, floor(1000/cpm)) is wrong.
-  // Best simple approach: store earnedCents on the event as the share of CPM (can be 0 most times)
-  // and credit team only when cents >= 1. Use accumulated millicents in metadata? Keep it simple:
-  // credit (cpmCents) cents every time valid impression count for team hits multiples of 1000.
-  // Per-event earnedCents = 0 usually; batch credit below.
 
   await prisma.adEvent.create({
     data: {
@@ -101,15 +99,23 @@ export async function recordTrackedImpression(input: {
     },
   });
 
-  if (!isValid) return { counted: false, earnedCents: 0 };
+  if (!isValid) return { counted: false, earnedCents: 0, chargedCents: 0 };
 
   await prisma.adPlacement.update({
     where: { id: input.placementId },
     data: { impressions: { increment: 1 } },
   });
 
+  const rates = getAdvertiserRates(settings);
+  const chargedCents = await maybeChargeAdvertiserCpmBatch({
+    advertiserTeamId: input.advertiserTeamId,
+    campaignId: input.campaignId,
+    adId: input.adId,
+    cpmCents: rates.cpmCents,
+  });
   const earnedCents = await maybeCreditCpmBatch(input.teamId, settings.publisherCpmCents);
-  return { counted: true, earnedCents };
+
+  return { counted: true, earnedCents, chargedCents };
 }
 
 async function maybeCreditCpmBatch(teamId: string, cpmCents: number): Promise<number> {
@@ -135,8 +141,14 @@ export async function recordTrackedClick(input: {
   teamId: string;
   adId: string;
   campaignId: string | null;
+  advertiserTeamId?: string | null;
   meta: AdEventRequestMeta;
-}): Promise<{ counted: boolean; earnedCents: number; fraudReason: string | null }> {
+}): Promise<{
+  counted: boolean;
+  earnedCents: number;
+  chargedCents: number;
+  fraudReason: string | null;
+}> {
   const settings = await getAdsSettings();
   const visitorHash = hashValue(input.meta.visitorId);
   const ipHash = hashValue(input.meta.ip);
@@ -158,7 +170,42 @@ export async function recordTrackedClick(input: {
   }
 
   const isValid = !fraudReason;
-  const earnedCents = isValid ? settings.publisherCpcCents : 0;
+  if (!isValid) {
+    await prisma.adEvent.create({
+      data: {
+        type: "CLICK",
+        teamId: input.teamId,
+        placementId: input.placementId,
+        adId: input.adId,
+        campaignId: input.campaignId,
+        visitorHash,
+        ipHash,
+        userAgent: input.meta.userAgent?.slice(0, 500) || null,
+        isValid: false,
+        fraudReason,
+        earnedCents: 0,
+      },
+    });
+    return { counted: false, earnedCents: 0, chargedCents: 0, fraudReason };
+  }
+
+  await prisma.adPlacement.update({
+    where: { id: input.placementId },
+    data: { clicks: { increment: 1 } },
+  });
+
+  let chargedCents = 0;
+  const rates = getAdvertiserRates(settings);
+  if (input.campaignId && input.advertiserTeamId && rates.cpcCents > 0) {
+    chargedCents = await chargeAdvertiserClick({
+      advertiserTeamId: input.advertiserTeamId,
+      campaignId: input.campaignId,
+      adId: input.adId,
+      cpcCents: rates.cpcCents,
+    });
+  }
+
+  const earnedCents = settings.publisherCpcCents > 0 ? settings.publisherCpcCents : 0;
 
   await prisma.adEvent.create({
     data: {
@@ -170,17 +217,10 @@ export async function recordTrackedClick(input: {
       visitorHash,
       ipHash,
       userAgent: input.meta.userAgent?.slice(0, 500) || null,
-      isValid,
-      fraudReason,
+      isValid: true,
+      fraudReason: null,
       earnedCents,
     },
-  });
-
-  if (!isValid) return { counted: false, earnedCents: 0, fraudReason };
-
-  await prisma.adPlacement.update({
-    where: { id: input.placementId },
-    data: { clicks: { increment: 1 } },
   });
 
   if (earnedCents > 0) {
@@ -192,7 +232,7 @@ export async function recordTrackedClick(input: {
     });
   }
 
-  return { counted: true, earnedCents, fraudReason: null };
+  return { counted: true, earnedCents, chargedCents, fraudReason: null };
 }
 
 export async function creditPublisherEarning(input: {

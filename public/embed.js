@@ -217,9 +217,24 @@ function esc(s) {
 
         if (!ads.length) {
 
+          // Server should always return a house promo; keep a local fallback if the API is empty.
           target.innerHTML =
 
-            '<div style="display:flex;align-items:center;justify-content:center;background:#18181b;color:#a1a1aa;font:12px system-ui,sans-serif;border-radius:8px;min-height:50px;padding:12px;text-align:center;">No ads available yet</div>';
+            '<a href="' +
+
+            esc(base + "/register/advertiser") +
+
+            '" target="_blank" rel="noopener sponsored" style="display:block;padding:16px;border:1px solid #d4d4d8;border-radius:10px;text-decoration:none;font-family:system-ui,sans-serif;background:#fafafa;">' +
+
+            '<span style="font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:#a1a1aa;">Sponsored</span>' +
+
+            '<div style="margin-top:8px;font-weight:700;font-size:15px;color:#18181b;">Advertise with lacidaweb</div>' +
+
+            '<div style="margin-top:6px;font-size:13px;color:#52525b;line-height:1.45;">Reach customers across the network. Launch a campaign in minutes.</div>' +
+
+            '<span style="display:inline-block;margin-top:12px;font-size:13px;font-weight:600;color:#059669;">Get started →</span></a>' +
+
+            '<p style="margin:6px 0 0;font:9px system-ui,sans-serif;color:#a1a1aa;">Ads by lacidaweb</p>';
 
           return;
 

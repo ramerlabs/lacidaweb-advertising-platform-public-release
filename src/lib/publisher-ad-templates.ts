@@ -17,9 +17,9 @@ export type PublisherAdTemplate = {
 };
 
 export const SAMPLE_AD = {
-  headline: "Grow your business with lacidaweb",
+  headline: "Advertise with lacidaweb",
   primaryText: "Reach customers with self-serve ads. Launch campaigns in minutes.",
-  ctaLabel: "Learn more",
+  ctaLabel: "Get started",
   imageUrl: undefined as string | undefined,
 };
 

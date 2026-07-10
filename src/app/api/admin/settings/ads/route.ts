@@ -5,6 +5,7 @@ import { getAdsSettings, updateAdsSettings } from "@/lib/ads-settings";
 
 const schema = z.object({
   adsEnabled: z.boolean().optional(),
+  adsProfitMarginPercent: z.number().int().min(0).max(99).optional(),
   publisherAdServingMode: z.enum(["ROTATE_ALL", "PERSONALIZED"]).optional(),
   publisherAdRotateSeconds: z.number().int().min(0).max(120).optional(),
   publisherAutoAdsEnabled: z.boolean().optional(),
