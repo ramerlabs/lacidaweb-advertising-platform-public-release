@@ -103,7 +103,6 @@ export interface CreateCampaignPayload
     CampaignWizardStep3,
     CampaignWizardStep4 {
   platform: string;
-  connectedAccountId?: string;
   adAccountId: string;
 }
 

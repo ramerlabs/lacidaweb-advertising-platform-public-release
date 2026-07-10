@@ -5,7 +5,6 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/utils";
-import { ensureTeamZernioProfile } from "@/services/profiles";
 import { getAiSettings } from "@/lib/ai-settings";
 import { isOAuthProviderAllowed } from "@/lib/oauth-settings";
 
@@ -191,14 +190,6 @@ export async function createUserWorkspace(input: {
       },
     },
   });
-
-  try {
-    if (input.accountType !== "PUBLISHER") {
-      await ensureTeamZernioProfile(team.id);
-    }
-  } catch (error) {
-    console.error("[workspace] Zernio profile provisioning failed", error);
-  }
 
   return team;
 }

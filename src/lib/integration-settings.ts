@@ -2,11 +2,6 @@ import { prisma } from "@/lib/prisma";
 import { brand } from "@/lib/brand";
 
 export type IntegrationSettingsData = {
-  zernioApiKey: string;
-  zernioWebhookSecret: string;
-  zernioApiKeyMasked: string;
-  hasZernioApiKey: boolean;
-  hasZernioWebhookSecret: boolean;
   telegramEnabled: boolean;
   telegramBotToken: string;
   telegramChatId: string;
@@ -14,8 +9,6 @@ export type IntegrationSettingsData = {
   hasTelegramBotToken: boolean;
   telegramNotifySupport: boolean;
   telegramNotifyPayments: boolean;
-  telegramNotifyPosts: boolean;
-  telegramNotifyAccounts: boolean;
   telegramNotifyUsers: boolean;
   smtpEnabled: boolean;
   smtpHost: string;
@@ -42,8 +35,6 @@ function maskSecret(value: string): string {
 function envFallbacks() {
   const smtpHost = process.env.SMTP_HOST?.trim() || "";
   return {
-    zernioApiKey: process.env.ZERNIO_API_KEY?.trim() || "",
-    zernioWebhookSecret: process.env.ZERNIO_WEBHOOK_SECRET?.trim() || "",
     telegramBotToken: process.env.TELEGRAM_BOT_TOKEN?.trim() || "",
     telegramChatId: process.env.TELEGRAM_CHAT_ID?.trim() || "",
     telegramEnabled: Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
@@ -60,15 +51,11 @@ function envFallbacks() {
 }
 
 type SettingsRow = {
-  zernioApiKey: string | null;
-  zernioWebhookSecret: string | null;
   telegramEnabled: boolean;
   telegramBotToken: string | null;
   telegramChatId: string | null;
   telegramNotifySupport: boolean;
   telegramNotifyPayments: boolean;
-  telegramNotifyPosts: boolean;
-  telegramNotifyAccounts: boolean;
   telegramNotifyUsers: boolean;
   smtpEnabled?: boolean;
   smtpHost?: string | null;
@@ -87,17 +74,10 @@ function mergeSettings(row: SettingsRow | null): IntegrationSettingsData {
   const env = envFallbacks();
   const telegramBotToken = row?.telegramBotToken?.trim() || env.telegramBotToken;
   const telegramChatId = row?.telegramChatId?.trim() || env.telegramChatId;
-  const zernioApiKey = row?.zernioApiKey?.trim() || env.zernioApiKey;
-  const zernioWebhookSecret = row?.zernioWebhookSecret?.trim() || env.zernioWebhookSecret;
   const smtpHost = row?.smtpHost?.trim() || env.smtpHost;
   const smtpPassword = row?.smtpPassword?.trim() || env.smtpPassword;
 
   return {
-    zernioApiKey,
-    zernioWebhookSecret,
-    zernioApiKeyMasked: maskSecret(zernioApiKey),
-    hasZernioApiKey: Boolean(zernioApiKey),
-    hasZernioWebhookSecret: Boolean(zernioWebhookSecret),
     telegramEnabled: row?.telegramEnabled ?? env.telegramEnabled,
     telegramBotToken,
     telegramChatId,
@@ -105,8 +85,6 @@ function mergeSettings(row: SettingsRow | null): IntegrationSettingsData {
     hasTelegramBotToken: Boolean(telegramBotToken),
     telegramNotifySupport: row?.telegramNotifySupport ?? true,
     telegramNotifyPayments: row?.telegramNotifyPayments ?? true,
-    telegramNotifyPosts: row?.telegramNotifyPosts ?? true,
-    telegramNotifyAccounts: row?.telegramNotifyAccounts ?? true,
     telegramNotifyUsers: row?.telegramNotifyUsers ?? true,
     smtpEnabled: row?.smtpEnabled ?? env.smtpEnabled,
     smtpHost,
@@ -147,26 +125,12 @@ export async function getIntegrationSettings(): Promise<IntegrationSettingsData>
   }
 }
 
-export async function getZernioApiKey(): Promise<string> {
-  const settings = await getIntegrationSettings();
-  return settings.zernioApiKey;
-}
-
-export async function getZernioWebhookSecret(): Promise<string> {
-  const settings = await getIntegrationSettings();
-  return settings.zernioWebhookSecret;
-}
-
 export async function updateIntegrationSettings(input: {
-  zernioApiKey?: string;
-  zernioWebhookSecret?: string;
   telegramEnabled?: boolean;
   telegramBotToken?: string;
   telegramChatId?: string;
   telegramNotifySupport?: boolean;
   telegramNotifyPayments?: boolean;
-  telegramNotifyPosts?: boolean;
-  telegramNotifyAccounts?: boolean;
   telegramNotifyUsers?: boolean;
   smtpEnabled?: boolean;
   smtpHost?: string;
@@ -186,14 +150,6 @@ export async function updateIntegrationSettings(input: {
 
   const current = await getIntegrationSettings();
   const next = {
-    zernioApiKey:
-      input.zernioApiKey === undefined
-        ? current.zernioApiKey
-        : input.zernioApiKey.trim() || current.zernioApiKey,
-    zernioWebhookSecret:
-      input.zernioWebhookSecret === undefined
-        ? current.zernioWebhookSecret
-        : input.zernioWebhookSecret.trim() || current.zernioWebhookSecret,
     telegramEnabled: input.telegramEnabled ?? current.telegramEnabled,
     telegramBotToken:
       input.telegramBotToken === undefined
@@ -205,8 +161,6 @@ export async function updateIntegrationSettings(input: {
         : input.telegramChatId.trim() || current.telegramChatId,
     telegramNotifySupport: input.telegramNotifySupport ?? current.telegramNotifySupport,
     telegramNotifyPayments: input.telegramNotifyPayments ?? current.telegramNotifyPayments,
-    telegramNotifyPosts: input.telegramNotifyPosts ?? current.telegramNotifyPosts,
-    telegramNotifyAccounts: input.telegramNotifyAccounts ?? current.telegramNotifyAccounts,
     telegramNotifyUsers: input.telegramNotifyUsers ?? current.telegramNotifyUsers,
     smtpEnabled: input.smtpEnabled ?? current.smtpEnabled,
     smtpHost: input.smtpHost === undefined ? current.smtpHost : input.smtpHost.trim(),
@@ -229,15 +183,11 @@ export async function updateIntegrationSettings(input: {
     where: { id: "default" },
     create: {
       id: "default",
-      zernioApiKey: next.zernioApiKey || null,
-      zernioWebhookSecret: next.zernioWebhookSecret || null,
       telegramEnabled: next.telegramEnabled,
       telegramBotToken: next.telegramBotToken || null,
       telegramChatId: next.telegramChatId || null,
       telegramNotifySupport: next.telegramNotifySupport,
       telegramNotifyPayments: next.telegramNotifyPayments,
-      telegramNotifyPosts: next.telegramNotifyPosts,
-      telegramNotifyAccounts: next.telegramNotifyAccounts,
       telegramNotifyUsers: next.telegramNotifyUsers,
       smtpEnabled: next.smtpEnabled,
       smtpHost: next.smtpHost || null,
@@ -252,15 +202,11 @@ export async function updateIntegrationSettings(input: {
       facebookOAuthEnabled: next.facebookOAuthEnabled,
     },
     update: {
-      zernioApiKey: next.zernioApiKey || null,
-      zernioWebhookSecret: next.zernioWebhookSecret || null,
       telegramEnabled: next.telegramEnabled,
       telegramBotToken: next.telegramBotToken || null,
       telegramChatId: next.telegramChatId || null,
       telegramNotifySupport: next.telegramNotifySupport,
       telegramNotifyPayments: next.telegramNotifyPayments,
-      telegramNotifyPosts: next.telegramNotifyPosts,
-      telegramNotifyAccounts: next.telegramNotifyAccounts,
       telegramNotifyUsers: next.telegramNotifyUsers,
       smtpEnabled: next.smtpEnabled,
       smtpHost: next.smtpHost || null,
@@ -281,17 +227,12 @@ export async function updateIntegrationSettings(input: {
 
 export function toPublicIntegrationSettings(settings: IntegrationSettingsData) {
   return {
-    zernioApiKeyMasked: settings.zernioApiKeyMasked,
-    hasZernioApiKey: settings.hasZernioApiKey,
-    hasZernioWebhookSecret: settings.hasZernioWebhookSecret,
     telegramEnabled: settings.telegramEnabled,
     telegramChatId: settings.telegramChatId,
     telegramBotTokenMasked: settings.telegramBotTokenMasked,
     hasTelegramBotToken: settings.hasTelegramBotToken,
     telegramNotifySupport: settings.telegramNotifySupport,
     telegramNotifyPayments: settings.telegramNotifyPayments,
-    telegramNotifyPosts: settings.telegramNotifyPosts,
-    telegramNotifyAccounts: settings.telegramNotifyAccounts,
     telegramNotifyUsers: settings.telegramNotifyUsers,
     smtpEnabled: settings.smtpEnabled,
     smtpHost: settings.smtpHost,

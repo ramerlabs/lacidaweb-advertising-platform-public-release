@@ -27,10 +27,6 @@ type Overview = {
   pendingReview: number;
   activeCampaigns: number;
   walletTotalUsd: string;
-  connectedAccounts: number;
-  totalPosts: number;
-  publishedPosts: number;
-  scheduledPosts: number;
   publishers: number;
   publisherSites: number;
   adPlacements: number;

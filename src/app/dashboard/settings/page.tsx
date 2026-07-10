@@ -150,7 +150,7 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Workspace</CardTitle>
-          <CardDescription>Multi-tenant team and private integration profile</CardDescription>
+          <CardDescription>Multi-tenant team workspace</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -160,10 +160,6 @@ export default function SettingsPage() {
           <div className="space-y-2">
             <Label>Team slug</Label>
             <Input value={team?.slug || ""} readOnly />
-          </div>
-          <div className="space-y-2">
-            <Label>Internal profile ID</Label>
-            <Input value={team?.zernioProfileId || "Provisioning on first connect..."} readOnly />
           </div>
         </CardContent>
       </Card>

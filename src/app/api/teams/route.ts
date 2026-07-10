@@ -3,7 +3,6 @@ import { requireSession, getUserTeams } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { slugify } from "@/lib/utils";
-import { ensureTeamZernioProfile } from "@/services/profiles";
 
 export async function GET() {
   try {
@@ -15,7 +14,6 @@ export async function GET() {
         name: m.team.name,
         slug: m.team.slug,
         role: m.role,
-        zernioProfileId: m.team.zernioProfileId,
       })),
     });
   } catch (error) {
@@ -48,12 +46,6 @@ export async function POST(req: Request) {
         },
       },
     });
-
-    try {
-      await ensureTeamZernioProfile(team.id);
-    } catch (error) {
-      console.error("[teams] profile provision failed", error);
-    }
 
     return NextResponse.json({ team });
   } catch (error) {

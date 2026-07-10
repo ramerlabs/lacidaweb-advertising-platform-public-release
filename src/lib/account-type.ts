@@ -21,7 +21,6 @@ export const ADVERTISER_DASHBOARD_PREFIXES = [
   "/dashboard/advertiser",
   "/dashboard/campaigns",
   "/dashboard/wallet",
-  "/dashboard/ads",
 ];
 
 export const PUBLISHER_DASHBOARD_PREFIXES = ["/dashboard/publisher"];

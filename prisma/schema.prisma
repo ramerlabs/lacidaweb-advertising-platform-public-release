@@ -13,26 +13,6 @@ enum MembershipRole {
   MEMBER
 }
 
-enum PublishStatus {
-  DRAFT
-  PENDING
-  SCHEDULED
-  PUBLISHED
-  FAILED
-}
-
-enum InboxItemType {
-  COMMENT
-  MESSAGE
-}
-
-enum InboxItemStatus {
-  UNREAD
-  READ
-  ARCHIVED
-  REPLIED
-}
-
 enum BillingInterval {
   MONTHLY
   YEARLY
@@ -183,7 +163,6 @@ model User {
   accounts       Account[]
   sessions       Session[]
   memberships    TeamMember[]
-  postsCreated   Post[]           @relation("PostCreator")
   auditLogs      AuditLog[]
   supportMessages SupportMessage[]
   supportTickets      SupportTicket[]  @relation("TicketCreator")
@@ -231,7 +210,6 @@ model Team {
   id               String   @id @default(cuid())
   name             String
   slug             String   @unique
-  zernioProfileId  String?  @unique
   aiEnabled        Boolean  @default(false)
   aiBalanceCents   Int      @default(0)
   aiTokenBalance   Int      @default(0)
@@ -251,17 +229,11 @@ model Team {
   updatedAt        DateTime @updatedAt
 
   members             TeamMember[]
-  connectedAccounts   ConnectedAccount[]
-  posts               Post[]
-  inboxItems          InboxItem[]
-  autoReplyRules      AutoReplyRule[]
   auditLogs           AuditLog[]
-  webhookEvents       WebhookEvent[]
   subscription        Subscription?
   payments            Payment[]
   supportTickets      SupportTicket[]
   aiUsageLogs         AiUsageLog[]
-  postTemplates       PostTemplate[]
   adCampaigns         AdCampaign[]
   walletTransactions  WalletTransaction[]
   publisherSites      PublisherSite[]
@@ -283,151 +255,19 @@ model TeamMember {
   @@index([userId])
 }
 
-model ConnectedAccount {
-  id                 String   @id @default(cuid())
-  teamId             String
-  platform           String
-  zernioAccountId    String   @unique
-  zernioProfileId    String
-  username           String?
-  displayName        String?
-  avatarUrl          String?
-  metadata           Json?
-  isActive           Boolean  @default(true)
-  connectedAt        DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  team         Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  postTargets  PostTarget[]
-  inboxItems   InboxItem[]
-  adCampaigns  AdCampaign[]
-
-  @@index([teamId, platform])
-  @@index([zernioProfileId])
-}
-
-model Post {
-  id              String        @id @default(cuid())
-  teamId          String
-  createdById     String
-  content         String        @db.Text
-  mediaUrls       String[]
-  status          PublishStatus @default(DRAFT)
-  scheduledFor    DateTime?
-  timezone        String?       @default("UTC")
-  publishNow      Boolean       @default(false)
-  zernioPostId    String?       @unique
-  platformOptions Json?
-  errorMessage    String?       @db.Text
-  publishedAt     DateTime?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-
-  team      Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  createdBy User         @relation("PostCreator", fields: [createdById], references: [id])
-  targets   PostTarget[]
-  auditLogs AuditLog[]
-
-  @@index([teamId, status])
-  @@index([scheduledFor])
-}
-
-model PostTarget {
-  id                    String        @id @default(cuid())
-  postId                String
-  connectedAccountId    String
-  platform              String
-  status                PublishStatus @default(PENDING)
-  platformSpecificText  String?       @db.Text
-  platformPostUrl       String?
-  errorMessage          String?       @db.Text
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
-
-  post             Post             @relation(fields: [postId], references: [id], onDelete: Cascade)
-  connectedAccount ConnectedAccount @relation(fields: [connectedAccountId], references: [id], onDelete: Cascade)
-
-  @@index([postId])
-  @@index([connectedAccountId])
-}
-
-model InboxItem {
-  id                   String          @id @default(cuid())
-  teamId               String
-  connectedAccountId   String?
-  type                 InboxItemType
-  status               InboxItemStatus @default(UNREAD)
-  platform             String
-  externalId           String
-  conversationId       String?
-  authorName           String?
-  authorHandle         String?
-  content              String          @db.Text
-  metadata             Json?
-  autoReplied          Boolean         @default(false)
-  receivedAt           DateTime        @default(now())
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
-
-  team             Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  connectedAccount ConnectedAccount? @relation(fields: [connectedAccountId], references: [id], onDelete: SetNull)
-
-  @@unique([teamId, externalId])
-  @@index([teamId, status, type])
-  @@index([receivedAt])
-}
-
-model AutoReplyRule {
-  id            String   @id @default(cuid())
-  teamId        String
-  name          String
-  keywords      String[]
-  matchMode     String   @default("any")
-  replyType     String   @default("comment")
-  replyTemplate String   @db.Text
-  platforms     String[]
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
-
-  @@index([teamId, isActive])
-}
-
 model AuditLog {
   id        String   @id @default(cuid())
   teamId    String
   userId    String?
-  postId    String?
   action    String
-  status    PublishStatus?
   message   String?  @db.Text
   metadata  Json?
   createdAt DateTime @default(now())
 
   team Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
-  post Post? @relation(fields: [postId], references: [id], onDelete: SetNull)
 
   @@index([teamId, createdAt])
-  @@index([postId])
-}
-
-model WebhookEvent {
-  id          String   @id @default(cuid())
-  teamId      String?
-  eventId     String   @unique
-  eventType   String
-  payload     Json
-  processed   Boolean  @default(false)
-  processedAt DateTime?
-  error       String?  @db.Text
-  createdAt   DateTime @default(now())
-
-  team Team? @relation(fields: [teamId], references: [id], onDelete: SetNull)
-
-  @@index([eventType, processed])
 }
 
 model Subscription {
@@ -553,15 +393,11 @@ model SiteSettings {
 
 model IntegrationSettings {
   id                  String   @id @default("default")
-  zernioApiKey        String?
-  zernioWebhookSecret String?
   telegramEnabled     Boolean  @default(false)
   telegramBotToken    String?
   telegramChatId      String?
   telegramNotifySupport   Boolean @default(true)
   telegramNotifyPayments  Boolean @default(true)
-  telegramNotifyPosts     Boolean @default(true)
-  telegramNotifyAccounts  Boolean @default(true)
   telegramNotifyUsers     Boolean @default(true)
   smtpEnabled             Boolean @default(false)
   smtpHost                String?
@@ -619,8 +455,6 @@ model PlatformLicense {
 model AdCampaign {
   id                 String   @id @default(cuid())
   teamId             String
-  connectedAccountId String?
-  zernioAdId         String?  @unique
   platformCampaignId String?
   platform           String
   adAccountId        String
@@ -656,7 +490,6 @@ model AdCampaign {
   updatedAt          DateTime @updatedAt
 
   team             Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  connectedAccount ConnectedAccount? @relation(fields: [connectedAccountId], references: [id], onDelete: SetNull)
   reviewedBy       User?             @relation("CampaignReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
   payments         Payment[]
   ads              Ad[]
@@ -848,20 +681,6 @@ model AnalyticsSnapshot {
   @@unique([campaignId, snapshotDate])
   @@index([campaignId, snapshotDate])
   @@index([snapshotDate])
-}
-
-model PostTemplate {
-  id        String   @id @default(cuid())
-  teamId    String
-  name      String
-  prompt    String   @db.Text
-  tone      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
-
-  @@index([teamId])
 }
 
 model AiUsageLog {

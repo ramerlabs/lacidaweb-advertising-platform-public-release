@@ -170,8 +170,6 @@ const campaignFieldsSchema = z.object({
 
   platform: z.string().min(1).default("lacidaweb"),
 
-  connectedAccountId: z.string().cuid().optional(),
-
   adAccountId: z.string().min(1).optional(),
 
 });

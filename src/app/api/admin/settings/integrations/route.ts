@@ -6,18 +6,13 @@ import {
   toPublicIntegrationSettings,
   updateIntegrationSettings,
 } from "@/lib/integration-settings";
-import { resetZernioClient } from "@/lib/zernio";
 
 const schema = z.object({
-  zernioApiKey: z.string().optional(),
-  zernioWebhookSecret: z.string().optional(),
   telegramEnabled: z.boolean().optional(),
   telegramBotToken: z.string().optional(),
   telegramChatId: z.string().optional(),
   telegramNotifySupport: z.boolean().optional(),
   telegramNotifyPayments: z.boolean().optional(),
-  telegramNotifyPosts: z.boolean().optional(),
-  telegramNotifyAccounts: z.boolean().optional(),
   telegramNotifyUsers: z.boolean().optional(),
   smtpEnabled: z.boolean().optional(),
   smtpHost: z.string().optional(),
@@ -51,7 +46,6 @@ export async function PATCH(req: Request) {
     await requirePlatformAdmin(session.user.id);
     const body = schema.parse(await req.json());
     const settings = await updateIntegrationSettings(body);
-    resetZernioClient();
     return NextResponse.json({ settings: toPublicIntegrationSettings(settings) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed";

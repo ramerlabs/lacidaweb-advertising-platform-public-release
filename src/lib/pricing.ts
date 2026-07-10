@@ -9,7 +9,7 @@ export type Plan = {
   monthlyPrice: number;
   yearlyPrice: number;
   yearlyPerMonth: number;
-  zernioCostMonthly: number;
+  platformCostMonthly: number;
   estimatedMarginPercent: number;
   popular?: boolean;
   description: string;
@@ -19,13 +19,13 @@ export type Plan = {
 export const DEFAULT_SUBSCRIPTION_MARGIN_PERCENT = 80;
 
 /**
- * Zernio usage-based platform cost (per their public pricing tiers):
+ * Estimated monthly platform cost by connected-account tier.
  * - First 2 accounts: free
  * - Accounts 3–10: $6/account
  * - Accounts 11–100: $3/account
  * - Accounts 101–2,000: $1/account
  */
-export function zernioMonthlyPlatformCost(accountCount: number): number {
+export function monthlyPlatformCost(accountCount: number): number {
   if (accountCount <= 2) return 0;
 
   let cost = 0;
@@ -41,11 +41,11 @@ export function zernioMonthlyPlatformCost(accountCount: number): number {
   return cost;
 }
 
-function priceForMargin(zernioCost: number, floor: number, marginPercent: number): number {
-  if (zernioCost <= 0) return floor;
+function priceForMargin(platformCost: number, floor: number, marginPercent: number): number {
+  if (platformCost <= 0) return floor;
   const margin = Math.min(99, Math.max(0, marginPercent)) / 100;
   if (margin >= 1) return floor;
-  const target = Math.ceil(zernioCost / (1 - margin));
+  const target = Math.ceil(platformCost / (1 - margin));
   return Math.max(target, floor);
 }
 
@@ -63,9 +63,9 @@ function yearlyFromMonthly(monthly: number) {
 }
 
 export function buildPlans(marginPercent = DEFAULT_SUBSCRIPTION_MARGIN_PERCENT): Plan[] {
-  const starterCost = zernioMonthlyPlatformCost(3);
-  const growthCost = zernioMonthlyPlatformCost(10);
-  const scaleCost = zernioMonthlyPlatformCost(25);
+  const starterCost = monthlyPlatformCost(3);
+  const growthCost = monthlyPlatformCost(10);
+  const scaleCost = monthlyPlatformCost(25);
 
   const starterMonthly = priceForMargin(starterCost, 49, marginPercent);
   const growthMonthly = priceForMargin(growthCost, 249, marginPercent);
@@ -83,7 +83,7 @@ export function buildPlans(marginPercent = DEFAULT_SUBSCRIPTION_MARGIN_PERCENT):
       monthlyPrice: starterMonthly,
       yearlyPrice: starterYearly.yearly,
       yearlyPerMonth: starterYearly.yearlyPerMonth,
-      zernioCostMonthly: starterCost,
+      platformCostMonthly: starterCost,
       estimatedMarginPercent: calcMarginPercent(starterMonthly, starterCost),
       description: "Solo creators and new online sellers",
       features: [
@@ -101,7 +101,7 @@ export function buildPlans(marginPercent = DEFAULT_SUBSCRIPTION_MARGIN_PERCENT):
       monthlyPrice: growthMonthly,
       yearlyPrice: growthYearly.yearly,
       yearlyPerMonth: growthYearly.yearlyPerMonth,
-      zernioCostMonthly: growthCost,
+      platformCostMonthly: growthCost,
       estimatedMarginPercent: calcMarginPercent(growthMonthly, growthCost),
       popular: true,
       description: "Agencies and growing brands",
@@ -120,7 +120,7 @@ export function buildPlans(marginPercent = DEFAULT_SUBSCRIPTION_MARGIN_PERCENT):
       monthlyPrice: scaleMonthly,
       yearlyPrice: scaleYearly.yearly,
       yearlyPerMonth: scaleYearly.yearlyPerMonth,
-      zernioCostMonthly: scaleCost,
+      platformCostMonthly: scaleCost,
       estimatedMarginPercent: calcMarginPercent(scaleMonthly, scaleCost),
       description: "High-volume teams and resellers",
       features: [

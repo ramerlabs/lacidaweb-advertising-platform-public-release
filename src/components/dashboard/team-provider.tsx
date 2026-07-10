@@ -7,7 +7,6 @@ type Team = {
   name: string;
   slug: string;
   role: string;
-  zernioProfileId?: string | null;
 };
 
 type TeamContextValue = {

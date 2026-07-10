@@ -3,22 +3,16 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 
 type IntegrationSettings = {
-  zernioApiKeyMasked: string;
-  hasZernioApiKey: boolean;
-  hasZernioWebhookSecret: boolean;
   telegramEnabled: boolean;
   telegramChatId: string;
   telegramBotTokenMasked: string;
   hasTelegramBotToken: boolean;
   telegramNotifySupport: boolean;
   telegramNotifyPayments: boolean;
-  telegramNotifyPosts: boolean;
-  telegramNotifyAccounts: boolean;
   telegramNotifyUsers: boolean;
   smtpEnabled: boolean;
   smtpHost: string;
@@ -54,14 +48,10 @@ function NotifyToggle({
 
 export default function AdminIntegrationsPage() {
   const [settings, setSettings] = useState<IntegrationSettings | null>(null);
-  const [zernioApiKey, setZernioApiKey] = useState("");
-  const [zernioWebhookSecret, setZernioWebhookSecret] = useState("");
   const [telegramBotToken, setTelegramBotToken] = useState("");
   const [telegramChatId, setTelegramChatId] = useState("");
   const [smtpPassword, setSmtpPassword] = useState("");
   const [smtpTestTo, setSmtpTestTo] = useState("");
-  const [webhookUrl, setWebhookUrl] = useState("/api/webhooks/inbox");
-  const [copiedWebhook, setCopiedWebhook] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -69,10 +59,6 @@ export default function AdminIntegrationsPage() {
   const [status, setStatus] = useState("");
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      setWebhookUrl(`${window.location.origin}/api/webhooks/inbox`);
-    }
-
     async function load() {
       const res = await fetch("/api/admin/settings/integrations");
       const data = await res.json();
@@ -85,28 +71,14 @@ export default function AdminIntegrationsPage() {
     load();
   }, []);
 
-  async function copyWebhookUrl() {
-    try {
-      await navigator.clipboard.writeText(webhookUrl);
-      setCopiedWebhook(true);
-      setTimeout(() => setCopiedWebhook(false), 2000);
-    } catch {
-      setStatus("Could not copy webhook URL");
-    }
-  }
-
   function buildPayload() {
     if (!settings) return {};
     return {
-      zernioApiKey: zernioApiKey.trim() || undefined,
-      zernioWebhookSecret: zernioWebhookSecret.trim() || undefined,
       telegramEnabled: settings.telegramEnabled,
       telegramBotToken: telegramBotToken.trim() || undefined,
       telegramChatId: telegramChatId.trim() || undefined,
       telegramNotifySupport: settings.telegramNotifySupport,
       telegramNotifyPayments: settings.telegramNotifyPayments,
-      telegramNotifyPosts: settings.telegramNotifyPosts,
-      telegramNotifyAccounts: settings.telegramNotifyAccounts,
       telegramNotifyUsers: settings.telegramNotifyUsers,
       smtpEnabled: settings.smtpEnabled,
       smtpHost: settings.smtpHost || undefined,
@@ -137,8 +109,6 @@ export default function AdminIntegrationsPage() {
       return;
     }
     setSettings(data.settings);
-    setZernioApiKey("");
-    setZernioWebhookSecret("");
     setTelegramBotToken("");
     setTelegramChatId(data.settings.telegramChatId || "");
     setSmtpPassword("");
@@ -182,68 +152,8 @@ export default function AdminIntegrationsPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Integrations</h1>
-        <p className="text-muted-foreground">Zernio API, email (SMTP), and Telegram admin alerts.</p>
+        <p className="text-muted-foreground">Social login, email (SMTP), and Telegram admin alerts.</p>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Zernio API</CardTitle>
-          <CardDescription>Powers social account connections, publishing, inbox, and analytics.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {settings.hasZernioApiKey ? (
-            <p className="text-sm text-muted-foreground">
-              Current key: <code className="rounded bg-muted px-1">{settings.zernioApiKeyMasked}</code>
-            </p>
-          ) : (
-            <p className="text-sm text-amber-700">No API key configured yet.</p>
-          )}
-          <div className="space-y-2">
-            <Label htmlFor="zernio-api-key">Zernio API key</Label>
-            <Input
-              id="zernio-api-key"
-              type="password"
-              placeholder="sk_..."
-              value={zernioApiKey}
-              onChange={(e) => setZernioApiKey(e.target.value)}
-              autoComplete="off"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="zernio-webhook-secret">Webhook secret</Label>
-            <Textarea
-              id="zernio-webhook-secret"
-              rows={2}
-              value={zernioWebhookSecret}
-              onChange={(e) => setZernioWebhookSecret(e.target.value)}
-              placeholder="Same secret configured in your Zernio dashboard"
-            />
-            <p className="text-xs text-muted-foreground">
-              Must match the <strong>exact</strong> signing secret from your Zernio webhook configuration
-              (platform owner only). If Zernio shows 401 failures, re-copy the secret from Zernio → paste here →
-              Save, then redeploy or wait for Vercel to pick up the change.
-            </p>
-          </div>
-          <div className="space-y-2 rounded-lg border bg-muted/30 p-4">
-            <Label>Inbox webhook URL</Label>
-            <p className="text-xs text-muted-foreground">
-              Paste this URL into the Zernio dashboard so comments, DMs, and post lifecycle events are delivered
-              into client inboxes. Clients do not configure this.
-            </p>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Input value={webhookUrl} readOnly className="font-mono text-xs" />
-              <Button type="button" variant="outline" onClick={copyWebhookUrl}>
-                {copiedWebhook ? "Copied" : "Copy"}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              URL must be exactly: <code>{webhookUrl}</code> (or <code>/api/webhooks/zernio</code>).
-              Events: <code>comment.received</code>, <code>message.received</code>, post lifecycle, and{" "}
-              <code>webhook.test</code>. Use your production domain in Zernio (not localhost).
-            </p>
-          </div>
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader>
@@ -268,12 +178,13 @@ export default function AdminIntegrationsPage() {
               <span className="text-xs text-muted-foreground">(set GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET)</span>
             ) : null}
           </label>
-          <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+          <div className="space-y-1 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+            <p>OAuth redirect URL (add in Google Cloud console):</p>
             <p>
-              OAuth redirect URL (add in Google Cloud console):
-            </p>
-            <p>
-              <code>{typeof window !== "undefined" ? window.location.origin : "https://lacidaweb.com"}/api/auth/callback/google</code>
+              <code>
+                {typeof window !== "undefined" ? window.location.origin : "https://lacidaweb.com"}
+                /api/auth/callback/google
+              </code>
             </p>
           </div>
         </CardContent>
@@ -284,7 +195,7 @@ export default function AdminIntegrationsPage() {
           <div>
             <CardTitle>Telegram notifications</CardTitle>
             <CardDescription>
-              Get instant alerts for support tickets, payments, posts, new users, and account connections.
+              Get instant alerts for support tickets, payments, and new registrations.
             </CardDescription>
           </div>
           <label className="flex items-center gap-2 text-sm">
@@ -337,18 +248,6 @@ export default function AdminIntegrationsPage() {
               label="Payments"
               checked={settings.telegramNotifyPayments}
               onChange={(v) => setSettings((s) => s && { ...s, telegramNotifyPayments: v })}
-            />
-            <NotifyToggle
-              id="notify-posts"
-              label="Posts (publish / schedule)"
-              checked={settings.telegramNotifyPosts}
-              onChange={(v) => setSettings((s) => s && { ...s, telegramNotifyPosts: v })}
-            />
-            <NotifyToggle
-              id="notify-accounts"
-              label="Account connections"
-              checked={settings.telegramNotifyAccounts}
-              onChange={(v) => setSettings((s) => s && { ...s, telegramNotifyAccounts: v })}
             />
             <NotifyToggle
               id="notify-users"

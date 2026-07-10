@@ -4,16 +4,16 @@ import { displaySocialProofStats } from "@/lib/social-proof-stats";
 
 export async function GET() {
   try {
-    const [users, posts, teams, aiGenerations] = await Promise.all([
+    const [users, campaigns, teams, aiGenerations] = await Promise.all([
       prisma.user.count(),
-      prisma.post.count({ where: { status: { in: ["PUBLISHED", "SCHEDULED"] } } }),
+      prisma.adCampaign.count(),
       prisma.team.count(),
       prisma.aiUsageLog.count(),
     ]);
 
     const displayed = displaySocialProofStats({
       teams,
-      posts,
+      posts: campaigns,
       aiGenerations,
     });
 

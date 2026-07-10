@@ -24,8 +24,6 @@ type AdminUser = {
     aiEnabled: boolean;
     aiTokenBalance: number;
     adWalletBalanceCents: number;
-    connectedAccounts: number;
-    posts: number;
     campaigns: number;
     publisherSites: number;
   } | null;

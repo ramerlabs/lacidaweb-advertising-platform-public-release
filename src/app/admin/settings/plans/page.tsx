@@ -59,8 +59,8 @@ export default function AdminPlansSettingsPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Plans &amp; accounts</h1>
         <p className="text-muted-foreground">
-          Set your profit margin on subscription plans. Prices are calculated from Zernio&apos;s per-account
-          platform cost (first 2 accounts free on their side). Clients upgrade to connect more channels.
+          Set your profit margin on subscription plans. Prices are calculated from estimated per-account
+          platform cost (first 2 accounts free). Clients upgrade to connect more channels.
         </p>
       </div>
 
@@ -68,7 +68,7 @@ export default function AdminPlansSettingsPage() {
         <CardHeader>
           <CardTitle>Account connection pricing</CardTitle>
           <CardDescription>
-            Client plan price = Zernio cost ÷ (1 − margin%). Default is 80%. This controls what you charge
+            Client plan price = platform cost ÷ (1 − margin%). Default is 80%. This controls what you charge
             for Starter, Growth, and Scale — not ads or AI tokens.
           </CardDescription>
         </CardHeader>
@@ -91,7 +91,7 @@ export default function AdminPlansSettingsPage() {
               className="w-32"
             />
             <p className="text-xs text-muted-foreground">
-              At 80% margin, a $6 Zernio account cost becomes a $30 client plan component.
+              At 80% margin, a $6 platform account cost becomes a $30 client plan component.
             </p>
           </div>
         </CardContent>
@@ -109,7 +109,7 @@ export default function AdminPlansSettingsPage() {
                 <tr className="border-b text-left text-muted-foreground">
                   <th className="pb-2 pr-4 font-medium">Plan</th>
                   <th className="pb-2 pr-4 font-medium">Accounts</th>
-                  <th className="pb-2 pr-4 font-medium">Zernio cost/mo</th>
+                  <th className="pb-2 pr-4 font-medium">Platform cost/mo</th>
                   <th className="pb-2 pr-4 font-medium">Client monthly</th>
                   <th className="pb-2 font-medium">Est. margin</th>
                 </tr>
@@ -119,7 +119,7 @@ export default function AdminPlansSettingsPage() {
                   <tr key={plan.id} className="border-b last:border-0">
                     <td className="py-2 pr-4 font-medium">{plan.name}</td>
                     <td className="py-2 pr-4">{plan.accountLimit}</td>
-                    <td className="py-2 pr-4">${plan.zernioCostMonthly}</td>
+                    <td className="py-2 pr-4">${plan.platformCostMonthly}</td>
                     <td className="py-2 pr-4">${plan.monthlyPrice}/mo</td>
                     <td className="py-2">{plan.estimatedMarginPercent}%</td>
                   </tr>

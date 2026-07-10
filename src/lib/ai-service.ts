@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { applyProfitMargin, imageCostInTokens, usdToCents } from "@/lib/ai-pricing";
 import { getAiSettings, getOpenAiApiKey } from "@/lib/ai-settings";
 import { getTeamBusinessContext } from "@/lib/team-business";
-import { getMediaPresignedUrl } from "@/services/publisher";
+import { createLocalUploadSlot } from "@/lib/local-media";
 import { maybeNotifyLowTokens } from "@/services/client-notify";
 
 async function chargeTeamTokens(
@@ -312,12 +312,17 @@ export async function generatePostImage(input: { teamId: string; prompt: string 
 
   const buffer = await generateOpenAiImageBuffer(apiKey, userPrompt);
 
-  const presign = await getMediaPresignedUrl({
+  const slot = await createLocalUploadSlot({
     filename: `ai-${Date.now()}.png`,
     contentType: "image/png",
   });
 
-  const put = await fetch(presign.uploadUrl, {
+  const baseUrl = process.env.APP_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
+  const uploadUrl = slot.uploadUrl.startsWith("/")
+    ? `${baseUrl.replace(/\/$/, "")}${slot.uploadUrl}`
+    : slot.uploadUrl;
+
+  const put = await fetch(uploadUrl, {
     method: "PUT",
     headers: { "Content-Type": "image/png" },
     body: new Uint8Array(buffer),
@@ -334,7 +339,7 @@ export async function generatePostImage(input: { teamId: string; prompt: string 
 
   await maybeNotifyLowTokens(input.teamId, billing.tokenBalance);
 
-  return { imageUrl: presign.publicUrl, ...billing, providerCostUsd: settings.aiImageCostUsd };
+  return { imageUrl: slot.publicUrl, ...billing, providerCostUsd: settings.aiImageCostUsd };
 }
 
 export async function generateAdCreative(input: {

@@ -46,7 +46,7 @@ function normalizeAssetUrl(url: string | null | undefined, fallback: string): st
   const trimmed = url?.trim() || "";
   if (!trimmed) return fallback;
   if (trimmed.startsWith("/branding/")) return trimmed;
-  // Legacy uploads from previous product branding (e.g. VCC / Zernio purple favicon)
+  // Legacy uploads from previous product branding
   if (trimmed.includes("/uploads/")) return fallback;
   return trimmed;
 }

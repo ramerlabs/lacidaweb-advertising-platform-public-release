@@ -21,11 +21,6 @@ export async function GET() {
       pendingReview,
       activeCampaigns,
       walletAgg,
-      connectedAccounts,
-      totalPosts,
-      publishedPosts,
-      scheduledPosts,
-      unreadInbox,
       teamsWithPublisherSites,
       publisherSites,
       adPlacements,
@@ -50,11 +45,6 @@ export async function GET() {
         where: { adType: "lacidaweb", lifecycleStatus: "ACTIVE" },
       }),
       prisma.team.aggregate({ _sum: { adWalletBalanceCents: true } }),
-      prisma.connectedAccount.count(),
-      prisma.post.count(),
-      prisma.post.count({ where: { status: "PUBLISHED" } }),
-      prisma.post.count({ where: { status: "SCHEDULED" } }),
-      prisma.inboxItem.count({ where: { status: "UNREAD" } }),
       prisma.team.count({
         where: { publisherSites: { some: {} } },
       }),
@@ -84,11 +74,6 @@ export async function GET() {
       activeCampaigns,
       walletTotalCents,
       walletTotalUsd: formatAdWalletUsd(walletTotalCents),
-      connectedAccounts,
-      totalPosts,
-      publishedPosts,
-      scheduledPosts,
-      unreadInbox,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed";

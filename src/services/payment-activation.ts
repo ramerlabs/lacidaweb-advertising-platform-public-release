@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { Payment } from "@prisma/client";
 import { notifyAdminPaymentCompleted } from "@/services/admin-notify";
-import { publishAdCampaignToZernio } from "@/services/ad-publish";
 
 export async function activatePayment(
   payment: Payment & { subscriptionId: string | null },
@@ -69,20 +68,20 @@ export async function activatePayment(
     const campaign = await prisma.adCampaign.findUnique({
       where: { id: payment.adCampaignId },
     });
-    if (campaign && !campaign.zernioAdId && campaign.paymentStatus === "pending_payment") {
-      await publishAdCampaignToZernio(payment.adCampaignId);
+    if (campaign && campaign.paymentStatus === "pending_payment") {
       await prisma.adCampaign.update({
         where: { id: payment.adCampaignId },
         data: {
-          paymentStatus: "checkout_paid",
+          paymentStatus: "paid",
+          status: "active",
           paymentId: payment.id,
         },
       });
       await prisma.auditLog.create({
         data: {
           teamId: payment.teamId,
-          action: "ads.campaign.published",
-          message: `Ad "${campaign.name}" published after payment confirmed`,
+          action: "ads.campaign.paid",
+          message: `Ad "${campaign.name}" marked paid/active after payment confirmed`,
           metadata: { adCampaignId: campaign.id, paymentId: payment.id },
         },
       });

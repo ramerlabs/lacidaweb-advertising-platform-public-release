@@ -3,7 +3,7 @@ import { getIntegrationSettings } from "@/lib/integration-settings";
 import { sendTelegramMessage } from "@/services/telegram";
 import { brand } from "@/lib/brand";
 
-type NotifyCategory = "support" | "payments" | "posts" | "accounts" | "users";
+type NotifyCategory = "support" | "payments" | "users";
 
 async function shouldNotify(category: NotifyCategory): Promise<boolean> {
   const settings = await getIntegrationSettings();
@@ -12,8 +12,6 @@ async function shouldNotify(category: NotifyCategory): Promise<boolean> {
   }
   if (category === "support") return settings.telegramNotifySupport;
   if (category === "payments") return settings.telegramNotifyPayments;
-  if (category === "posts") return settings.telegramNotifyPosts;
-  if (category === "accounts") return settings.telegramNotifyAccounts;
   return settings.telegramNotifyUsers;
 }
 
@@ -124,53 +122,6 @@ export function notifyAdminPaymentCompleted(input: {
       input.txHash ? `TX: ${input.txHash}` : "",
       `Payment: ${input.paymentId}`,
     ].filter(Boolean));
-  })();
-}
-
-export function notifyAdminPostActivity(input: {
-  teamId: string;
-  userId?: string;
-  action: "published" | "scheduled" | "draft" | "failed";
-  content: string;
-  postId: string;
-  platforms?: string[];
-  scheduledFor?: Date | null;
-}) {
-  void (async () => {
-    const team = await teamLabel(input.teamId);
-    const user = await userLabel(input.userId);
-    const actionLabel =
-      input.action === "published"
-        ? "Post published 🚀"
-        : input.action === "scheduled"
-          ? "Post scheduled 📅"
-          : input.action === "failed"
-            ? "Post failed ❌"
-            : "Post saved as draft";
-
-    await dispatch("posts", [
-      `Type: ${actionLabel}`,
-      `Team: ${team}`,
-      `User: ${user}`,
-      input.platforms?.length ? `Platforms: ${input.platforms.join(", ")}` : "",
-      input.scheduledFor ? `Scheduled: ${input.scheduledFor.toISOString()}` : "",
-      `Preview: ${input.content.slice(0, 200) || "(media only)"}`,
-      `Post: ${input.postId}`,
-    ].filter(Boolean));
-  })();
-}
-
-export function notifyAdminAccountConnected(input: {
-  teamId: string;
-  platform?: string | null;
-}) {
-  void (async () => {
-    const team = await teamLabel(input.teamId);
-    await dispatch("accounts", [
-      "Type: Social account connected",
-      `Team: ${team}`,
-      `Platform: ${input.platform || "unknown"}`,
-    ]);
   })();
 }
 

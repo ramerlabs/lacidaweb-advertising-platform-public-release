@@ -47,7 +47,6 @@ export async function POST(req: Request) {
       scheduleEnd: body.scheduleEnd,
       ads: body.ads,
       platform: body.platform,
-      connectedAccountId: body.connectedAccountId,
       adAccountId: body.adAccountId,
     });
 

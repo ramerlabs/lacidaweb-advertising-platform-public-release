@@ -112,7 +112,6 @@ export async function createLacidawebCampaign(input: {
   scheduleEnd?: string;
   ads: AdCreativeInput[];
   platform?: string;
-  connectedAccountId?: string;
   adAccountId?: string;
 }): Promise<CampaignDto> {
   const budgetTypeStr = input.budgetType === "DAILY" ? "daily" : "lifetime";
@@ -122,7 +121,6 @@ export async function createLacidawebCampaign(input: {
     const record = await tx.adCampaign.create({
       data: {
         teamId: input.teamId,
-        connectedAccountId: input.connectedAccountId,
         platform: input.platform || "lacidaweb",
         adAccountId: input.adAccountId || input.teamId,
         name: input.name,

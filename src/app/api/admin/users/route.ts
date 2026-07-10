@@ -41,8 +41,6 @@ export async function GET(req: Request) {
                 subscription: true,
                 _count: {
                   select: {
-                    connectedAccounts: true,
-                    posts: true,
                     adCampaigns: true,
                     publisherSites: true,
                   },
@@ -74,8 +72,6 @@ export async function GET(req: Request) {
                 aiEnabled: team.aiEnabled,
                 aiTokenBalance: team.aiTokenBalance,
                 adWalletBalanceCents: team.adWalletBalanceCents,
-                connectedAccounts: team._count.connectedAccounts,
-                posts: team._count.posts,
                 campaigns: team._count.adCampaigns,
                 publisherSites: team._count.publisherSites,
               }

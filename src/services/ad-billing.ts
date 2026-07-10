@@ -80,7 +80,6 @@ export async function createAdCampaignPayment(input: {
   if (campaign.paymentStatus !== "pending_payment") {
     throw new Error("This ad is not awaiting payment");
   }
-  if (campaign.zernioAdId) throw new Error("This ad was already published");
 
   const existingPending = await prisma.payment.findFirst({
     where: {
