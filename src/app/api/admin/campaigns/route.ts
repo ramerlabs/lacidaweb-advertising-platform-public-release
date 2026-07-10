@@ -16,25 +16,45 @@ export async function GET() {
       take: 100,
       include: {
         team: { select: { name: true, slug: true } },
-        ads: { orderBy: { sortOrder: "asc" }, take: 1 },
+        ads: { orderBy: { sortOrder: "asc" }, take: 3 },
       },
     });
 
     return NextResponse.json({
-      campaigns: campaigns.map((c) => ({
-        id: c.id,
-        name: c.name,
-        teamId: c.teamId,
-        teamName: c.team.name,
-        objective: c.objective,
-        lifecycleStatus: c.lifecycleStatus,
-        budgetAmount: c.budgetAmount,
-        budgetType: c.budgetType,
-        paymentStatus: c.paymentStatus,
-        createdAt: c.createdAt.toISOString(),
-        headline: c.ads[0]?.headline ?? c.headline,
-        imageUrl: c.ads[0]?.imageUrl ?? c.imageUrl,
-      })),
+      campaigns: campaigns.map((c) => {
+        const primary = c.ads[0];
+        const format =
+          primary?.metadata &&
+          typeof primary.metadata === "object" &&
+          "format" in primary.metadata
+            ? String((primary.metadata as { format?: string }).format || "")
+            : "";
+        return {
+          id: c.id,
+          name: c.name,
+          teamId: c.teamId,
+          teamName: c.team.name,
+          objective: c.objective,
+          lifecycleStatus: c.lifecycleStatus,
+          budgetAmount: c.budgetAmount,
+          budgetType: c.budgetType,
+          paymentStatus: c.paymentStatus,
+          createdAt: c.createdAt.toISOString(),
+          countries: c.countries,
+          scheduleStart: c.scheduleStart?.toISOString() ?? null,
+          scheduleEnd: c.scheduleEnd?.toISOString() ?? null,
+          lifetimeSpendCents: c.lifetimeSpendCents,
+          clientChargeUsd: c.clientChargeUsd,
+          headline: primary?.headline ?? c.headline,
+          primaryText: primary?.primaryText ?? c.body,
+          destinationUrl: primary?.destinationUrl ?? c.linkUrl,
+          ctaLabel: primary?.ctaLabel ?? null,
+          imageUrl: primary?.imageUrl ?? c.imageUrl,
+          videoUrl: primary?.videoUrl ?? null,
+          format: format || null,
+          adCount: c.ads.length,
+        };
+      }),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed";
