@@ -8,9 +8,9 @@ const LACIDAWEB_FAQS = [
     sortOrder: 0,
   },
   {
-    question: "Do I need a subscription to run ads?",
+    question: "Do I need a subscription or KYC to run ads?",
     answer:
-      "No. Create a free account, top up your wallet when you're ready, and pay for campaigns from your balance. You only spend when you run ads.",
+      "No. Create a free account with no KYC or ID verification, top up your wallet when you're ready, and pay for campaigns from your balance. You only spend when you run ads.",
     sortOrder: 1,
   },
   {
@@ -22,7 +22,7 @@ const LACIDAWEB_FAQS = [
   {
     question: "When do my ads go live?",
     answer:
-      "After you submit a campaign, our team reviews it for compliance. Once approved and your wallet has sufficient balance, your campaign goes active.",
+      "After you submit a campaign, our team reviews the ad creative (not your identity — there is no KYC). Once approved and your wallet has sufficient balance, your campaign goes active.",
     sortOrder: 3,
   },
   {

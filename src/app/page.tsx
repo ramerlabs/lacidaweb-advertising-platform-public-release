@@ -42,8 +42,8 @@ const FEATURES = [
   },
   {
     icon: Shield,
-    title: "Compliance review",
-    description: "Every ad reviewed before launch.",
+    title: "Ad quality review",
+    description: "Creatives checked before launch — no KYC or ID upload.",
     className: "md:col-span-2",
   },
 ];
@@ -227,10 +227,10 @@ export default async function HomePage() {
               </h2>
               <ol className="mt-8 space-y-6">
                 {[
-                  "Sign up and create your advertiser workspace",
+                  "Sign up — no KYC, no ID documents",
                   "Top up wallet — USDT, GCash, PayPal, or bank",
                   "Build campaign with our guided wizard",
-                  "Submit for review and track performance",
+                  "Submit your ad for review and track performance",
                 ].map((step, i) => (
                   <li key={step} className="flex gap-4">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-cyan-500/40 bg-cyan-500/10 text-sm font-bold text-cyan-400">
@@ -313,7 +313,9 @@ export default async function HomePage() {
       <section className="border-t border-zinc-800 bg-zinc-900/30 py-20">
         <div className="mx-auto max-w-3xl px-6 text-center">
           <h2 className="text-3xl font-bold">Ready when you are</h2>
-          <p className="mt-4 text-zinc-400">No subscription. No lock-in. Fund your wallet and run ads.</p>
+          <p className="mt-4 text-zinc-400">
+            No KYC. No subscription. No lock-in. Fund your wallet and run ads.
+          </p>
           <Button asChild size="lg" className="mt-8 h-12 bg-cyan-500 px-10 text-zinc-950 hover:bg-cyan-400">
             <Link href="/register">Create account</Link>
           </Button>
