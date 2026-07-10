@@ -212,6 +212,22 @@ export async function serveAdsForPlacement(
       ? settings.publisherAdRotateSeconds
       : 0;
 
+  /** Advance the creative window by wall-clock so client refreshes actually change ads. */
+  function pickStartIndex(count: number, windowSize = 1): number {
+    if (count <= 0) return 0;
+    if (settings.publisherAdServingMode === "PERSONALIZED" && opts?.visitorId) {
+      return pickPersonalizedIndex(opts.visitorId, count);
+    }
+    if (rotateSeconds > 0) {
+      const tick = Math.floor(Date.now() / (rotateSeconds * 1000));
+      // Full new window when inventory is larger than the row; otherwise shift by 1.
+      const step = count > windowSize ? windowSize : 1;
+      return (tick * step) % count;
+    }
+    // Page-load only: advance by whole windows so a 4-up row does not stick on the same set.
+    return Math.floor(placement.impressions / Math.max(1, windowSize)) % count;
+  }
+
   // Text box template: always show 4 compact creatives side-by-side (pad with house promo).
   if (isTextBox) {
     const TEXT_BOX_COUNT = 4;
@@ -228,10 +244,7 @@ export async function serveAdsForPlacement(
       };
     }
 
-    let startIndex = placement.impressions % eligible.length;
-    if (settings.publisherAdServingMode === "PERSONALIZED" && opts?.visitorId) {
-      startIndex = pickPersonalizedIndex(opts.visitorId, eligible.length);
-    }
+    const startIndex = pickStartIndex(eligible.length, TEXT_BOX_COUNT);
     const ordered = rotateFromIndex(eligible, startIndex);
     const picked = ordered.slice(0, Math.min(TEXT_BOX_COUNT, ordered.length));
 
@@ -268,17 +281,12 @@ export async function serveAdsForPlacement(
     const house = await buildHouseAd(placement, opts?.origin, settings);
     return {
       ads: [house],
-      rotationSeconds: 0,
+      rotationSeconds: rotateSeconds,
       servingMode: settings.publisherAdServingMode,
     };
   }
 
-  let startIndex = placement.impressions % eligible.length;
-
-  if (settings.publisherAdServingMode === "PERSONALIZED" && opts?.visitorId) {
-    startIndex = pickPersonalizedIndex(opts.visitorId, eligible.length);
-  }
-
+  const startIndex = pickStartIndex(eligible.length, 1);
   const ordered = rotateFromIndex(eligible, startIndex);
   // Spread different paid creatives across auto slots when slotIndex is provided.
   const primary =

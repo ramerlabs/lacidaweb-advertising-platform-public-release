@@ -129,9 +129,6 @@
 
     var visitor = getVisitorId();
     var rotateFallback = Number(rotationSeconds || 0);
-    var localAds = [];
-    var localIndex = 0;
-    var isTextBoxFmt = false;
 
     function serveUrl() {
       return (
@@ -163,8 +160,7 @@
         return;
       }
       var firstFmt = ads[0].format || "";
-      isTextBoxFmt = firstFmt === "TEXT_BOX" || firstFmt === "TEXT";
-      if (isTextBoxFmt) {
+      if (firstFmt === "TEXT_BOX" || firstFmt === "TEXT") {
         renderTextBoxRow(target, ads, visitor);
         return;
       }
@@ -175,15 +171,9 @@
       var rotate = Number(seconds || 0);
       if (!(rotate > 0)) return;
       if (target.__lwRotateTimer) clearInterval(target.__lwRotateTimer);
+      // Always re-fetch so the server can advance the window on the admin interval.
       target.__lwRotateTimer = setInterval(function () {
-        // Text box / auto slots: re-fetch so the next batch advances via impressions.
-        if (isTextBoxFmt || localAds.length <= 1) {
-          load(true);
-          return;
-        }
-        // Multi-ad single-slot response: cycle locally without another request.
-        localIndex = (localIndex + 1) % localAds.length;
-        renderAd(target, localAds[localIndex], visitor);
+        load(true);
       }, rotate * 1000);
     }
 
@@ -194,18 +184,11 @@
         })
         .then(function (data) {
           var ads = data && data.ads && data.ads.length ? data.ads : data && data.ad ? [data.ad] : [];
-          localAds = ads;
-          localIndex = 0;
           paint(ads);
-          if (!isRefresh) {
-            scheduleRefresh(rotateFallback || data.rotationSeconds || 0);
-          } else if (data && data.rotationSeconds != null) {
-            // Keep timer in sync if admin changes the interval mid-session.
-            var next = Number(data.rotationSeconds || 0);
-            if (next > 0 && next !== rotateFallback) {
-              rotateFallback = next;
-              scheduleRefresh(next);
-            }
+          var next = Number((data && data.rotationSeconds) || rotateFallback || 0);
+          if (next > 0 && (!isRefresh || next !== rotateFallback)) {
+            rotateFallback = next;
+            scheduleRefresh(next);
           }
         })
         .catch(function () {
