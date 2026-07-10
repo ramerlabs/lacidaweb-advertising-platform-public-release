@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   Code2,
+  CreditCard,
   Headset,
   LayoutDashboard,
   LayoutTemplate,
@@ -28,6 +29,7 @@ const advertiserLinks = [
   { href: "/dashboard/advertiser", label: "Overview", icon: LayoutDashboard, exact: true },
   { href: "/dashboard/campaigns", label: "Campaigns", icon: Megaphone },
   { href: "/dashboard/wallet", label: "Wallet", icon: Wallet },
+  { href: "/dashboard/billing", label: "Billing", icon: CreditCard },
   { href: "/dashboard/support", label: "Support", icon: Headset },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];

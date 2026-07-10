@@ -187,3 +187,102 @@ export async function createLacidawebCampaign(input: {
 
   return getTeamCampaign(input.teamId, campaign.id);
 }
+
+export async function pauseTeamCampaign(teamId: string, campaignId: string, userId?: string) {
+  const campaign = await prisma.adCampaign.findFirst({
+    where: { id: campaignId, teamId, adType: "lacidaweb" },
+  });
+  if (!campaign) throw new Error("Campaign not found");
+  if (!["ACTIVE", "APPROVED"].includes(campaign.lifecycleStatus)) {
+    throw new Error("Only active campaigns can be paused");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.adCampaign.update({
+      where: { id: campaignId },
+      data: {
+        lifecycleStatus: "PAUSED",
+        status: "paused",
+      },
+    });
+    await tx.ad.updateMany({
+      where: { campaignId, status: { in: ["ACTIVE", "APPROVED"] } },
+      data: { status: "PAUSED" },
+    });
+    if (userId) {
+      await tx.auditLog.create({
+        data: {
+          teamId,
+          userId,
+          action: "campaign.paused",
+          message: `Paused campaign "${campaign.name}"`,
+          metadata: { campaignId },
+        },
+      });
+    }
+  });
+
+  return getTeamCampaign(teamId, campaignId);
+}
+
+export async function resumeTeamCampaign(teamId: string, campaignId: string, userId?: string) {
+  const campaign = await prisma.adCampaign.findFirst({
+    where: { id: campaignId, teamId, adType: "lacidaweb" },
+  });
+  if (!campaign) throw new Error("Campaign not found");
+  if (campaign.lifecycleStatus !== "PAUSED") {
+    throw new Error("Only paused campaigns can be resumed");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.adCampaign.update({
+      where: { id: campaignId },
+      data: {
+        lifecycleStatus: "ACTIVE",
+        status: "active",
+      },
+    });
+    await tx.ad.updateMany({
+      where: { campaignId, status: "PAUSED" },
+      data: { status: "ACTIVE" },
+    });
+    if (userId) {
+      await tx.auditLog.create({
+        data: {
+          teamId,
+          userId,
+          action: "campaign.resumed",
+          message: `Resumed campaign "${campaign.name}"`,
+          metadata: { campaignId },
+        },
+      });
+    }
+  });
+
+  return getTeamCampaign(teamId, campaignId);
+}
+
+export async function deleteTeamCampaign(teamId: string, campaignId: string, userId?: string) {
+  const campaign = await prisma.adCampaign.findFirst({
+    where: { id: campaignId, teamId, adType: "lacidaweb" },
+    select: { id: true, name: true },
+  });
+  if (!campaign) throw new Error("Campaign not found");
+
+  await prisma.$transaction(async (tx) => {
+    if (userId) {
+      await tx.auditLog.create({
+        data: {
+          teamId,
+          userId,
+          action: "campaign.deleted",
+          message: `Deleted campaign "${campaign.name}"`,
+          metadata: { campaignId },
+        },
+      });
+    }
+    await tx.adCampaign.delete({ where: { id: campaignId } });
+  });
+
+  return { ok: true as const, campaignId };
+}

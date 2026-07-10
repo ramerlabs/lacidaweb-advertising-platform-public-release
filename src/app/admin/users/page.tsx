@@ -64,6 +64,7 @@ export default function AdminUsersPage() {
   const [banReason, setBanReason] = useState("");
   const [aiTokenBalance, setAiTokenBalance] = useState("");
   const [addAiTokens, setAddAiTokens] = useState("");
+  const [addWalletUsd, setAddWalletUsd] = useState("");
 
   const selected = useMemo(
     () => users.find((u) => u.id === selectedId) || bannedUsers.find((u) => u.id === selectedId) || null,
@@ -115,6 +116,7 @@ export default function AdminUsersPage() {
     setNewPassword("");
     setAiTokenBalance("");
     setAddAiTokens("");
+    setAddWalletUsd("");
   }, [selected]);
 
   async function save(patch: Record<string, unknown>, userId = selectedId) {
@@ -158,6 +160,19 @@ export default function AdminUsersPage() {
     setStatus("User unbanned");
     if (selectedId === userId) setSelectedId(null);
     await refresh();
+  }
+
+  async function saveWalletTopUp() {
+    const amount = Number(addWalletUsd);
+    if (!selected?.team?.id || Number.isNaN(amount) || amount <= 0) {
+      setStatus("Enter a positive USD amount to top up.");
+      return;
+    }
+    await save({
+      teamId: selected.team.id,
+      addAdWalletUsd: Math.round(amount * 100) / 100,
+    });
+    setAddWalletUsd("");
   }
 
   async function saveAiSettings() {
@@ -414,12 +429,37 @@ export default function AdminUsersPage() {
                       <CardTitle>Advertiser workspace</CardTitle>
                       <CardDescription>Campaigns and ad wallet for this account</CardDescription>
                     </CardHeader>
-                    <CardContent className="grid gap-3 sm:grid-cols-2">
-                      <Stat label="Campaigns" value={String(selected.team?.campaigns ?? 0)} />
-                      <Stat
-                        label="Wallet balance"
-                        value={formatWallet(selected.team?.adWalletBalanceCents ?? 0)}
-                      />
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Stat label="Campaigns" value={String(selected.team?.campaigns ?? 0)} />
+                        <Stat
+                          label="Wallet balance"
+                          value={formatWallet(selected.team?.adWalletBalanceCents ?? 0)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Manual wallet top-up (USD)</Label>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <Input
+                            type="number"
+                            min={0.01}
+                            step="0.01"
+                            placeholder="e.g. 25"
+                            value={addWalletUsd}
+                            onChange={(e) => setAddWalletUsd(e.target.value)}
+                          />
+                          <Button
+                            variant="outline"
+                            onClick={saveWalletTopUp}
+                            disabled={saving || !selected.team?.id}
+                          >
+                            {saving ? "Saving..." : "Add to wallet"}
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Credits the advertiser wallet immediately and writes a TOP_UP ledger entry.
+                        </p>
+                      </div>
                     </CardContent>
                   </Card>
                 ) : (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Pause, Play, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 type Campaign = {
   id: string;
   name: string;
+  teamId: string;
   teamName: string;
   objective: string | null;
   lifecycleStatus: string;
@@ -33,6 +35,7 @@ export default function AdminCampaignsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
   async function load() {
@@ -49,8 +52,15 @@ export default function AdminCampaignsPage() {
 
   const selected = campaigns.find((c) => c.id === selectedId) || null;
 
-  async function review(action: "APPROVED" | "REJECTED") {
+  async function runAction(action: "APPROVED" | "REJECTED" | "PAUSE" | "RESUME" | "DELETE") {
     if (!selected) return;
+    if (action === "DELETE") {
+      const ok = window.confirm(
+        `Delete campaign "${selected.name}" for ${selected.teamName}? This cannot be undone.`,
+      );
+      if (!ok) return;
+    }
+    setBusy(true);
     setMessage("");
     const res = await fetch(`/api/admin/campaigns?id=${encodeURIComponent(selected.id)}`, {
       method: "PATCH",
@@ -58,13 +68,21 @@ export default function AdminCampaignsPage() {
       body: JSON.stringify({ action, notes: notes || undefined }),
     });
     const data = await res.json();
+    setBusy(false);
     if (!res.ok) {
-      setMessage(data.error || "Review failed");
+      setMessage(typeof data.error === "string" ? data.error : "Action failed");
       return;
     }
-    setMessage(action === "APPROVED" ? "Campaign approved" : "Campaign rejected");
+    const labels: Record<string, string> = {
+      APPROVED: "Campaign approved",
+      REJECTED: "Campaign rejected",
+      PAUSE: "Campaign paused",
+      RESUME: "Campaign resumed",
+      DELETE: "Campaign deleted",
+    };
+    setMessage(labels[action] || "Updated");
     setNotes("");
-    setSelectedId(null);
+    if (action === "DELETE") setSelectedId(null);
     await load();
   }
 
@@ -72,7 +90,9 @@ export default function AdminCampaignsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Campaign review</h1>
-        <p className="text-muted-foreground">Approve or reject advertiser campaigns before they go live</p>
+        <p className="text-muted-foreground">
+          Approve, reject, pause, or delete advertiser campaigns
+        </p>
       </div>
 
       {message ? (
@@ -120,17 +140,20 @@ export default function AdminCampaignsPage() {
 
         <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg">Review</CardTitle>
+            <CardTitle className="text-lg">Manage</CardTitle>
           </CardHeader>
           <CardContent>
             {!selected ? (
-              <p className="text-sm text-muted-foreground">Select a campaign to review.</p>
+              <p className="text-sm text-muted-foreground">Select a campaign to manage.</p>
             ) : (
               <div className="space-y-4">
                 <div>
                   <p className="text-lg font-semibold">{selected.name}</p>
                   <p className="text-sm text-muted-foreground">
                     {selected.teamName} · {selected.objective} · {selected.paymentStatus}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Status: {selected.lifecycleStatus.replace(/_/g, " ")}
                   </p>
                 </div>
                 {selected.headline ? (
@@ -149,11 +172,40 @@ export default function AdminCampaignsPage() {
                   rows={3}
                 />
                 <div className="flex flex-wrap gap-2">
-                  <Button onClick={() => review("APPROVED")} className="bg-cyan-500 text-zinc-950 hover:bg-cyan-400">
-                    Approve
-                  </Button>
-                  <Button variant="outline" onClick={() => review("REJECTED")}>
-                    Reject
+                  {selected.lifecycleStatus === "PENDING_REVIEW" ? (
+                    <>
+                      <Button
+                        disabled={busy}
+                        onClick={() => runAction("APPROVED")}
+                        className="bg-cyan-500 text-zinc-950 hover:bg-cyan-400"
+                      >
+                        Approve
+                      </Button>
+                      <Button variant="outline" disabled={busy} onClick={() => runAction("REJECTED")}>
+                        Reject
+                      </Button>
+                    </>
+                  ) : null}
+                  {["ACTIVE", "APPROVED"].includes(selected.lifecycleStatus) ? (
+                    <Button variant="outline" disabled={busy} onClick={() => runAction("PAUSE")}>
+                      <Pause className="h-4 w-4" />
+                      Pause
+                    </Button>
+                  ) : null}
+                  {selected.lifecycleStatus === "PAUSED" ? (
+                    <Button variant="outline" disabled={busy} onClick={() => runAction("RESUME")}>
+                      <Play className="h-4 w-4" />
+                      Resume
+                    </Button>
+                  ) : null}
+                  <Button
+                    variant="outline"
+                    className="border-rose-300 text-rose-700"
+                    disabled={busy}
+                    onClick={() => runAction("DELETE")}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete
                   </Button>
                 </div>
               </div>

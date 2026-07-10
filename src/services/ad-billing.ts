@@ -10,19 +10,26 @@ import { notifyAdminPaymentCreated } from "@/services/admin-notify";
 export async function createAdWalletTopUpPayment(input: {
   teamId: string;
   method: PaymentMethod;
+  amountUsd?: number;
   proofUrl?: string;
 }) {
   await assertPaymentMethodEnabled(input.method);
 
   const settings = await getAdsSettings();
-  const amount = Math.round(settings.adWalletTopUpUsd);
-  const adWalletTopUpCents = usdToCents(settings.adWalletTopUpUsd);
+  const minUsd = Math.max(25, settings.adWalletTopUpUsd || 25);
+  const requested = input.amountUsd ?? minUsd;
+  if (!Number.isFinite(requested) || requested < minUsd) {
+    throw new Error(`Minimum wallet top-up is $${minUsd.toFixed(2)}`);
+  }
+  const amountUsd = Math.round(requested * 100) / 100;
+  const amount = Math.ceil(amountUsd);
+  const adWalletTopUpCents = usdToCents(amountUsd);
   const isUsdt = input.method === "USDT";
 
   let usdtAmount: number | undefined;
   let instructions = await formatCheckoutInstructions(input.method, {
     amountUsd: amount,
-    adWalletTopUpUsd: settings.adWalletTopUpUsd,
+    adWalletTopUpUsd: amountUsd,
   });
 
   if (isUsdt) {
@@ -60,6 +67,8 @@ export async function createAdWalletTopUpPayment(input: {
     instructions,
     usdtAmount,
     adWalletTopUpCents,
+    adWalletTopUpUsd: amountUsd,
+    minTopUpUsd: minUsd,
     walletAddress: isUsdt ? await getUsdtWalletAddress() : undefined,
     usBank: input.method === "US_BANK" ? getUsBankDetails(await getPaymentSettings()) : undefined,
   };

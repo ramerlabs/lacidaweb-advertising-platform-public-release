@@ -57,13 +57,15 @@ export function BankPaymentHighlight({
         <CardTitle>Complete your US bank transfer</CardTitle>
         <CardDescription>
           Pay <strong>${amountUsd.toFixed(2)}</strong>
-          {tokensGranted !== undefined ? (
+          {tokensGranted !== undefined && tokensGranted > 0 ? (
             <>
               {" "}
               → receive <strong>{tokensGranted.toLocaleString()}</strong> AI tokens (
               {formatTokenCount(tokensGranted)}) after approval
             </>
-          ) : null}
+          ) : (
+            <> — wallet credits after approval</>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

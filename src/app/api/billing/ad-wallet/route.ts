@@ -26,7 +26,8 @@ export async function GET(req: Request) {
       adsEnabled: settings.adsEnabled,
       adWalletBalanceCents: team?.adWalletBalanceCents ?? 0,
       adWalletBalanceUsd: formatAdWalletUsd(team?.adWalletBalanceCents ?? 0),
-      adWalletTopUpUsd: settings.adWalletTopUpUsd,
+      adWalletTopUpUsd: Math.max(25, settings.adWalletTopUpUsd || 25),
+      minTopUpUsd: Math.max(25, settings.adWalletTopUpUsd || 25),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed";
@@ -38,6 +39,7 @@ export async function GET(req: Request) {
 const topUpSchema = z.object({
   teamId: z.string().min(1),
   method: z.enum(["USDT", "PAYPAL", "GCASH", "US_BANK"]),
+  amountUsd: z.number().positive().max(1_000_000).optional(),
   proofUrl: z.string().url().optional(),
 });
 
@@ -55,6 +57,7 @@ export async function POST(req: Request) {
     const result = await createAdWalletTopUpPayment({
       teamId: body.teamId,
       method: body.method as PaymentMethod,
+      amountUsd: body.amountUsd,
       proofUrl: body.proofUrl,
     });
 

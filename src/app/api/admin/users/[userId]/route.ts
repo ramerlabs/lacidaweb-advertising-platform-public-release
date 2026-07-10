@@ -14,6 +14,8 @@ const updateSchema = z.object({
   addAiCreditsCents: z.number().int().min(0).optional(),
   aiTokenBalance: z.number().int().min(0).optional(),
   addAiTokens: z.number().int().min(0).optional(),
+  addAdWalletUsd: z.number().positive().max(1_000_000).optional(),
+  setAdWalletUsd: z.number().min(0).max(1_000_000).optional(),
   teamId: z.string().min(1).optional(),
   subscriptionStatus: z.enum(["TRIAL", "ACTIVE", "PAST_DUE", "CANCELED"]).optional(),
   interval: z.enum(["MONTHLY", "YEARLY"]).optional(),
@@ -108,10 +110,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ userId
         : null) || user.memberships[0]?.team;
 
     let aiTokenBalance: number | undefined;
-    if (team && (body.aiTokenBalance !== undefined || body.addAiTokens !== undefined || body.aiEnabled !== undefined)) {
+    let adWalletBalanceCents: number | undefined;
+    if (
+      team &&
+      (body.aiTokenBalance !== undefined ||
+        body.addAiTokens !== undefined ||
+        body.aiEnabled !== undefined ||
+        body.addAdWalletUsd !== undefined ||
+        body.setAdWalletUsd !== undefined)
+    ) {
       const current = await prisma.team.findUnique({
         where: { id: team.id },
-        select: { aiTokenBalance: true, aiEnabled: true },
+        select: { aiTokenBalance: true, aiEnabled: true, adWalletBalanceCents: true },
       });
       const nextBalance =
         body.aiTokenBalance !== undefined
@@ -119,15 +129,60 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ userId
           : body.addAiTokens !== undefined
             ? (current?.aiTokenBalance || 0) + (body.addAiTokens || 0)
             : current?.aiTokenBalance || 0;
+
+      let nextWallet = current?.adWalletBalanceCents ?? 0;
+      if (body.setAdWalletUsd !== undefined) {
+        nextWallet = Math.round(body.setAdWalletUsd * 100);
+      } else if (body.addAdWalletUsd !== undefined) {
+        nextWallet = nextWallet + Math.round(body.addAdWalletUsd * 100);
+      }
+
       const updatedTeam = await prisma.team.update({
         where: { id: team.id },
         data: {
-          aiTokenBalance: body.aiTokenBalance !== undefined || body.addAiTokens !== undefined ? nextBalance : undefined,
+          aiTokenBalance:
+            body.aiTokenBalance !== undefined || body.addAiTokens !== undefined
+              ? nextBalance
+              : undefined,
           aiEnabled: body.aiEnabled !== undefined ? body.aiEnabled : undefined,
+          adWalletBalanceCents:
+            body.addAdWalletUsd !== undefined || body.setAdWalletUsd !== undefined
+              ? nextWallet
+              : undefined,
         },
-        select: { aiTokenBalance: true, aiEnabled: true },
+        select: { aiTokenBalance: true, aiEnabled: true, adWalletBalanceCents: true },
       });
       aiTokenBalance = updatedTeam.aiTokenBalance;
+      adWalletBalanceCents = updatedTeam.adWalletBalanceCents;
+
+      if (body.addAdWalletUsd !== undefined || body.setAdWalletUsd !== undefined) {
+        const deltaCents =
+          body.setAdWalletUsd !== undefined
+            ? nextWallet - (current?.adWalletBalanceCents ?? 0)
+            : Math.round((body.addAdWalletUsd || 0) * 100);
+        if (deltaCents !== 0) {
+          await prisma.walletTransaction.create({
+            data: {
+              teamId: team.id,
+              type: deltaCents > 0 ? "TOP_UP" : "ADJUSTMENT",
+              status: "COMPLETED",
+              amountCents: Math.abs(deltaCents),
+              balanceAfterCents: updatedTeam.adWalletBalanceCents,
+              description:
+                body.setAdWalletUsd !== undefined
+                  ? `Admin set wallet balance to $${body.setAdWalletUsd.toFixed(2)}`
+                  : `Admin top-up $${(body.addAdWalletUsd || 0).toFixed(2)}`,
+              metadata: {
+                kind: "ADMIN_WALLET",
+                adminUserId: session.user.id,
+                setUsd: body.setAdWalletUsd,
+                addUsd: body.addAdWalletUsd,
+              },
+              completedAt: new Date(),
+            },
+          });
+        }
+      }
     }
 
     let emailResult: { ok: boolean; method?: string } | null = null;
@@ -151,6 +206,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ userId
         banReason: updated.banReason,
       },
       aiTokenBalance,
+      adWalletBalanceCents,
       newPassword:
         generatedPassword && (body.sendPasswordEmail === false || !emailResult?.ok)
           ? generatedPassword

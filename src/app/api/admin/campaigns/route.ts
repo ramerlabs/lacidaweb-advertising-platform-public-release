@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePlatformAdmin, requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { deleteTeamCampaign, pauseTeamCampaign, resumeTeamCampaign } from "@/services/campaigns";
 
 export async function GET() {
   try {
@@ -22,6 +23,7 @@ export async function GET() {
       campaigns: campaigns.map((c) => ({
         id: c.id,
         name: c.name,
+        teamId: c.teamId,
         teamName: c.team.name,
         objective: c.objective,
         lifecycleStatus: c.lifecycleStatus,
@@ -41,7 +43,7 @@ export async function GET() {
 }
 
 const reviewSchema = z.object({
-  action: z.enum(["APPROVED", "REJECTED"]),
+  action: z.enum(["APPROVED", "REJECTED", "PAUSE", "RESUME", "DELETE"]),
   notes: z.string().max(2000).optional(),
 });
 
@@ -63,6 +65,21 @@ export async function PATCH(req: Request) {
     });
     if (!campaign) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    }
+
+    if (body.action === "DELETE") {
+      await deleteTeamCampaign(campaign.teamId, campaignId, session.user.id);
+      return NextResponse.json({ ok: true, deleted: true });
+    }
+
+    if (body.action === "PAUSE") {
+      await pauseTeamCampaign(campaign.teamId, campaignId, session.user.id);
+      return NextResponse.json({ ok: true, lifecycleStatus: "PAUSED" });
+    }
+
+    if (body.action === "RESUME") {
+      await resumeTeamCampaign(campaign.teamId, campaignId, session.user.id);
+      return NextResponse.json({ ok: true, lifecycleStatus: "ACTIVE" });
     }
 
     const lifecycleStatus = body.action === "APPROVED" ? "ACTIVE" : "REJECTED";

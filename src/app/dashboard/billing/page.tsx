@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { Wallet } from "lucide-react";
 import { useTeam } from "@/components/dashboard/team-provider";
-import { PlanPricingGrid } from "@/components/dashboard/plan-pricing-grid";
 import { UsdtPaymentHighlight } from "@/components/billing/usdt-payment-highlight";
 import { ManualPaymentHighlight } from "@/components/billing/manual-payment-highlight";
 import { BankPaymentHighlight } from "@/components/billing/bank-payment-highlight";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   DEFAULT_ENABLED_METHODS,
   type ClientPaymentMethod,
@@ -18,15 +19,6 @@ import {
   paymentMethodLabel,
 } from "@/lib/payment-methods";
 import { formatTokenCount } from "@/lib/ai-pricing";
-
-type Subscription = {
-  id: string;
-  planId: string;
-  status: string;
-  accountLimit: number;
-  interval: "MONTHLY" | "YEARLY";
-  amount: number;
-};
 
 type Payment = {
   id: string;
@@ -90,9 +82,10 @@ function BankPaymentInlineReference({
   );
 }
 
+const QUICK_AMOUNTS = [25, 50, 100, 250];
+
 export default function BillingPage() {
   const { teamId } = useTeam();
-  const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [usdtWallet, setUsdtWallet] = useState("");
   const [status, setStatus] = useState("");
@@ -108,38 +101,45 @@ export default function BillingPage() {
   const [pendingManual, setPendingManual] = useState<{
     method: "PAYPAL" | "GCASH";
     amountUsd: number;
-    tokensGranted: number;
+    tokensGranted?: number;
     instructions: string;
   } | null>(null);
   const [pendingBank, setPendingBank] = useState<{
     paymentId: string;
     amountUsd: number;
-    tokensGranted: number;
+    tokensGranted?: number;
     instructions: string;
   } | null>(null);
   const [aiUsage, setAiUsage] = useState<AiUsage[]>([]);
   const [uploadingProofId, setUploadingProofId] = useState<string | null>(null);
+  const [walletBalanceUsd, setWalletBalanceUsd] = useState("0.00");
+  const [minTopUpUsd, setMinTopUpUsd] = useState(25);
+  const [topUpAmount, setTopUpAmount] = useState("25");
+  const [toppingUp, setToppingUp] = useState(false);
   const paymentsRef = useRef<HTMLDivElement>(null);
 
   const pendingUsdtPayment = payments.find((p) => p.method === "USDT" && p.status === "PENDING");
+  const amountUsd = useMemo(() => {
+    const n = Number(topUpAmount);
+    return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+  }, [topUpAmount]);
 
   async function load() {
     if (!teamId) return;
-    const [subRes, payRes, methodsRes, aiRes, pricingRes, usageRes] = await Promise.all([
-      fetch(`/api/billing/subscription?teamId=${teamId}`),
+    const [payRes, methodsRes, aiRes, pricingRes, usageRes, walletRes] = await Promise.all([
       fetch(`/api/billing/payments?teamId=${teamId}`),
       fetch("/api/billing/payment-methods"),
       fetch(`/api/ai/generate?teamId=${teamId}`),
       fetch("/api/ai/pricing"),
       fetch(`/api/ai/usage?teamId=${teamId}`),
+      fetch(`/api/billing/ad-wallet?teamId=${encodeURIComponent(teamId)}`),
     ]);
-    const subData = await subRes.json();
     const payData = await payRes.json();
     const methodsData = await methodsRes.json();
     const aiData = await aiRes.json();
     const pricingData = await pricingRes.json();
     const usageData = await usageRes.json();
-    setSubscription(subData.subscription || null);
+    const walletData = await walletRes.json();
     setPayments(payData.payments || []);
     if (methodsRes.ok) {
       setUsdtWallet(methodsData.usdtWallet || "");
@@ -155,6 +155,19 @@ export default function BillingPage() {
       setTokensPerPack(pricingData.settings.tokensPerPack || 0);
     }
     if (usageRes.ok) setAiUsage(usageData.usage || []);
+    if (walletRes.ok) {
+      if (typeof walletData.adWalletBalanceUsd === "string") {
+        setWalletBalanceUsd(walletData.adWalletBalanceUsd);
+      }
+      const min = Number(walletData.minTopUpUsd || walletData.adWalletTopUpUsd || 25);
+      if (Number.isFinite(min) && min > 0) {
+        setMinTopUpUsd(min);
+        setTopUpAmount((prev) => {
+          const current = Number(prev);
+          return !Number.isFinite(current) || current < min ? String(min) : prev;
+        });
+      }
+    }
   }
 
   useEffect(() => {
@@ -188,11 +201,54 @@ export default function BillingPage() {
           ? "Payment verified. AI tokens added to your balance."
           : data.payment?.purpose === "AD_WALLET"
             ? "Payment verified. Ad wallet topped up."
-            : data.payment?.purpose === "AD_CAMPAIGN"
-              ? "Payment verified. Your ad is being published."
-              : "Payment verified. Your subscription is now active."),
+            : "Payment verified."),
     );
     await load();
+  }
+
+  async function topUpWallet(method: ClientPaymentMethod) {
+    if (!teamId) return;
+    if (amountUsd < minTopUpUsd) {
+      setStatus(`Minimum top-up is $${minTopUpUsd.toFixed(2)}.`);
+      return;
+    }
+    setToppingUp(true);
+    setStatus("");
+    const res = await fetch("/api/billing/ad-wallet", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ teamId, method, amountUsd }),
+    });
+    const data = await res.json();
+    setToppingUp(false);
+    if (!res.ok) {
+      setStatus(data.error || "Could not start wallet top-up");
+      return;
+    }
+    if (method === "USDT") {
+      setPendingManual(null);
+      setPendingBank(null);
+      setStatus(`Pay ${data.usdtAmount} USDT — see instructions below. Wallet credits after verification.`);
+    } else if (method === "US_BANK") {
+      setPendingManual(null);
+      setPendingBank({
+        paymentId: data.payment?.id,
+        amountUsd: data.adWalletTopUpUsd || amountUsd,
+        tokensGranted: 0,
+        instructions: data.instructions || "",
+      });
+      setStatus("");
+    } else {
+      setPendingBank(null);
+      setPendingManual({
+        method,
+        amountUsd: data.adWalletTopUpUsd || amountUsd,
+        instructions: data.instructions || data.payment?.notes || "",
+      });
+      setStatus("");
+    }
+    await load();
+    paymentsRef.current?.scrollIntoView({ behavior: "smooth" });
   }
 
   async function buyAiTokens(method: ClientPaymentMethod) {
@@ -240,7 +296,7 @@ export default function BillingPage() {
     paymentsRef.current?.scrollIntoView({ behavior: "smooth" });
   }
 
-  const hasTokenPaymentMethods =
+  const hasPaymentMethods =
     enabledMethods.USDT ||
     enabledMethods.PAYPAL ||
     enabledMethods.GCASH ||
@@ -254,7 +310,10 @@ export default function BillingPage() {
       const presign = await fetch("/api/media/presign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: file.name, contentType: file.type || "application/octet-stream" }),
+        body: JSON.stringify({
+          filename: file.name,
+          contentType: file.type || "application/octet-stream",
+        }),
       });
       const urls = await presign.json();
       if (!presign.ok) throw new Error(urls.error || "Presign failed");
@@ -287,41 +346,105 @@ export default function BillingPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Billing</h1>
-        <p className="text-muted-foreground">Manage subscription and payment method</p>
+        <p className="text-muted-foreground">
+          Top up your ad wallet — no subscription plans. Minimum ${minTopUpUsd.toFixed(2)}.
+        </p>
       </div>
 
-      <Card>
+      <Card className="border-cyan-500/20 bg-gradient-to-br from-cyan-500/5 via-transparent to-emerald-500/5">
         <CardHeader>
-          <CardTitle>Current subscription</CardTitle>
-          <CardDescription>Plan, status and account limits</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <Wallet className="h-5 w-5 text-cyan-500" />
+            Ad wallet
+          </CardTitle>
+          <CardDescription>
+            Balance is spent on impressions and clicks after your campaigns go live.
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          {subscription ? (
-            <div className="space-y-1 text-sm">
-              <p><strong>Plan:</strong> {subscription.planId}</p>
-              <p><strong>Status:</strong> {subscription.status}</p>
-              <p><strong>Limit:</strong> {subscription.accountLimit} accounts</p>
-              <p><strong>Billing:</strong> ${subscription.amount} / {subscription.interval.toLowerCase()}</p>
+        <CardContent className="space-y-5">
+          <div>
+            <p className="text-sm text-muted-foreground">Available balance</p>
+            <p className="text-4xl font-bold tabular-nums">${walletBalanceUsd}</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="topup-amount">Top-up amount (USD)</Label>
+            <Input
+              id="topup-amount"
+              type="number"
+              min={minTopUpUsd}
+              step="1"
+              value={topUpAmount}
+              onChange={(e) => setTopUpAmount(e.target.value)}
+            />
+            <div className="flex flex-wrap gap-2">
+              {QUICK_AMOUNTS.map((n) => (
+                <Button
+                  key={n}
+                  type="button"
+                  size="sm"
+                  variant={amountUsd === n ? "default" : "outline"}
+                  onClick={() => setTopUpAmount(String(Math.max(minTopUpUsd, n)))}
+                >
+                  ${n}
+                </Button>
+              ))}
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">No subscription yet. Choose a plan below.</p>
-          )}
+            <p className="text-xs text-muted-foreground">
+              Minimum ${minTopUpUsd.toFixed(2)}. Choose a payment method below to continue.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {enabledMethods.USDT ? (
+              <Button disabled={toppingUp} onClick={() => topUpWallet("USDT")}>
+                {toppingUp ? "Starting..." : `Top up $${amountUsd.toFixed(2)} with USDT`}
+              </Button>
+            ) : null}
+            {enabledMethods.PAYPAL ? (
+              <Button
+                variant="secondary"
+                disabled={toppingUp}
+                onClick={() => topUpWallet("PAYPAL")}
+              >
+                PayPal
+              </Button>
+            ) : null}
+            {enabledMethods.GCASH ? (
+              <Button variant="outline" disabled={toppingUp} onClick={() => topUpWallet("GCASH")}>
+                GCash
+              </Button>
+            ) : null}
+            {enabledMethods.US_BANK ? (
+              <Button variant="outline" disabled={toppingUp} onClick={() => topUpWallet("US_BANK")}>
+                US Bank
+              </Button>
+            ) : null}
+          </div>
+          {!hasPaymentMethods ? (
+            <p className="text-sm text-muted-foreground">No payment methods are enabled yet.</p>
+          ) : null}
+          <p className="text-xs text-muted-foreground">
+            Prefer the dedicated wallet page?{" "}
+            <Link href="/dashboard/wallet" className="underline underline-offset-2">
+              Open Wallet
+            </Link>
+          </p>
         </CardContent>
       </Card>
 
       {aiEnabled ? (
         <Card>
           <CardHeader>
-            <CardTitle>AI tokens</CardTitle>
+            <CardTitle>AI tokens (optional)</CardTitle>
             <CardDescription>
-              Balance: {tokenBalance.toLocaleString()} tokens ({formatTokenCount(tokenBalance)}) — used
-              for AI generation in Compose
+              Balance: {tokenBalance.toLocaleString()} tokens ({formatTokenCount(tokenBalance)})
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm">
               Pay <strong>${aiPackUsd.toFixed(2)}</strong> → receive{" "}
-              <strong>{tokensPerPack.toLocaleString()}</strong> tokens ({formatTokenCount(tokensPerPack)}).
+              <strong>{tokensPerPack.toLocaleString()}</strong> tokens.
             </p>
             <div className="flex flex-wrap gap-2">
               {enabledMethods.USDT ? (
@@ -330,24 +453,36 @@ export default function BillingPage() {
                 </Button>
               ) : null}
               {enabledMethods.PAYPAL ? (
-                <Button size="sm" variant="secondary" disabled={buyingTokens} onClick={() => buyAiTokens("PAYPAL")}>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={buyingTokens}
+                  onClick={() => buyAiTokens("PAYPAL")}
+                >
                   Buy with PayPal
                 </Button>
               ) : null}
               {enabledMethods.GCASH ? (
-                <Button size="sm" variant="outline" disabled={buyingTokens} onClick={() => buyAiTokens("GCASH")}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={buyingTokens}
+                  onClick={() => buyAiTokens("GCASH")}
+                >
                   Buy with GCash
                 </Button>
               ) : null}
               {enabledMethods.US_BANK ? (
-                <Button size="sm" variant="outline" disabled={buyingTokens} onClick={() => buyAiTokens("US_BANK")}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={buyingTokens}
+                  onClick={() => buyAiTokens("US_BANK")}
+                >
                   Buy with US Bank
                 </Button>
               ) : null}
             </div>
-            {!hasTokenPaymentMethods ? (
-              <p className="text-sm text-muted-foreground">No payment methods are enabled yet.</p>
-            ) : null}
           </CardContent>
         </Card>
       ) : null}
@@ -367,161 +502,119 @@ export default function BillingPage() {
           teamId={teamId}
           amountUsd={pendingBank.amountUsd}
           tokensGranted={pendingBank.tokensGranted}
-          bank={usBankDetails}
           instructions={pendingBank.instructions}
-          onReferenceSubmitted={load}
+          bank={usBankDetails}
+          onReferenceSubmitted={() => void load()}
         />
       ) : null}
 
-      {aiEnabled && aiUsage.length > 0 ? (
+      {pendingUsdtPayment && usdtWallet ? (
+        <UsdtPaymentHighlight
+          usdtAmount={pendingUsdtPayment.usdtAmount || pendingUsdtPayment.amount}
+          walletAddress={usdtWallet}
+          paymentId={pendingUsdtPayment.id}
+        />
+      ) : null}
+
+      <div ref={paymentsRef}>
         <Card>
           <CardHeader>
-            <CardTitle>AI usage history</CardTitle>
-            <CardDescription>Recent text and image generations charged to your balance</CardDescription>
+            <CardTitle>Payment history</CardTitle>
+            <CardDescription>Wallet top-ups and optional AI token purchases</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {aiUsage.slice(0, 10).map((row) => (
-              <div key={row.id} className="flex items-center justify-between rounded border px-3 py-2 text-sm">
-                <div>
-                  <p className="font-medium capitalize">{row.type}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(row.createdAt).toLocaleString()}
-                    {row.type === "text" && row.promptTokens
-                      ? ` · ${(row.tokensUsed || row.promptTokens + (row.completionTokens || 0)).toLocaleString()} tokens`
-                      : row.tokensUsed
-                        ? ` · ${row.tokensUsed.toLocaleString()} tokens`
-                        : ""}
-                  </p>
+          <CardContent className="space-y-4">
+            {payments.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No payments yet.</p>
+            ) : (
+              payments.map((payment) => (
+                <div key={payment.id} className="rounded-lg border p-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <div>
+                      <p className="font-medium">
+                        {paymentMethodLabel(payment.method as ClientPaymentMethod)} · $
+                        {payment.amount}
+                        {payment.purpose === "AD_WALLET"
+                          ? " · Wallet top-up"
+                          : payment.purpose === "AI_CREDITS"
+                            ? " · AI tokens"
+                            : ""}
+                      </p>
+                      <p className="text-muted-foreground">
+                        {new Date(payment.createdAt).toLocaleString()} · {payment.status}
+                      </p>
+                    </div>
+                    {payment.status === "PENDING" && payment.method !== "USDT" ? (
+                      <label className="text-xs">
+                        <span className="mb-1 block text-muted-foreground">Upload proof</span>
+                        <Input
+                          type="file"
+                          accept="image/*,.pdf"
+                          disabled={uploadingProofId === payment.id}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) void uploadPaymentProof(payment.id, file);
+                          }}
+                        />
+                      </label>
+                    ) : null}
+                  </div>
+
+                  {payment.status === "PENDING" && payment.method === "USDT" ? (
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Input
+                        placeholder="Transaction hash"
+                        value={txHashes[payment.id] || ""}
+                        onChange={(e) =>
+                          setTxHashes((prev) => ({ ...prev, [payment.id]: e.target.value }))
+                        }
+                      />
+                      <Button
+                        size="sm"
+                        disabled={verifyingId === payment.id}
+                        onClick={() => verifyUsdtPayment(payment.id)}
+                      >
+                        {verifyingId === payment.id ? "Verifying..." : "Verify payment"}
+                      </Button>
+                    </div>
+                  ) : null}
+
+                  {payment.status === "PENDING" &&
+                  payment.method === "US_BANK" &&
+                  !payment.externalRef &&
+                  teamId ? (
+                    <BankPaymentInlineReference
+                      paymentId={payment.id}
+                      teamId={teamId}
+                      onDone={() => void load()}
+                    />
+                  ) : null}
                 </div>
-                <p className="font-medium">-{row.tokensUsed?.toLocaleString() || "—"} tokens</p>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {aiUsage.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent AI usage</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {aiUsage.slice(0, 8).map((row) => (
+              <div key={row.id} className="flex justify-between gap-3 border-b py-2 last:border-0">
+                <span>{row.type}</span>
+                <span className="text-muted-foreground">
+                  {(row.tokensUsed || 0).toLocaleString()} tokens ·{" "}
+                  {new Date(row.createdAt).toLocaleString()}
+                </span>
               </div>
             ))}
           </CardContent>
         </Card>
       ) : null}
 
-      {pendingUsdtPayment?.usdtAmount && usdtWallet ? (
-        <UsdtPaymentHighlight
-          paymentId={pendingUsdtPayment.id}
-          usdtAmount={pendingUsdtPayment.usdtAmount}
-          walletAddress={usdtWallet}
-          onVerifyClick={() => paymentsRef.current?.scrollIntoView({ behavior: "smooth" })}
-        />
-      ) : null}
-
-      <PlanPricingGrid
-        teamId={teamId}
-        currentPlanId={subscription?.planId}
-        subscriptionStatus={subscription?.status}
-        onCheckoutComplete={load}
-        showHeading
-      />
-
-      <div ref={paymentsRef}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Payments</CardTitle>
-            <CardDescription>Recent payment requests and statuses</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-          {payments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No payments yet.</p>
-          ) : (
-            payments.map((payment) => (
-              <div key={payment.id} className="space-y-2 rounded border p-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p>{paymentMethodLabel(payment.method as ClientPaymentMethod)} - ${payment.amount}
-                      {payment.purpose === "AI_CREDITS"
-                        ? " (AI tokens)"
-                        : payment.purpose === "AD_WALLET"
-                          ? " (Ad wallet)"
-                          : payment.purpose === "AD_CAMPAIGN"
-                            ? " (Ad campaign)"
-                            : ""}
-                    </p>
-                    {payment.purpose === "AI_CREDITS" && payment.aiTokensGranted ? (
-                      <p className="text-muted-foreground">
-                        Tokens: {payment.aiTokensGranted.toLocaleString()}
-                        {payment.status === "PAID" ? " — added to your balance" : " — pending approval"}
-                      </p>
-                    ) : null}
-                    {payment.usdtAmount ? (
-                      <p className="text-muted-foreground">USDT amount: {payment.usdtAmount}</p>
-                    ) : null}
-                    <p className="text-muted-foreground">{new Date(payment.createdAt).toLocaleString()}</p>
-                  </div>
-                  <div className="font-medium">{payment.status}</div>
-                </div>
-                {payment.method === "USDT" && payment.status === "PENDING" ? (
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Input
-                      placeholder="Paste TRC20 transaction hash"
-                      value={txHashes[payment.id] || ""}
-                      onChange={(e) =>
-                        setTxHashes((prev) => ({ ...prev, [payment.id]: e.target.value }))
-                      }
-                    />
-                    <Button
-                      size="sm"
-                      disabled={verifyingId === payment.id}
-                      onClick={() => verifyUsdtPayment(payment.id)}
-                    >
-                      {verifyingId === payment.id ? "Verifying..." : "Verify payment"}
-                    </Button>
-                  </div>
-                ) : null}
-                {(payment.method === "PAYPAL" || payment.method === "GCASH") &&
-                payment.status === "PENDING" &&
-                !payment.proofUrl ? (
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <Input
-                      type="file"
-                      accept="image/*,.pdf"
-                      disabled={uploadingProofId === payment.id}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) void uploadPaymentProof(payment.id, file);
-                      }}
-                    />
-                    <span className="text-xs text-muted-foreground">
-                      {uploadingProofId === payment.id ? "Uploading..." : "Upload receipt screenshot"}
-                    </span>
-                  </div>
-                ) : null}
-                {payment.proofUrl ? (
-                  <p className="text-xs text-muted-foreground">
-                    Proof:{" "}
-                    <a href={payment.proofUrl} target="_blank" rel="noreferrer" className="underline">
-                      View uploaded receipt
-                    </a>
-                  </p>
-                ) : null}
-                {payment.externalRef ? (
-                  <p className="text-xs text-muted-foreground">Reference: {payment.externalRef}</p>
-                ) : null}
-                {payment.method === "US_BANK" && payment.status === "PENDING" && !payment.externalRef && teamId ? (
-                  <BankPaymentInlineReference paymentId={payment.id} teamId={teamId} onDone={load} />
-                ) : null}
-                {payment.txHash ? (
-                  <p className="break-all text-xs text-muted-foreground">TX: {payment.txHash}</p>
-                ) : null}
-                {payment.notes && payment.status === "PENDING" ? (
-                  <pre className="whitespace-pre-wrap rounded bg-muted/50 p-2 text-xs text-muted-foreground">
-                    {payment.notes}
-                  </pre>
-                ) : null}
-              </div>
-            ))
-          )}
-          {status ? <p className="text-sm text-muted-foreground">{status}</p> : null}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Button asChild variant="outline">
-        <Link href="/dashboard">Back to overview</Link>
-      </Button>
+      {status ? <p className="text-sm text-muted-foreground">{status}</p> : null}
     </div>
   );
 }
