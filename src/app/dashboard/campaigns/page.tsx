@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { Megaphone, Pause, Play, Plus, Trash2 } from "lucide-react";
+import { Megaphone, Pause, Play, Plus, Trash2, Wallet } from "lucide-react";
 import { useTeam } from "@/components/dashboard/team-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import type { CampaignDto } from "@/types/lacidaweb";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -27,6 +28,16 @@ function statusVariant(status: string): "default" | "secondary" | "outline" | "d
   return "outline";
 }
 
+function money(n: number) {
+  return `$${n.toFixed(2)}`;
+}
+
+function spendPercent(campaign: CampaignDto) {
+  const reserved = campaign.reservedBudgetUsd || 0;
+  if (reserved <= 0) return 0;
+  return Math.min(100, Math.round(((campaign.spentUsd || 0) / reserved) * 100));
+}
+
 export default function CampaignsPage() {
   const { teamId } = useTeam();
   const [campaigns, setCampaigns] = useState<CampaignDto[]>([]);
@@ -34,6 +45,8 @@ export default function CampaignsPage() {
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
+  const [extendId, setExtendId] = useState<string | null>(null);
+  const [extendAmount, setExtendAmount] = useState("25");
 
   const load = useCallback(async () => {
     if (!teamId) return;
@@ -71,6 +84,32 @@ export default function CampaignsPage() {
       return;
     }
     setStatus(data.message || (action === "PAUSE" ? "Campaign paused" : "Campaign resumed"));
+    await load();
+  }
+
+  async function addSpend(campaign: CampaignDto) {
+    if (!teamId) return;
+    const amountUsd = Math.round(Number(extendAmount) * 100) / 100;
+    if (!Number.isFinite(amountUsd) || amountUsd <= 0) {
+      setStatus("Enter a valid amount to add.");
+      return;
+    }
+    setBusyId(campaign.id);
+    setStatus("");
+    const res = await fetch(`/api/campaigns/${encodeURIComponent(campaign.id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ teamId, action: "ADD_SPEND", amountUsd }),
+    });
+    const data = await res.json();
+    setBusyId(null);
+    if (!res.ok) {
+      setStatus(typeof data.error === "string" ? data.error : "Could not add spend");
+      return;
+    }
+    setStatus(data.message || `Added ${money(amountUsd)} to campaign budget`);
+    setExtendId(null);
+    setExtendAmount("25");
     await load();
   }
 
@@ -153,15 +192,23 @@ export default function CampaignsPage() {
           {campaigns.map((campaign) => {
             const canPause = ["ACTIVE", "APPROVED"].includes(campaign.lifecycleStatus);
             const canResume = campaign.lifecycleStatus === "PAUSED";
+            const canAddSpend =
+              ["reserved", "funded", "paid"].includes(campaign.paymentStatus) &&
+              !["REJECTED", "COMPLETED", "ARCHIVED"].includes(campaign.lifecycleStatus);
             const busy = busyId === campaign.id;
+            const pct = spendPercent(campaign);
+            const reserved = campaign.reservedBudgetUsd ?? campaign.budgetAmount ?? 0;
+            const spent = campaign.spentUsd ?? (campaign.lifetimeSpendCents || 0) / 100;
+            const remaining = campaign.remainingBudgetUsd ?? Math.max(0, reserved - spent);
+
             return (
               <Card key={campaign.id}>
                 <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
                   <div>
                     <CardTitle className="text-lg">{campaign.name}</CardTitle>
                     <CardDescription className="mt-1">
-                      {campaign.objective?.replace("_", " ") || campaign.goal} · $
-                      {campaign.budgetAmount.toFixed(2)}{" "}
+                      {campaign.objective?.replace("_", " ") || campaign.goal} ·{" "}
+                      {money(campaign.budgetAmount)}{" "}
                       {campaign.budgetType === "daily" ? "daily" : "lifetime"}
                     </CardDescription>
                   </div>
@@ -170,6 +217,36 @@ export default function CampaignsPage() {
                   </Badge>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <div className="rounded-lg border bg-muted/20 p-3">
+                    <div className="flex flex-wrap items-end justify-between gap-2 text-sm">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Total ad spent
+                        </p>
+                        <p className="text-xl font-semibold tabular-nums">{money(spent)}</p>
+                      </div>
+                      <div className="text-right text-muted-foreground">
+                        <p>
+                          Budget {money(reserved)} · Left {money(remaining)}
+                        </p>
+                        <p className="text-xs">{pct}% of reserved budget used</p>
+                      </div>
+                    </div>
+                    <div
+                      className="mt-3 h-2 overflow-hidden rounded-full bg-muted"
+                      role="progressbar"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={pct}
+                      aria-label="Campaign spend"
+                    >
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-emerald-500 transition-[width]"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+
                   <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                     <span>
                       Countries: {campaign.targeting?.location.countries.join(", ") || "—"}
@@ -185,7 +262,56 @@ export default function CampaignsPage() {
                       />
                     ) : null}
                   </div>
+
+                  {extendId === campaign.id ? (
+                    <div className="flex flex-col gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/5 p-3 sm:flex-row sm:items-end">
+                      <div className="flex-1 space-y-1.5">
+                        <label className="text-xs font-medium text-muted-foreground" htmlFor={`add-${campaign.id}`}>
+                          Add spend from wallet (USD)
+                        </label>
+                        <Input
+                          id={`add-${campaign.id}`}
+                          type="number"
+                          min={1}
+                          step="1"
+                          value={extendAmount}
+                          onChange={(e) => setExtendAmount(e.target.value)}
+                          disabled={busy}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" disabled={busy} onClick={() => void addSpend(campaign)}>
+                          <Wallet className="h-4 w-4" />
+                          {busy ? "Adding..." : "Confirm"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={busy}
+                          onClick={() => setExtendId(null)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+
                   <div className="flex flex-wrap gap-2">
+                    {canAddSpend ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => {
+                          setExtendId(campaign.id);
+                          setExtendAmount("25");
+                          setStatus("");
+                        }}
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add spend
+                      </Button>
+                    ) : null}
                     {canPause ? (
                       <Button
                         size="sm"

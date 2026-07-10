@@ -47,7 +47,13 @@ export async function getCampaignSpendTodayCents(campaignId: string): Promise<nu
   // Count delivery spend only (exclude campaign budget reserve).
   return rows.reduce((sum, row) => {
     const meta = row.metadata as { kind?: string } | null;
-    if (meta?.kind === "CAMPAIGN_RESERVE" || meta?.kind === "AI_TOKEN_WALLET_PURCHASE") return sum;
+    if (
+      meta?.kind === "CAMPAIGN_RESERVE" ||
+      meta?.kind === "CAMPAIGN_BUDGET_EXTEND" ||
+      meta?.kind === "AI_TOKEN_WALLET_PURCHASE"
+    ) {
+      return sum;
+    }
     return sum + Math.abs(row.amountCents);
   }, 0);
 }
@@ -156,7 +162,9 @@ export async function chargeAdvertiserSpend(input: {
         });
         const todaySpend = todayRows.reduce((sum, row) => {
           const meta = row.metadata as { kind?: string } | null;
-          if (meta?.kind === "CAMPAIGN_RESERVE") return sum;
+          if (meta?.kind === "CAMPAIGN_RESERVE" || meta?.kind === "CAMPAIGN_BUDGET_EXTEND") {
+            return sum;
+          }
           return sum + Math.abs(row.amountCents);
         }, 0);
         maxCharge = Math.min(maxCharge, Math.max(0, cap - todaySpend));
@@ -261,7 +269,9 @@ export async function chargeAdvertiserSpend(input: {
           });
           const todaySpend = todayRows.reduce((sum, row) => {
             const meta = row.metadata as { kind?: string } | null;
-            if (meta?.kind === "CAMPAIGN_RESERVE") return sum;
+            if (meta?.kind === "CAMPAIGN_RESERVE" || meta?.kind === "CAMPAIGN_BUDGET_EXTEND") {
+            return sum;
+          }
             return sum + Math.abs(row.amountCents);
           }, 0);
           if (todaySpend >= afterCap) {

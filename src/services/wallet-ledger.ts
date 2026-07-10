@@ -175,6 +175,103 @@ export async function reserveCampaignBudget(input: {
 }
 
 /**
+ * Add more prepaid budget to an existing campaign from the advertiser wallet.
+ * Increases clientChargeUsd / budgetAmount and debits the wallet.
+ */
+export async function extendCampaignBudget(input: {
+  teamId: string;
+  campaignId: string;
+  amountUsd: number;
+  userId?: string;
+}): Promise<{ chargedCents: number; newReservedBudgetUsd: number; walletBalanceCents: number }> {
+  const amountUsd = Math.round(input.amountUsd * 100) / 100;
+  const chargeCents = usdToCents(amountUsd);
+  if (chargeCents <= 0) throw new Error("Add-spend amount must be greater than zero");
+
+  return prisma.$transaction(async (tx) => {
+    const campaign = await tx.adCampaign.findFirst({
+      where: { id: input.campaignId, teamId: input.teamId, adType: "lacidaweb" },
+      select: {
+        id: true,
+        name: true,
+        paymentStatus: true,
+        lifecycleStatus: true,
+        budgetAmount: true,
+        clientChargeUsd: true,
+        platformBudgetUsd: true,
+      },
+    });
+    if (!campaign) throw new Error("Campaign not found");
+    if (["REJECTED", "COMPLETED", "ARCHIVED"].includes(campaign.lifecycleStatus)) {
+      throw new Error("Cannot add spend to a rejected or completed campaign");
+    }
+    if (!["reserved", "funded", "paid"].includes(campaign.paymentStatus)) {
+      throw new Error("Campaign budget must be reserved before you can add more spend");
+    }
+
+    const debited = await tx.team.updateMany({
+      where: { id: input.teamId, adWalletBalanceCents: { gte: chargeCents } },
+      data: { adWalletBalanceCents: { decrement: chargeCents } },
+    });
+    if (debited.count === 0) {
+      const team = await tx.team.findUnique({
+        where: { id: input.teamId },
+        select: { adWalletBalanceCents: true },
+      });
+      if (!team) throw new Error("Team not found");
+      throw new Error(
+        `Insufficient wallet balance. Need $${amountUsd.toFixed(2)}, have $${(team.adWalletBalanceCents / 100).toFixed(2)}. Top up your wallet first.`,
+      );
+    }
+
+    const currentReserved =
+      campaign.clientChargeUsd || campaign.budgetAmount || campaign.platformBudgetUsd || 0;
+    const newReserved = Math.round((currentReserved + amountUsd) * 100) / 100;
+
+    await tx.adCampaign.update({
+      where: { id: campaign.id },
+      data: {
+        clientChargeUsd: newReserved,
+        platformBudgetUsd: newReserved,
+        budgetAmount: newReserved,
+        paymentStatus: campaign.paymentStatus === "paid" ? "funded" : campaign.paymentStatus,
+      },
+    });
+
+    const updated = await tx.team.findUniqueOrThrow({
+      where: { id: input.teamId },
+      select: { adWalletBalanceCents: true },
+    });
+
+    await tx.walletTransaction.create({
+      data: {
+        teamId: input.teamId,
+        campaignId: campaign.id,
+        type: "AD_SPEND",
+        status: "COMPLETED",
+        amountCents: chargeCents,
+        balanceAfterCents: updated.adWalletBalanceCents,
+        description: `Added $${amountUsd.toFixed(2)} spend to campaign "${campaign.name}"`,
+        metadata: {
+          kind: "CAMPAIGN_BUDGET_EXTEND",
+          amountUsd,
+          previousBudgetUsd: currentReserved,
+          newBudgetUsd: newReserved,
+          userId: input.userId,
+        },
+        completedAt: new Date(),
+      },
+    });
+
+    return {
+      chargedCents: chargeCents,
+      newReservedBudgetUsd: newReserved,
+      walletBalanceCents: updated.adWalletBalanceCents,
+    };
+  });
+}
+
+/**
  * Repair campaigns stuck on pending_payment (created before reserve shipped, or failed mid-flow).
  * Deducts budget now so advertisers cannot keep submitting without paying.
  */

@@ -141,6 +141,12 @@ export interface CampaignDto {
   scheduleEnd: string | null;
   targeting: AudienceTargeting | null;
   lifetimeSpendCents: number;
+  /** Prepaid / reserved campaign budget in USD (wallet amount locked for this campaign). */
+  reservedBudgetUsd: number;
+  /** Delivery spend so far in USD. */
+  spentUsd: number;
+  /** reservedBudgetUsd - spentUsd (not below zero). */
+  remainingBudgetUsd: number;
   paymentStatus: string;
   rejectionReason: string | null;
   reviewedAt: string | null;

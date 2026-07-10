@@ -2,16 +2,28 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSession, requireTeamAccess } from "@/lib/auth";
 import {
+  addCampaignSpend,
   deleteTeamCampaign,
   getTeamCampaign,
   pauseTeamCampaign,
   resumeTeamCampaign,
 } from "@/services/campaigns";
 
-const patchSchema = z.object({
-  teamId: z.string().min(1),
-  action: z.enum(["PAUSE", "RESUME"]),
-});
+const patchSchema = z.discriminatedUnion("action", [
+  z.object({
+    teamId: z.string().min(1),
+    action: z.literal("PAUSE"),
+  }),
+  z.object({
+    teamId: z.string().min(1),
+    action: z.literal("RESUME"),
+  }),
+  z.object({
+    teamId: z.string().min(1),
+    action: z.literal("ADD_SPEND"),
+    amountUsd: z.number().positive().max(1_000_000),
+  }),
+]);
 
 const deleteSchema = z.object({
   teamId: z.string().min(1),
@@ -41,6 +53,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ campai
     const { campaignId } = await params;
     const body = patchSchema.parse(await req.json());
     await requireTeamAccess(body.teamId, session.user.id, ["OWNER", "ADMIN", "MEMBER"]);
+
+    if (body.action === "ADD_SPEND") {
+      const result = await addCampaignSpend(body.teamId, campaignId, body.amountUsd, session.user.id);
+      return NextResponse.json({
+        campaign: result.campaign,
+        chargedUsd: result.chargedUsd,
+        walletBalanceUsd: result.walletBalanceUsd,
+        message: `Added $${Number(body.amountUsd).toFixed(2)} to campaign budget from your wallet.`,
+      });
+    }
 
     const campaign =
       body.action === "PAUSE"

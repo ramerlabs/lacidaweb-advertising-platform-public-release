@@ -11,11 +11,12 @@ import type {
 import type { AdCreativeInput } from "@/types/lacidaweb";
 import { prisma } from "@/lib/prisma";
 import {
+  extendCampaignBudget,
   refundCampaignReserve,
   repairPendingCampaignReserves,
   reserveCampaignBudget,
 } from "@/services/wallet-ledger";
-import { usdToCents } from "@/lib/ad-wallet";
+import { formatAdWalletUsd, usdToCents } from "@/lib/ad-wallet";
 
 const OBJECTIVE_TO_GOAL: Record<CampaignObjective, string> = {
   AWARENESS: "awareness",
@@ -41,6 +42,11 @@ function parseAdFormat(metadata: unknown): AdvertiserCreativeFormat {
 function toCampaignDto(
   campaign: Awaited<ReturnType<typeof fetchCampaignRecord>>,
 ): CampaignDto {
+  const reservedBudgetUsd =
+    campaign.clientChargeUsd || campaign.budgetAmount || campaign.platformBudgetUsd || 0;
+  const spentUsd = Math.max(0, campaign.lifetimeSpendCents) / 100;
+  const remainingBudgetUsd = Math.max(0, reservedBudgetUsd - spentUsd);
+
   return {
     id: campaign.id,
     teamId: campaign.teamId,
@@ -58,6 +64,9 @@ function toCampaignDto(
     scheduleEnd: campaign.scheduleEnd?.toISOString() ?? null,
     targeting: parseAudienceTargeting(campaign.targeting),
     lifetimeSpendCents: campaign.lifetimeSpendCents,
+    reservedBudgetUsd,
+    spentUsd,
+    remainingBudgetUsd,
     paymentStatus: campaign.paymentStatus,
     rejectionReason: campaign.rejectionReason,
     reviewedAt: campaign.reviewedAt?.toISOString() ?? null,
@@ -293,6 +302,44 @@ export async function resumeTeamCampaign(teamId: string, campaignId: string, use
   });
 
   return getTeamCampaign(teamId, campaignId);
+}
+
+export async function addCampaignSpend(
+  teamId: string,
+  campaignId: string,
+  amountUsd: number,
+  userId?: string,
+) {
+  const result = await extendCampaignBudget({
+    teamId,
+    campaignId,
+    amountUsd,
+    userId,
+  });
+
+  if (userId) {
+    await prisma.auditLog.create({
+      data: {
+        teamId,
+        userId,
+        action: "campaign.budget_extended",
+        message: `Added $${amountUsd.toFixed(2)} spend to campaign`,
+        metadata: {
+          campaignId,
+          amountUsd,
+          newReservedBudgetUsd: result.newReservedBudgetUsd,
+        },
+      },
+    });
+  }
+
+  const campaign = await getTeamCampaign(teamId, campaignId);
+  return {
+    campaign,
+    chargedUsd: formatAdWalletUsd(result.chargedCents),
+    walletBalanceUsd: formatAdWalletUsd(result.walletBalanceCents),
+    newReservedBudgetUsd: result.newReservedBudgetUsd,
+  };
 }
 
 export async function deleteTeamCampaign(teamId: string, campaignId: string, userId?: string) {
