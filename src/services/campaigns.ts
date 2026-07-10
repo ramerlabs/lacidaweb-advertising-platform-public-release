@@ -10,7 +10,12 @@ import type {
 } from "@/types/lacidaweb";
 import type { AdCreativeInput } from "@/types/lacidaweb";
 import { prisma } from "@/lib/prisma";
-import { refundCampaignReserve, reserveCampaignBudget } from "@/services/wallet-ledger";
+import {
+  refundCampaignReserve,
+  repairPendingCampaignReserves,
+  reserveCampaignBudget,
+} from "@/services/wallet-ledger";
+import { usdToCents } from "@/lib/ad-wallet";
 
 const OBJECTIVE_TO_GOAL: Record<CampaignObjective, string> = {
   AWARENESS: "awareness",
@@ -86,7 +91,10 @@ async function fetchCampaignRecord(campaignId: string, teamId: string) {
   return campaign;
 }
 
-export async function listTeamCampaigns(teamId: string): Promise<CampaignDto[]> {
+export async function listTeamCampaigns(teamId: string, userId?: string): Promise<CampaignDto[]> {
+  // Repair any campaigns that were submitted before wallet reserve was enforced.
+  await repairPendingCampaignReserves(teamId, userId);
+
   const campaigns = await prisma.adCampaign.findMany({
     where: { teamId, adType: "lacidaweb" },
     include: { ads: { orderBy: { sortOrder: "asc" } } },
@@ -117,8 +125,22 @@ export async function createLacidawebCampaign(input: {
 }): Promise<CampaignDto> {
   const budgetTypeStr = input.budgetType === "DAILY" ? "daily" : "lifetime";
   const primaryAd = input.ads[0];
+  const chargeCents = usdToCents(input.budgetAmountUsd);
+  if (chargeCents <= 0) throw new Error("Campaign budget must be greater than zero");
 
   const campaign = await prisma.$transaction(async (tx) => {
+    // Fail fast before creating the campaign row if wallet cannot cover the budget.
+    const team = await tx.team.findUnique({
+      where: { id: input.teamId },
+      select: { adWalletBalanceCents: true },
+    });
+    if (!team) throw new Error("Team not found");
+    if (team.adWalletBalanceCents < chargeCents) {
+      throw new Error(
+        `Insufficient wallet balance. Need $${input.budgetAmountUsd.toFixed(2)}, have $${(team.adWalletBalanceCents / 100).toFixed(2)}. Top up your wallet first.`,
+      );
+    }
+
     const record = await tx.adCampaign.create({
       data: {
         teamId: input.teamId,
@@ -135,6 +157,7 @@ export async function createLacidawebCampaign(input: {
         budgetTypeEnum: input.budgetType,
         platformBudgetUsd: input.budgetAmountUsd,
         clientChargeUsd: input.budgetAmountUsd,
+        // Will be confirmed as reserved by reserveCampaignBudget in the same transaction.
         paymentStatus: "pending_payment",
         countries: input.targeting.location.countries,
         targeting: input.targeting as unknown as Prisma.InputJsonValue,
@@ -183,6 +206,7 @@ export async function createLacidawebCampaign(input: {
       },
     });
 
+    // Must succeed or the whole submit rolls back — prevents unpaid pending campaigns.
     await reserveCampaignBudget({
       tx,
       teamId: input.teamId,

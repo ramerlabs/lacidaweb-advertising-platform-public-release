@@ -16,7 +16,7 @@ export async function GET(req: Request) {
     });
     await requireTeamAccess(teamId, session.user.id);
 
-    const campaigns = await listTeamCampaigns(teamId);
+    const campaigns = await listTeamCampaigns(teamId, session.user.id);
     return NextResponse.json({ campaigns });
   } catch (error) {
     if (error instanceof z.ZodError) {

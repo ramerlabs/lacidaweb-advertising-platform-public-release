@@ -101,7 +101,8 @@ export function CampaignWizard() {
           <CheckCircle2 className="h-12 w-12 text-primary" />
           <h2 className="text-xl font-semibold">Campaign submitted!</h2>
           <p className="max-w-md text-sm text-muted-foreground">
-            Your campaign is pending review. Fund your wallet so it can go live after approval.
+            Your campaign is pending review. The campaign budget was reserved from your wallet and
+            will be refunded if the ad is rejected.
           </p>
         </CardContent>
       </Card>

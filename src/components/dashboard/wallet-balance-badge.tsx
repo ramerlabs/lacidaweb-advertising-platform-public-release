@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Plus, Wallet } from "lucide-react";
 import { useTeam } from "@/components/dashboard/team-provider";
 import { Button } from "@/components/ui/button";
@@ -12,32 +12,61 @@ export function WalletBalanceBadge({ className }: { className?: string }) {
   const [balanceUsd, setBalanceUsd] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const refresh = useCallback(() => {
+    if (!teamId) {
+      setLoading(false);
+      setBalanceUsd(null);
+      return;
+    }
+
+    setLoading(true);
+    fetch(`/api/billing/ad-wallet?teamId=${encodeURIComponent(teamId)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        setBalanceUsd(typeof data.adWalletBalanceUsd === "string" ? data.adWalletBalanceUsd : "0.00");
+      })
+      .catch(() => setBalanceUsd("0.00"))
+      .finally(() => setLoading(false));
+  }, [teamId]);
+
   useEffect(() => {
+    let cancelled = false;
     if (!teamId) {
       setLoading(false);
       return;
     }
-
-    let active = true;
     setLoading(true);
-
     fetch(`/api/billing/ad-wallet?teamId=${encodeURIComponent(teamId)}`)
       .then((res) => res.json())
       .then((data) => {
-        if (!active) return;
+        if (cancelled) return;
         setBalanceUsd(typeof data.adWalletBalanceUsd === "string" ? data.adWalletBalanceUsd : "0.00");
       })
       .catch(() => {
-        if (active) setBalanceUsd("0.00");
+        if (!cancelled) setBalanceUsd("0.00");
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (!cancelled) setLoading(false);
       });
-
     return () => {
-      active = false;
+      cancelled = true;
     };
   }, [teamId]);
+
+  useEffect(() => {
+    function onFocus() {
+      refresh();
+    }
+    function onVisibility() {
+      if (document.visibilityState === "visible") refresh();
+    }
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [refresh]);
 
   return (
     <div className={cn("flex items-center gap-2", className)}>

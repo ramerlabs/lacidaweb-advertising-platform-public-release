@@ -58,24 +58,27 @@ export async function buyAiTokensWithWallet(input: {
   }
 
   return prisma.$transaction(async (tx) => {
-    const team = await tx.team.findUnique({
-      where: { id: input.teamId },
-      select: { adWalletBalanceCents: true, aiTokenBalance: true },
-    });
-    if (!team) throw new Error("Team not found");
-    if (team.adWalletBalanceCents < chargeCents) {
-      throw new Error(
-        `Insufficient wallet balance. Need $${amountUsd.toFixed(2)}, have $${(team.adWalletBalanceCents / 100).toFixed(2)}.`,
-      );
-    }
-
-    const updated = await tx.team.update({
-      where: { id: input.teamId },
+    const debited = await tx.team.updateMany({
+      where: { id: input.teamId, adWalletBalanceCents: { gte: chargeCents } },
       data: {
         adWalletBalanceCents: { decrement: chargeCents },
         aiTokenBalance: { increment: tokensGranted },
         aiEnabled: true,
       },
+    });
+    if (debited.count === 0) {
+      const team = await tx.team.findUnique({
+        where: { id: input.teamId },
+        select: { adWalletBalanceCents: true },
+      });
+      if (!team) throw new Error("Team not found");
+      throw new Error(
+        `Insufficient wallet balance. Need $${amountUsd.toFixed(2)}, have $${(team.adWalletBalanceCents / 100).toFixed(2)}.`,
+      );
+    }
+
+    const updated = await tx.team.findUniqueOrThrow({
+      where: { id: input.teamId },
       select: { adWalletBalanceCents: true, aiTokenBalance: true },
     });
 
@@ -106,6 +109,10 @@ export async function buyAiTokensWithWallet(input: {
   });
 }
 
+/**
+ * Atomically debit wallet and mark campaign paymentStatus=reserved.
+ * Uses conditional update so concurrent submits cannot overdraw.
+ */
 export async function reserveCampaignBudget(input: {
   tx: Prisma.TransactionClient;
   teamId: string;
@@ -116,20 +123,24 @@ export async function reserveCampaignBudget(input: {
   const chargeCents = usdToCents(input.budgetAmountUsd);
   if (chargeCents <= 0) throw new Error("Campaign budget must be greater than zero");
 
-  const team = await input.tx.team.findUnique({
-    where: { id: input.teamId },
-    select: { adWalletBalanceCents: true },
+  const debited = await input.tx.team.updateMany({
+    where: { id: input.teamId, adWalletBalanceCents: { gte: chargeCents } },
+    data: { adWalletBalanceCents: { decrement: chargeCents } },
   });
-  if (!team) throw new Error("Team not found");
-  if (team.adWalletBalanceCents < chargeCents) {
+
+  if (debited.count === 0) {
+    const team = await input.tx.team.findUnique({
+      where: { id: input.teamId },
+      select: { adWalletBalanceCents: true },
+    });
+    if (!team) throw new Error("Team not found");
     throw new Error(
       `Insufficient wallet balance. Need $${input.budgetAmountUsd.toFixed(2)}, have $${(team.adWalletBalanceCents / 100).toFixed(2)}. Top up your wallet first.`,
     );
   }
 
-  const updated = await input.tx.team.update({
+  const updated = await input.tx.team.findUniqueOrThrow({
     where: { id: input.teamId },
-    data: { adWalletBalanceCents: { decrement: chargeCents } },
     select: { adWalletBalanceCents: true },
   });
 
@@ -163,6 +174,59 @@ export async function reserveCampaignBudget(input: {
   return chargeCents;
 }
 
+/**
+ * Repair campaigns stuck on pending_payment (created before reserve shipped, or failed mid-flow).
+ * Deducts budget now so advertisers cannot keep submitting without paying.
+ */
+export async function repairPendingCampaignReserves(teamId: string, userId?: string): Promise<number> {
+  const stuck = await prisma.adCampaign.findMany({
+    where: {
+      teamId,
+      adType: "lacidaweb",
+      paymentStatus: "pending_payment",
+      lifecycleStatus: { in: ["PENDING_REVIEW", "APPROVED", "ACTIVE", "PAUSED"] },
+    },
+    select: {
+      id: true,
+      name: true,
+      budgetAmount: true,
+      clientChargeUsd: true,
+      platformBudgetUsd: true,
+    },
+    take: 50,
+  });
+
+  let repaired = 0;
+  for (const campaign of stuck) {
+    const budgetUsd =
+      campaign.clientChargeUsd || campaign.budgetAmount || campaign.platformBudgetUsd || 0;
+    if (budgetUsd <= 0) continue;
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        // Re-check inside tx — skip if already reserved by a concurrent request.
+        const current = await tx.adCampaign.findFirst({
+          where: { id: campaign.id, teamId, paymentStatus: "pending_payment" },
+          select: { id: true },
+        });
+        if (!current) return;
+
+        await reserveCampaignBudget({
+          tx,
+          teamId,
+          campaignId: campaign.id,
+          budgetAmountUsd: budgetUsd,
+          userId,
+        });
+      });
+      repaired += 1;
+    } catch {
+      // Leave stuck if wallet is insufficient — UI will show pending_payment until topped up.
+    }
+  }
+  return repaired;
+}
+
 export async function refundCampaignReserve(input: {
   campaignId: string;
   teamId: string;
@@ -188,13 +252,11 @@ export async function refundCampaignReserve(input: {
     return 0;
   }
 
-  // Already refunded
   if (campaign.paymentStatus === "refunded") return 0;
 
   const reservedUsd =
     campaign.clientChargeUsd || campaign.budgetAmount || campaign.platformBudgetUsd || 0;
   const reservedCents = usdToCents(reservedUsd);
-  // Delivery may have tracked lifetimeSpend against prepaid budget; refund unused portion.
   const refundCents = Math.max(0, reservedCents - Math.max(0, campaign.lifetimeSpendCents));
   if (refundCents <= 0) {
     await prisma.adCampaign.update({
