@@ -207,6 +207,11 @@ export async function serveAdsForPlacement(
     placement.format === "TEXT" ||
     placement.autoSlot === "infeed";
 
+  const rotateSeconds =
+    settings.publisherAdServingMode === "ROTATE_ALL"
+      ? settings.publisherAdRotateSeconds
+      : 0;
+
   // Text box template: always show 4 compact creatives side-by-side (pad with house promo).
   if (isTextBox) {
     const TEXT_BOX_COUNT = 4;
@@ -252,7 +257,8 @@ export async function serveAdsForPlacement(
 
     return {
       ads: served,
-      rotationSeconds: 0,
+      // Client re-fetches the row on this interval (Admin → Publisher ads → rotate seconds).
+      rotationSeconds: rotateSeconds,
       servingMode: settings.publisherAdServingMode,
     };
   }
@@ -291,11 +297,11 @@ export async function serveAdsForPlacement(
     },
   });
 
-  // Auto slots: one creative per unit. Manual / rotate mode can still cycle.
+  // Auto slots: one creative per unit; client re-fetches on rotateSeconds to advance.
   if (slotIndex != null) {
     return {
       ads: [toServedAd(primary, placement, placementKey, opts?.origin)],
-      rotationSeconds: 0,
+      rotationSeconds: rotateSeconds,
       servingMode: settings.publisherAdServingMode,
     };
   }
@@ -307,9 +313,7 @@ export async function serveAdsForPlacement(
   return {
     ads: serveList,
     rotationSeconds:
-      settings.publisherAdServingMode === "ROTATE_ALL" && serveList.length > 1
-        ? settings.publisherAdRotateSeconds
-        : 0,
+      rotateSeconds > 0 && (serveList.length > 1 || eligible.length > 1) ? rotateSeconds : 0,
     servingMode: settings.publisherAdServingMode,
   };
 }

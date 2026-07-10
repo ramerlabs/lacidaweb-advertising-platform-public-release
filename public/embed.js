@@ -128,54 +128,92 @@
     target.setAttribute("data-lw-mounted", "1");
 
     var visitor = getVisitorId();
-    var serveUrl =
-      base +
-      "/api/ads/serve?placement=" +
-      encodeURIComponent(placementKey) +
-      (visitor ? "&visitor=" + encodeURIComponent(visitor) : "") +
-      (typeof slotIndex === "number" ? "&slotIndex=" + encodeURIComponent(String(slotIndex)) : "");
+    var rotateFallback = Number(rotationSeconds || 0);
+    var localAds = [];
+    var localIndex = 0;
+    var isTextBoxFmt = false;
 
-    fetch(serveUrl, { credentials: "omit" })
-      .then(function (res) {
-        return res.json();
-      })
-      .then(function (data) {
-        // TEXT_BOX shows up to 3 side-by-side; other formats show one (rotation replaces).
-        var ads = data && data.ads && data.ads.length ? data.ads : data && data.ad ? [data.ad] : [];
-        if (!ads.length) {
-          target.innerHTML =
-            '<a href="' +
-            esc(base + "/register/advertiser") +
-            '" target="_blank" rel="noopener sponsored" style="display:block;padding:16px;border:1px solid #d4d4d8;border-radius:10px;text-decoration:none;font-family:system-ui,sans-serif;background:#fafafa;">' +
-            '<span style="font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:#a1a1aa;">Sponsored</span>' +
-            '<div style="margin-top:8px;font-weight:700;font-size:15px;color:#18181b;">Advertise with lacidaweb</div>' +
-            '<div style="margin-top:6px;font-size:13px;color:#52525b;line-height:1.45;">Reach customers across the network. Launch a campaign in minutes.</div>' +
-            '<span style="display:inline-block;margin-top:12px;font-size:13px;font-weight:600;color:#059669;">Get started →</span></a>' +
-            '<p style="margin:6px 0 0;font:9px system-ui,sans-serif;color:#a1a1aa;">Ads by lacidaweb</p>';
+    function serveUrl() {
+      return (
+        base +
+        "/api/ads/serve?placement=" +
+        encodeURIComponent(placementKey) +
+        (visitor ? "&visitor=" + encodeURIComponent(visitor) : "") +
+        (typeof slotIndex === "number" ? "&slotIndex=" + encodeURIComponent(String(slotIndex)) : "") +
+        "&_=" +
+        Date.now()
+      );
+    }
+
+    function renderFallback() {
+      target.innerHTML =
+        '<a href="' +
+        esc(base + "/register/advertiser") +
+        '" target="_blank" rel="noopener sponsored" style="display:block;padding:16px;border:1px solid #d4d4d8;border-radius:10px;text-decoration:none;font-family:system-ui,sans-serif;background:#fafafa;">' +
+        '<span style="font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:#a1a1aa;">Sponsored</span>' +
+        '<div style="margin-top:8px;font-weight:700;font-size:15px;color:#18181b;">Advertise with lacidaweb</div>' +
+        '<div style="margin-top:6px;font-size:13px;color:#52525b;line-height:1.45;">Reach customers across the network. Launch a campaign in minutes.</div>' +
+        '<span style="display:inline-block;margin-top:12px;font-size:13px;font-weight:600;color:#059669;">Get started →</span></a>' +
+        '<p style="margin:6px 0 0;font:9px system-ui,sans-serif;color:#a1a1aa;">Ads by lacidaweb</p>';
+    }
+
+    function paint(ads) {
+      if (!ads || !ads.length) {
+        renderFallback();
+        return;
+      }
+      var firstFmt = ads[0].format || "";
+      isTextBoxFmt = firstFmt === "TEXT_BOX" || firstFmt === "TEXT";
+      if (isTextBoxFmt) {
+        renderTextBoxRow(target, ads, visitor);
+        return;
+      }
+      renderAd(target, ads[0], visitor);
+    }
+
+    function scheduleRefresh(seconds) {
+      var rotate = Number(seconds || 0);
+      if (!(rotate > 0)) return;
+      if (target.__lwRotateTimer) clearInterval(target.__lwRotateTimer);
+      target.__lwRotateTimer = setInterval(function () {
+        // Text box / auto slots: re-fetch so the next batch advances via impressions.
+        if (isTextBoxFmt || localAds.length <= 1) {
+          load(true);
           return;
         }
+        // Multi-ad single-slot response: cycle locally without another request.
+        localIndex = (localIndex + 1) % localAds.length;
+        renderAd(target, localAds[localIndex], visitor);
+      }, rotate * 1000);
+    }
 
-        var index = 0;
-        var firstFmt = ads[0].format || "";
-        if (firstFmt === "TEXT_BOX" || firstFmt === "TEXT") {
-          renderTextBoxRow(target, ads, visitor);
-          return;
-        }
+    function load(isRefresh) {
+      fetch(serveUrl(), { credentials: "omit", cache: "no-store" })
+        .then(function (res) {
+          return res.json();
+        })
+        .then(function (data) {
+          var ads = data && data.ads && data.ads.length ? data.ads : data && data.ad ? [data.ad] : [];
+          localAds = ads;
+          localIndex = 0;
+          paint(ads);
+          if (!isRefresh) {
+            scheduleRefresh(rotateFallback || data.rotationSeconds || 0);
+          } else if (data && data.rotationSeconds != null) {
+            // Keep timer in sync if admin changes the interval mid-session.
+            var next = Number(data.rotationSeconds || 0);
+            if (next > 0 && next !== rotateFallback) {
+              rotateFallback = next;
+              scheduleRefresh(next);
+            }
+          }
+        })
+        .catch(function () {
+          if (!isRefresh) target.innerHTML = "";
+        });
+    }
 
-        renderAd(target, ads[0], visitor);
-
-        var rotate = Number(rotationSeconds || data.rotationSeconds || 0);
-        if (ads.length > 1 && rotate > 0) {
-          if (target.__lwRotateTimer) clearInterval(target.__lwRotateTimer);
-          target.__lwRotateTimer = setInterval(function () {
-            index = (index + 1) % ads.length;
-            renderAd(target, ads[index], visitor);
-          }, rotate * 1000);
-        }
-      })
-      .catch(function () {
-        target.innerHTML = "";
-      });
+    load(false);
   }
 
   function createSlot(slotKey) {
