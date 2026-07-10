@@ -24,18 +24,37 @@ export function AdTemplatePreview({
   }
 
   if (format === "TEXT_BOX" || format === "TEXT") {
+    const samples = [sample, sample, sample];
     return (
-      <div
-        className={`rounded-lg border border-emerald-500/30 bg-zinc-900/80 p-4 ${compact ? "max-w-xs" : "max-w-sm"}`}
-      >
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Sponsored</p>
-        <p className="mt-2 font-semibold text-zinc-100">{sample.headline}</p>
-        {sample.primaryText ? (
-          <p className="mt-1 text-sm text-zinc-400">{sample.primaryText}</p>
-        ) : null}
-        <span className="mt-3 inline-block text-sm font-medium text-emerald-400">
-          {sample.ctaLabel} →
-        </span>
+      <div className="w-full space-y-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {samples.map((item, i) => (
+            <div
+              key={i}
+              className="rounded-lg border border-emerald-500/30 bg-zinc-900/80 p-4"
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                Sponsored
+              </p>
+              <p className="mt-2 font-semibold text-zinc-100">
+                {i === 0 ? item.headline : i === 1 ? "Grow with lacidaweb" : "Advertise with us"}
+              </p>
+              {item.primaryText ? (
+                <p className="mt-1 text-sm text-zinc-400 line-clamp-3">
+                  {i === 0
+                    ? item.primaryText
+                    : i === 1
+                      ? "Self-serve campaigns with wallet billing and fast review."
+                      : "Reach customers across the network. Visit lacidaweb.com"}
+                </p>
+              ) : null}
+              <span className="mt-3 inline-block text-sm font-medium text-emerald-400">
+                {item.ctaLabel} →
+              </span>
+            </div>
+          ))}
+        </div>
+        <p className="text-[10px] text-zinc-500">3 text box ads · Ads by lacidaweb</p>
       </div>
     );
   }

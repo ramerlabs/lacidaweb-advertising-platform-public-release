@@ -17,6 +17,26 @@
       .replace(/"/g, "&quot;");
   }
 
+  function renderTextBoxCard(ad, visitor) {
+    return (
+      '<a href="' +
+      esc(withVisitor(ad.clickUrl, visitor)) +
+      '" target="_blank" rel="noopener sponsored" style="display:block;flex:1 1 220px;max-width:360px;min-width:200px;padding:16px;border:1px solid #d4d4d8;border-radius:10px;text-decoration:none;font-family:system-ui,sans-serif;background:#fafafa;box-sizing:border-box;">' +
+      '<span style="font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:#a1a1aa;">Sponsored</span>' +
+      '<div style="margin-top:8px;font-weight:700;font-size:15px;color:#18181b;">' +
+      esc(ad.headline) +
+      "</div>" +
+      (ad.primaryText
+        ? '<div style="margin-top:6px;font-size:13px;color:#52525b;line-height:1.45;">' +
+          esc(ad.primaryText).slice(0, 200) +
+          "</div>"
+        : "") +
+      '<span style="display:inline-block;margin-top:12px;font-size:13px;font-weight:600;color:#059669;">' +
+      esc(ad.ctaLabel || "Learn more") +
+      " →</span></a>"
+    );
+  }
+
   function renderAd(target, ad, visitor) {
     var fmt = ad.format || "BANNER";
 
@@ -34,21 +54,7 @@
 
     if (fmt === "TEXT_BOX" || fmt === "TEXT") {
       target.innerHTML =
-        '<a href="' +
-        esc(withVisitor(ad.clickUrl, visitor)) +
-        '" target="_blank" rel="noopener sponsored" style="display:block;max-width:360px;padding:16px;border:1px solid #d4d4d8;border-radius:10px;text-decoration:none;font-family:system-ui,sans-serif;background:#fafafa;">' +
-        '<span style="font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:#a1a1aa;">Sponsored</span>' +
-        '<div style="margin-top:8px;font-weight:700;font-size:15px;color:#18181b;">' +
-        esc(ad.headline) +
-        "</div>" +
-        (ad.primaryText
-          ? '<div style="margin-top:6px;font-size:13px;color:#52525b;line-height:1.45;">' +
-            esc(ad.primaryText).slice(0, 200) +
-            "</div>"
-          : "") +
-        '<span style="display:inline-block;margin-top:12px;font-size:13px;font-weight:600;color:#059669;">' +
-        esc(ad.ctaLabel || "Learn more") +
-        " →</span></a>" +
+        renderTextBoxCard(ad, visitor) +
         '<p style="margin:6px 0 0;font:9px system-ui,sans-serif;color:#a1a1aa;">Ads by lacidaweb</p>';
       return;
     }
@@ -83,6 +89,20 @@
       "</span>" +
       "</div></a>" +
       '<div style="font-size:9px;color:#a1a1aa;margin-top:4px;">Ads by lacidaweb</div>';
+  }
+
+  function renderTextBoxRow(target, ads, visitor) {
+    var cards = ads
+      .slice(0, 3)
+      .map(function (ad) {
+        return renderTextBoxCard(ad, visitor);
+      })
+      .join("");
+    target.innerHTML =
+      '<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:stretch;width:100%;">' +
+      cards +
+      "</div>" +
+      '<p style="margin:8px 0 0;font:9px system-ui,sans-serif;color:#a1a1aa;">Ads by lacidaweb</p>';
   }
 
   function getVisitorId() {
@@ -120,7 +140,7 @@
         return res.json();
       })
       .then(function (data) {
-        // Always one creative in the DOM at a time (rotation replaces, never stacks).
+        // TEXT_BOX shows up to 3 side-by-side; other formats show one (rotation replaces).
         var ads = data && data.ads && data.ads.length ? data.ads : data && data.ad ? [data.ad] : [];
         if (!ads.length) {
           target.innerHTML =
@@ -136,6 +156,12 @@
         }
 
         var index = 0;
+        var firstFmt = ads[0].format || "";
+        if (firstFmt === "TEXT_BOX" || firstFmt === "TEXT") {
+          renderTextBoxRow(target, ads, visitor);
+          return;
+        }
+
         renderAd(target, ads[0], visitor);
 
         var rotate = Number(rotationSeconds || data.rotationSeconds || 0);

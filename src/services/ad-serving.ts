@@ -202,6 +202,61 @@ export async function serveAdsForPlacement(
       ? Math.max(0, Math.floor(opts.slotIndex))
       : null;
 
+  const isTextBox =
+    placement.format === "TEXT_BOX" ||
+    placement.format === "TEXT" ||
+    placement.autoSlot === "infeed";
+
+  // Text box template: always show 3 creatives side-by-side (pad with house promo).
+  if (isTextBox) {
+    const TEXT_BOX_COUNT = 3;
+    if (!eligible.length) {
+      const houses = await Promise.all(
+        Array.from({ length: TEXT_BOX_COUNT }, () =>
+          buildHouseAd(placement, opts?.origin, settings),
+        ),
+      );
+      return {
+        ads: houses,
+        rotationSeconds: 0,
+        servingMode: settings.publisherAdServingMode,
+      };
+    }
+
+    let startIndex = placement.impressions % eligible.length;
+    if (settings.publisherAdServingMode === "PERSONALIZED" && opts?.visitorId) {
+      startIndex = pickPersonalizedIndex(opts.visitorId, eligible.length);
+    }
+    const ordered = rotateFromIndex(eligible, startIndex);
+    const picked = ordered.slice(0, Math.min(TEXT_BOX_COUNT, ordered.length));
+
+    for (const ad of picked) {
+      await recordTrackedImpression({
+        placementId: placement.id,
+        teamId: placement.site.teamId,
+        adId: ad.id,
+        campaignId: ad.campaignId,
+        advertiserTeamId: ad.campaign.teamId,
+        meta: {
+          visitorId: opts?.visitorId || opts?.meta?.visitorId,
+          ip: opts?.meta?.ip,
+          userAgent: opts?.meta?.userAgent,
+        },
+      });
+    }
+
+    const served = picked.map((ad) => toServedAd(ad, placement, placementKey, opts?.origin));
+    while (served.length < TEXT_BOX_COUNT) {
+      served.push(await buildHouseAd(placement, opts?.origin, settings));
+    }
+
+    return {
+      ads: served,
+      rotationSeconds: 0,
+      servingMode: settings.publisherAdServingMode,
+    };
+  }
+
   // No paid inventory, or this auto slot is beyond available paid ads → house fill.
   if (!eligible.length || (slotIndex != null && slotIndex >= eligible.length)) {
     const house = await buildHouseAd(placement, opts?.origin, settings);

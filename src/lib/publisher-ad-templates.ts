@@ -91,7 +91,7 @@ export const PUBLISHER_AD_TEMPLATES: PublisherAdTemplate[] = [
   {
     id: "text-box",
     name: "Text box ad",
-    description: "Bordered text unit with headline, body, and CTA",
+    description: "3 bordered text units in a row — headline, body, and CTA",
     category: "text",
     format: "TEXT_BOX",
     width: 300,
