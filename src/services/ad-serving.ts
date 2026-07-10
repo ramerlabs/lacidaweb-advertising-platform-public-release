@@ -225,7 +225,7 @@ export async function serveAdsForPlacement(
       return (tick * step) % count;
     }
     // Page-load only: advance by whole windows so a 4-up row does not stick on the same set.
-    return Math.floor(placement.impressions / Math.max(1, windowSize)) % count;
+    return Math.floor((placement?.impressions ?? 0) / Math.max(1, windowSize)) % count;
   }
 
   // Text box template: always show 4 compact creatives side-by-side (pad with house promo).
