@@ -45,7 +45,7 @@ export default function AdminAiSettingsPage() {
         profitMarginPercent: settings?.aiProfitMarginPercent ?? 80,
         textInputCostPerMillion: settings?.aiTextInputCostPerMillion ?? 0.15,
         textOutputCostPerMillion: settings?.aiTextOutputCostPerMillion ?? 0.6,
-        imageCostUsd: settings?.aiImageCostUsd ?? 0.04,
+        imageCostUsd: settings?.aiImageCostUsd ?? 0.02,
         creditPackUsd: settings?.aiCreditPackUsd ?? 10,
         creditsPerPackCents: settings?.aiCreditsPerPackCents ?? 1000,
       }),
@@ -96,15 +96,18 @@ export default function AdminAiSettingsPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">AI & tokens</h1>
         <p className="text-muted-foreground">
-          OpenAI is configured here only. Clients buy and spend AI tokens. Your profit margin applies
-          to generation pricing automatically.
+          Paste your OpenAI API key here. Campaign AI uses <strong>gpt-4o-mini</strong> for text and{" "}
+          <strong>gpt-image-1-mini</strong> for images. Client prices = OpenAI cost ÷ (1 − margin%). Default
+          margin is <strong>80%</strong> profit.
         </p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>OpenAI API</CardTitle>
-          <CardDescription>Never shown to clients. Required for text and image generation.</CardDescription>
+          <CardDescription>
+            Never shown to clients. Required for campaign AI assistant, text, and image generation.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <label className="flex items-center gap-2 text-sm">
@@ -171,13 +174,17 @@ export default function AdminAiSettingsPage() {
             />
           </div>
           <div className="space-y-2">
-            <Label>Image cost each (USD)</Label>
+            <Label>Image cost each (USD) — gpt-image-1-mini</Label>
             <Input
               type="number"
               step="0.01"
               value={settings.aiImageCostUsd}
               onChange={(e) => update("aiImageCostUsd", Number(e.target.value) || 0)}
             />
+            <p className="text-xs text-muted-foreground">
+              OpenAI gpt-4o-mini text: $0.15 / $0.60 per 1M tokens. Image default ~$0.02 for mini medium
+              1024². With 80% margin, clients pay 5× provider cost.
+            </p>
           </div>
         </CardContent>
       </Card>

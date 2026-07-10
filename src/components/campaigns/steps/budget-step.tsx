@@ -2,12 +2,15 @@
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CampaignAiAssistant } from "@/components/campaigns/campaign-ai-assistant";
 import { cn } from "@/lib/utils";
 import { useCampaignWizardStore } from "@/stores/campaign-wizard-store";
 import type { BudgetType } from "@/types/lacidaweb";
 
 export function BudgetStep() {
   const {
+    name,
+    objective,
     budgetType,
     budgetAmountUsd,
     scheduleStart,
@@ -26,6 +29,32 @@ export function BudgetStep() {
           Set how much you want to spend and when your campaign should run.
         </p>
       </div>
+
+      <CampaignAiAssistant
+        step="budget"
+        title="AI: suggest budget"
+        placeholder="e.g. Small daily budget for a 2-week test"
+        context={{
+          name,
+          objective: objective || undefined,
+          budgetType,
+          budgetAmountUsd,
+        }}
+        onApply={(suggestion) => {
+          const type = String(suggestion.budgetType || "").toUpperCase();
+          if (type === "DAILY" || type === "LIFETIME") setBudgetType(type as BudgetType);
+          const amount = Number(suggestion.budgetAmountUsd);
+          if (Number.isFinite(amount) && amount >= 1) {
+            setBudgetAmountUsd(String(Math.round(amount * 100) / 100));
+          }
+          if (typeof suggestion.scheduleStart === "string" && suggestion.scheduleStart) {
+            setScheduleStart(suggestion.scheduleStart.slice(0, 16));
+          }
+          if (typeof suggestion.scheduleEnd === "string" && suggestion.scheduleEnd) {
+            setScheduleEnd(suggestion.scheduleEnd.slice(0, 16));
+          }
+        }}
+      />
 
       <div className="space-y-2">
         <Label>Budget type</Label>

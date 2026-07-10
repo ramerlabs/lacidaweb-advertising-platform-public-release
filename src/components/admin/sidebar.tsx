@@ -15,6 +15,7 @@ import {
   PenSquare,
   Plug,
   Shield,
+  Sparkles,
   Users,
   Wallet,
 } from "lucide-react";
@@ -37,6 +38,7 @@ const platformLinks = [
 const settingsLinks = [
   { href: "/admin/settings/payments", label: "Payment gateways", icon: Wallet },
   { href: "/admin/settings/ads", label: "Publisher ads", icon: Megaphone },
+  { href: "/admin/settings/ai", label: "AI & tokens", icon: Sparkles },
   { href: "/admin/settings/license", label: "License", icon: KeyRound },
   { href: "/admin/settings/branding", label: "Branding", icon: Palette },
   { href: "/admin/settings/faqs", label: "FAQs", icon: HelpCircle },

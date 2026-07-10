@@ -6,12 +6,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CampaignAiAssistant } from "@/components/campaigns/campaign-ai-assistant";
 import { COUNTRY_OPTIONS, INTEREST_SUGGESTIONS } from "@/lib/campaign-constants";
 import { cn } from "@/lib/utils";
 import { useCampaignWizardStore } from "@/stores/campaign-wizard-store";
 
+const VALID_COUNTRIES = new Set(COUNTRY_OPTIONS.map((c) => c.code));
+
 export function AudienceStep() {
-  const { targeting, setTargeting } = useCampaignWizardStore();
+  const { targeting, setTargeting, name, objective } = useCampaignWizardStore();
   const [keywordInput, setKeywordInput] = useState("");
 
   function toggleCountry(code: string) {
@@ -59,6 +62,43 @@ export function AudienceStep() {
           Target the people most likely to respond to your ads.
         </p>
       </div>
+
+      <CampaignAiAssistant
+        step="audience"
+        title="AI: suggest audience"
+        placeholder="e.g. Parents in PH and US interested in education"
+        context={{ name, objective: objective || undefined, targeting }}
+        onApply={(suggestion) => {
+          const ageMin = Math.min(65, Math.max(13, Number(suggestion.ageMin) || 18));
+          const ageMax = Math.min(65, Math.max(ageMin, Number(suggestion.ageMax) || 45));
+          const genderRaw = String(suggestion.gender || "ALL").toLowerCase();
+          const genders: ("male" | "female" | "all")[] =
+            genderRaw === "male" || genderRaw === "female" ? [genderRaw] : ["all"];
+          const countries = (
+            Array.isArray(suggestion.countries)
+              ? suggestion.countries.map((c) => String(c).toUpperCase())
+              : targeting.location.countries
+          ).filter((c): c is (typeof COUNTRY_OPTIONS)[number]["code"] =>
+            VALID_COUNTRIES.has(c as (typeof COUNTRY_OPTIONS)[number]["code"]),
+          );
+          const interests = Array.isArray(suggestion.interests)
+            ? suggestion.interests.map((i) => String(i)).filter(Boolean).slice(0, 8)
+            : targeting.interests || [];
+          const keywords = Array.isArray(suggestion.keywords)
+            ? suggestion.keywords.map((k) => String(k)).filter(Boolean).slice(0, 10)
+            : targeting.keywords || [];
+          setTargeting({
+            ...targeting,
+            demographics: { ...targeting.demographics, ageMin, ageMax, genders },
+            location: {
+              ...targeting.location,
+              countries: countries.length ? countries : targeting.location.countries,
+            },
+            interests,
+            keywords,
+          });
+        }}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">

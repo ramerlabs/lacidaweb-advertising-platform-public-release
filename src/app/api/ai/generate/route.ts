@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSession, requireTeamAccess } from "@/lib/auth";
-import { generatePostImage, generatePostText, generateAdCreative, transformPostText } from "@/lib/ai-service";
+import {
+  generatePostImage,
+  generatePostText,
+  generateAdCreative,
+  generateCampaignAssist,
+  transformPostText,
+} from "@/lib/ai-service";
 import { getAiSettings, toPublicAiSettings } from "@/lib/ai-settings";
 import { isBusinessProfileComplete, toBusinessProfile, BUSINESS_PROFILE_SELECT } from "@/lib/team-business";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -34,6 +40,22 @@ const adSchema = z.object({
   tone: z.string().max(100).optional(),
 });
 
+const campaignAssistSchema = z.object({
+  teamId: z.string().min(1),
+  step: z.enum(["objective", "audience", "budget", "creative"]),
+  prompt: z.string().max(2000).optional().default(""),
+  context: z
+    .object({
+      name: z.string().optional(),
+      objective: z.string().optional(),
+      targeting: z.unknown().optional(),
+      budgetType: z.string().optional(),
+      budgetAmountUsd: z.union([z.string(), z.number()]).optional(),
+      format: z.string().optional(),
+    })
+    .optional(),
+});
+
 export async function GET(req: Request) {
   try {
     const session = await requireSession();
@@ -54,6 +76,10 @@ export async function GET(req: Request) {
       tokenBalance: team?.aiTokenBalance ?? 0,
       businessProfileComplete: profile ? isBusinessProfileComplete(profile) : false,
       pricing: toPublicAiSettings(settings).clientPricing,
+      models: {
+        text: "gpt-4o-mini",
+        image: "gpt-image-1-mini",
+      },
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed";
@@ -97,6 +123,13 @@ export async function POST(req: Request) {
       const body = adSchema.parse(await req.json());
       await requireTeamAccess(body.teamId, session.user.id);
       const result = await generateAdCreative(body);
+      return NextResponse.json(result);
+    }
+
+    if (action === "campaign") {
+      const body = campaignAssistSchema.parse(await req.json());
+      await requireTeamAccess(body.teamId, session.user.id);
+      const result = await generateCampaignAssist(body);
       return NextResponse.json(result);
     }
 

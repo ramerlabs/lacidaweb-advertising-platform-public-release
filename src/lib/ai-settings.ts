@@ -21,7 +21,7 @@ const DEFAULTS = {
   aiProfitMarginPercent: 80,
   aiTextInputCostPerMillion: 0.15,
   aiTextOutputCostPerMillion: 0.6,
-  aiImageCostUsd: 0.04,
+  aiImageCostUsd: 0.02, // ~gpt-image-1-mini medium 1024² provider cost
   aiCreditPackUsd: 10,
   aiCreditsPerPackCents: 1000,
   aiTrialTokens: 50_000,

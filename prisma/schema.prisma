@@ -413,7 +413,7 @@ model IntegrationSettings {
   aiProfitMarginPercent   Int     @default(80)
   aiTextInputCostPerMillion  Float @default(0.15)
   aiTextOutputCostPerMillion Float @default(0.60)
-  aiImageCostUsd          Float   @default(0.04)
+  aiImageCostUsd          Float   @default(0.02)
   aiCreditPackUsd         Float   @default(10)
   aiCreditsPerPackCents   Int     @default(1000)
   aiTrialTokens             Int     @default(50000)

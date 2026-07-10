@@ -18,6 +18,8 @@ import { cn } from "@/lib/utils";
 
 import type { AdvertiserCreativeFormat } from "@/types/lacidaweb";
 
+import { CampaignAiAssistant } from "@/components/campaigns/campaign-ai-assistant";
+
 import { useCampaignWizardStore } from "@/stores/campaign-wizard-store";
 
 
@@ -38,7 +40,7 @@ const FORMAT_ICONS: Record<AdvertiserCreativeFormat, typeof ImageIcon> = {
 
 export function CreativeStep() {
 
-  const { ads, updateAd } = useCampaignWizardStore();
+  const { ads, updateAd, name, objective } = useCampaignWizardStore();
 
   const ad = ads[0];
 
@@ -142,7 +144,44 @@ export function CreativeStep() {
 
       </div>
 
-
+      <CampaignAiAssistant
+        step="creative"
+        title="AI: write creative"
+        placeholder="e.g. Bold headline for eco sneakers, shop now"
+        allowImage={ad.format === "IMAGE"}
+        context={{
+          name,
+          objective: objective || undefined,
+          format: ad.format,
+        }}
+        onApply={(suggestion) => {
+          const formatRaw = String(suggestion.format || "").toUpperCase();
+          const formats = new Set(["IMAGE", "TEXT_BOX", "TEXT_INLINE", "VIDEO"]);
+          const patch: Partial<typeof ad> = {};
+          if (formats.has(formatRaw)) {
+            patch.format = formatRaw as AdvertiserCreativeFormat;
+          }
+          if (typeof suggestion.headline === "string") {
+            patch.headline = suggestion.headline.slice(0, 80);
+          }
+          if (typeof suggestion.primaryText === "string") {
+            patch.primaryText = suggestion.primaryText.slice(0, 500);
+          }
+          if (typeof suggestion.destinationUrl === "string") {
+            patch.destinationUrl = suggestion.destinationUrl.slice(0, 500);
+          }
+          if (typeof suggestion.cta === "string") {
+            patch.ctaLabel = suggestion.cta;
+          }
+          if (typeof suggestion.ctaLabel === "string") {
+            patch.ctaLabel = suggestion.ctaLabel;
+          }
+          if (Object.keys(patch).length) updateAd(0, patch);
+        }}
+        onImageGenerated={(imageUrl) => {
+          updateAd(0, { format: "IMAGE", imageUrl, videoUrl: "" });
+        }}
+      />
 
       <div className="space-y-3">
 

@@ -86,8 +86,10 @@ async function sendTelegramFallback(
   if (!config.fallbackTelegram || !config.telegramEnabled) return false;
   if (!config.telegramBotToken || !config.telegramChatId) return false;
 
+  const site = await getSiteSettings();
+  const brandName = site.title?.trim() || String(brand.name);
   const text = [
-    "📧 SMTP failed — email fallback",
+    `📧 ${brandName} — SMTP failed (email fallback)`,
     "",
     `To: ${input.to}`,
     `Subject: ${input.subject}`,

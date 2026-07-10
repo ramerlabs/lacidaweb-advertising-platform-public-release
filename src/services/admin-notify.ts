@@ -1,9 +1,19 @@
 import { prisma } from "@/lib/prisma";
 import { getIntegrationSettings } from "@/lib/integration-settings";
+import { getSiteSettings } from "@/lib/site-settings";
 import { sendTelegramMessage } from "@/services/telegram";
 import { brand } from "@/lib/brand";
 
 type NotifyCategory = "support" | "payments" | "users";
+
+async function brandLabel(): Promise<string> {
+  try {
+    const site = await getSiteSettings();
+    return site.title?.trim() || String(brand.name);
+  } catch {
+    return String(brand.name);
+  }
+}
 
 async function shouldNotify(category: NotifyCategory): Promise<boolean> {
   const settings = await getIntegrationSettings();
@@ -21,7 +31,8 @@ async function dispatch(category: NotifyCategory, lines: string[]) {
     const settings = await getIntegrationSettings();
     if (!settings.telegramBotToken || !settings.telegramChatId) return;
 
-    const text = [`🔔 ${brand.name} activity`, "", ...lines].join("\n");
+    const name = await brandLabel();
+    const text = [`🔔 ${name} activity`, "", ...lines].join("\n");
     await sendTelegramMessage({
       botToken: settings.telegramBotToken,
       chatId: settings.telegramChatId,

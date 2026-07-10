@@ -185,6 +185,7 @@ export async function createUserWorkspace(input: {
       name: input.teamName,
       slug,
       aiTokenBalance: trialTokens,
+      aiEnabled: trialTokens > 0,
       members: {
         create: { userId: input.userId, role: "OWNER" },
       },

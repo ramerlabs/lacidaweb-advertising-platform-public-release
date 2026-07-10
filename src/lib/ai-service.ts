@@ -155,9 +155,11 @@ function resolveTextPrompt(input: string, businessContext: string): string {
 }
 
 async function generateOpenAiImageBuffer(apiKey: string, prompt: string): Promise<Buffer> {
+  // Cheapest → higher quality fallbacks (DALL·E retired from API).
   const attempts: Array<{ model: string; quality?: string }> = [
+    { model: "gpt-image-1-mini", quality: "medium" },
     { model: "gpt-image-1", quality: "medium" },
-    { model: "dall-e-3" },
+    { model: "gpt-image-2", quality: "low" },
   ];
 
   let lastError = "OpenAI image generation failed";
@@ -295,7 +297,13 @@ export async function generatePostImage(input: { teamId: string; prompt: string 
     where: { id: input.teamId },
     select: { aiEnabled: true, aiTokenBalance: true },
   });
-  if (!team?.aiEnabled) throw new Error("Enable AI in your workspace settings first");
+  if (!team) throw new Error("Team not found");
+  if (team.aiTokenBalance <= 0) {
+    throw new Error("No AI tokens remaining. Buy a token pack or ask an admin to grant tokens.");
+  }
+  if (!team.aiEnabled) {
+    await prisma.team.update({ where: { id: input.teamId }, data: { aiEnabled: true } });
+  }
 
   const { context } = await getTeamBusinessContext(input.teamId);
   const userPrompt = resolveImagePrompt(input.prompt, context);
@@ -403,4 +411,143 @@ export async function generateAdCreative(input: {
   });
 
   return { primaryText, headline, ...billing };
+}
+
+export type CampaignAssistStep = "objective" | "audience" | "budget" | "creative";
+
+/**
+ * Campaign wizard AI assistant — uses gpt-4o-mini for text suggestions.
+ * Client is billed at provider cost with configured profit margin (default 80%).
+ */
+export async function generateCampaignAssist(input: {
+  teamId: string;
+  step: CampaignAssistStep;
+  prompt?: string;
+  context?: {
+    name?: string;
+    objective?: string;
+    targeting?: unknown;
+    budgetType?: string;
+    budgetAmountUsd?: string | number;
+    format?: string;
+  };
+}) {
+  const settings = await getAiSettings();
+  if (!settings.aiEnabled) throw new Error("AI generation is disabled by the platform admin");
+  const apiKey = await getOpenAiApiKey();
+  if (!apiKey) throw new Error("OpenAI is not configured. Ask your admin to add an API key.");
+
+  const team = await prisma.team.findUnique({
+    where: { id: input.teamId },
+    select: { aiEnabled: true, aiTokenBalance: true },
+  });
+  if (!team) throw new Error("Team not found");
+  if (team.aiTokenBalance <= 0) {
+    throw new Error("No AI tokens remaining. Buy a token pack or ask an admin to grant tokens.");
+  }
+  // Auto-enable workspace AI when tokens exist (campaign assistant UX).
+  if (!team.aiEnabled) {
+    await prisma.team.update({ where: { id: input.teamId }, data: { aiEnabled: true } });
+  }
+
+  const { context: businessContext } = await getTeamBusinessContext(input.teamId);
+  const hint = (input.prompt || "").trim();
+  const campaignJson = JSON.stringify(input.context || {}, null, 0).slice(0, 1500);
+
+  const stepSpecs: Record<
+    CampaignAssistStep,
+    { system: string; user: string; maxTokens: number }
+  > = {
+    objective: {
+      system: [
+        "You help advertisers set up lacidaweb ad campaigns.",
+        "Return ONLY valid JSON with keys: name (string, max 80 chars), objective (one of AWARENESS, TRAFFIC, CONVERSIONS), rationale (short string).",
+        "Pick the best objective for the business goal. No markdown.",
+      ].join("\n"),
+      user: [
+        hint ? `Advertiser request: ${hint}` : "Suggest a campaign name and objective.",
+        businessContext ? `Business context:\n${businessContext.slice(0, 800)}` : "",
+        campaignJson ? `Current form: ${campaignJson}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      maxTokens: 250,
+    },
+    audience: {
+      system: [
+        "You help advertisers define ad audiences for lacidaweb.",
+        "Return ONLY valid JSON with keys:",
+        "ageMin (number 13-65), ageMax (number 13-65), gender (ALL|MALE|FEMALE),",
+        "countries (array of ISO country codes from: US,GB,CA,AU,PH,SG,AE,DE,FR,IN,JP,BR),",
+        "interests (string array, max 8), keywords (string array, max 10), rationale (short string).",
+        "No markdown.",
+      ].join("\n"),
+      user: [
+        hint ? `Advertiser request: ${hint}` : "Suggest a target audience.",
+        businessContext ? `Business context:\n${businessContext.slice(0, 800)}` : "",
+        campaignJson ? `Current form: ${campaignJson}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      maxTokens: 350,
+    },
+    budget: {
+      system: [
+        "You help advertisers set campaign budget and schedule for lacidaweb.",
+        "Return ONLY valid JSON with keys:",
+        "budgetType (DAILY or LIFETIME), budgetAmountUsd (number >= 5),",
+        "scheduleStart (ISO date string or empty), scheduleEnd (ISO date string or empty),",
+        "rationale (short string).",
+        "Prefer realistic small-business budgets. No markdown.",
+      ].join("\n"),
+      user: [
+        hint ? `Advertiser request: ${hint}` : "Suggest budget and schedule.",
+        businessContext ? `Business context:\n${businessContext.slice(0, 600)}` : "",
+        campaignJson ? `Current form: ${campaignJson}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      maxTokens: 250,
+    },
+    creative: {
+      system: [
+        "You write lacidaweb ad creatives.",
+        "Return ONLY valid JSON with keys:",
+        "format (IMAGE|TEXT_BOX|TEXT_INLINE), headline (max 40 chars), primaryText (max 125 chars),",
+        "destinationUrl (https URL or empty), cta (LEARN_MORE|SHOP_NOW|SIGN_UP|CONTACT_US|DOWNLOAD|BOOK_NOW|GET_OFFER|WATCH_MORE),",
+        "imagePrompt (short visual description for an ad image), rationale (short string).",
+        "No markdown.",
+      ].join("\n"),
+      user: [
+        hint ? `Advertiser request: ${hint}` : "Write ad creative copy and an image prompt.",
+        businessContext ? `Business context:\n${businessContext.slice(0, 800)}` : "",
+        campaignJson ? `Current form: ${campaignJson}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      maxTokens: 400,
+    },
+  };
+
+  const spec = stepSpecs[input.step];
+  const { text, promptTokens, completionTokens } = await callOpenAiText(
+    apiKey,
+    spec.system,
+    spec.user,
+    spec.maxTokens,
+  );
+
+  let suggestion: Record<string, unknown> = {};
+  try {
+    const cleaned = text.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+    suggestion = JSON.parse(cleaned) as Record<string, unknown>;
+  } catch {
+    suggestion = { rationale: text.slice(0, 280) };
+  }
+
+  const billing = await billTextUsage(input.teamId, settings, promptTokens, completionTokens, {
+    type: `campaign_${input.step}`,
+  });
+
+  return { step: input.step, suggestion, ...billing };
 }

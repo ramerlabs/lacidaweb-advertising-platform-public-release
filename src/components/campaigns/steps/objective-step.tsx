@@ -3,6 +3,7 @@
 import { Eye, MousePointerClick, Target } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CampaignAiAssistant } from "@/components/campaigns/campaign-ai-assistant";
 import { CAMPAIGN_OBJECTIVES } from "@/lib/campaign-constants";
 import { cn } from "@/lib/utils";
 import { useCampaignWizardStore } from "@/stores/campaign-wizard-store";
@@ -13,6 +14,8 @@ const ICONS = {
   TRAFFIC: MousePointerClick,
   CONVERSIONS: Target,
 } as const;
+
+const OBJECTIVES = new Set(["AWARENESS", "TRAFFIC", "CONVERSIONS"]);
 
 export function ObjectiveStep() {
   const { name, objective, setName, setObjective } = useCampaignWizardStore();
@@ -25,6 +28,20 @@ export function ObjectiveStep() {
           What do you want to achieve? This guides how we optimize delivery.
         </p>
       </div>
+
+      <CampaignAiAssistant
+        step="objective"
+        title="AI: suggest objective & name"
+        placeholder="e.g. Promote summer sale to US shoppers"
+        context={{ name, objective: objective || undefined }}
+        onApply={(suggestion) => {
+          if (typeof suggestion.name === "string" && suggestion.name.trim()) {
+            setName(suggestion.name.trim().slice(0, 120));
+          }
+          const obj = String(suggestion.objective || "").toUpperCase();
+          if (OBJECTIVES.has(obj)) setObjective(obj as CampaignObjective);
+        }}
+      />
 
       <div className="space-y-2">
         <Label htmlFor="campaign-name">Campaign name</Label>
