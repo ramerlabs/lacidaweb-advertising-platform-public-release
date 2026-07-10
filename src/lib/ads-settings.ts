@@ -32,7 +32,8 @@ export type AdsSettingsData = {
 
 const DEFAULTS: AdsSettingsData = {
   adsEnabled: true,
-  adsProfitMarginPercent: 0,
+  /** Platform keeps this % of advertiser spend; publisher share = 100 − margin. */
+  adsProfitMarginPercent: 70,
   adWalletTopUpUsd: 25,
   publisherAdServingMode: "ROTATE_ALL",
   publisherAdRotateSeconds: 8,
@@ -65,9 +66,20 @@ function toFakeConfig(settings: AdsSettingsData): LandingFakeStatsConfig {
 export async function getAdsSettings(): Promise<AdsSettingsData> {
   try {
     const row = await prisma.integrationSettings.findUnique({ where: { id: "default" } });
+
+    // Legacy installs stored 0; migrate to the 70% platform / 30% publisher default.
+    let margin = row?.adsProfitMarginPercent;
+    if (row && (margin == null || margin === 0)) {
+      await prisma.integrationSettings.update({
+        where: { id: "default" },
+        data: { adsProfitMarginPercent: DEFAULTS.adsProfitMarginPercent },
+      });
+      margin = DEFAULTS.adsProfitMarginPercent;
+    }
+
     return {
       adsEnabled: row?.adsEnabled ?? DEFAULTS.adsEnabled,
-      adsProfitMarginPercent: row?.adsProfitMarginPercent ?? DEFAULTS.adsProfitMarginPercent,
+      adsProfitMarginPercent: margin ?? DEFAULTS.adsProfitMarginPercent,
       adWalletTopUpUsd: row?.adWalletTopUpUsd ?? DEFAULTS.adWalletTopUpUsd,
       publisherAdServingMode:
         row?.publisherAdServingMode === "PERSONALIZED" ? "PERSONALIZED" : "ROTATE_ALL",

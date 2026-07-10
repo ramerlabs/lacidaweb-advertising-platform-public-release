@@ -8,6 +8,8 @@ import {
   Link2,
   Megaphone,
   PenSquare,
+  PiggyBank,
+  TrendingDown,
   TrendingUp,
   Users,
   Wallet,
@@ -31,6 +33,14 @@ type Overview = {
   publisherSites: number;
   adPlacements: number;
   networkImpressions: number;
+  advertiserSpendMonthUsd: string;
+  publisherPaidMonthUsd: string;
+  adProfitMonthUsd: string;
+  adProfitMonthCents: number;
+  advertiserSpendAllUsd: string;
+  publisherPaidAllUsd: string;
+  adProfitAllUsd: string;
+  adProfitAllCents: number;
 };
 
 export default function AdminOverviewPage() {
@@ -62,6 +72,59 @@ export default function AdminOverviewPage() {
 
       {overview ? (
         <>
+          <section className="space-y-4">
+            <SectionHeader title="Ad network profit" icon={PiggyBank} accent="cyan" />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <MetricCard
+                icon={(overview.adProfitMonthCents ?? 0) >= 0 ? TrendingUp : TrendingDown}
+                label="Profit this month"
+                value={`$${overview.adProfitMonthUsd ?? "0.00"}`}
+                highlight
+                accent={(overview.adProfitMonthCents ?? 0) >= 0 ? "emerald" : "cyan"}
+                valueClassName={
+                  (overview.adProfitMonthCents ?? 0) < 0
+                    ? "text-rose-500"
+                    : (overview.adProfitMonthCents ?? 0) > 0
+                      ? "text-emerald-500"
+                      : undefined
+                }
+              />
+              <MetricCard
+                icon={PiggyBank}
+                label="Profit all time"
+                value={`$${overview.adProfitAllUsd ?? "0.00"}`}
+                accent={(overview.adProfitAllCents ?? 0) >= 0 ? "emerald" : "cyan"}
+                valueClassName={
+                  (overview.adProfitAllCents ?? 0) < 0
+                    ? "text-rose-500"
+                    : (overview.adProfitAllCents ?? 0) > 0
+                      ? "text-emerald-500"
+                      : undefined
+                }
+              />
+              <MetricCard
+                icon={Wallet}
+                label="Advertiser spend (month)"
+                value={`$${overview.advertiserSpendMonthUsd ?? "0.00"}`}
+                accent="cyan"
+              />
+              <MetricCard
+                icon={Users}
+                label="Publisher payouts (month)"
+                value={`$${overview.publisherPaidMonthUsd ?? "0.00"}`}
+                accent="emerald"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Profit = advertiser ad spend − publisher earnings. Default split is 70% platform / 30%
+              publisher — adjust under{" "}
+              <Link href="/admin/settings/ads" className="underline underline-offset-2">
+                Publisher ads
+              </Link>
+              .
+            </p>
+          </section>
+
           <section className="space-y-4">
             <SectionHeader title="Advertising" icon={Megaphone} accent="cyan" />
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -222,6 +285,7 @@ function MetricCard({
   highlight,
   badge,
   accent = "zinc",
+  valueClassName,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
@@ -229,6 +293,7 @@ function MetricCard({
   highlight?: boolean;
   badge?: boolean;
   accent?: "cyan" | "emerald" | "zinc";
+  valueClassName?: string;
 }) {
   const border =
     accent === "cyan"
@@ -258,7 +323,9 @@ function MetricCard({
           />
           {label}
         </CardDescription>
-        <CardTitle className={`text-3xl tabular-nums ${badge ? "text-amber-600 dark:text-amber-400" : ""}`}>
+        <CardTitle
+          className={`text-3xl tabular-nums ${badge ? "text-amber-600 dark:text-amber-400" : ""} ${valueClassName || ""}`}
+        >
           {value}
         </CardTitle>
       </CardHeader>

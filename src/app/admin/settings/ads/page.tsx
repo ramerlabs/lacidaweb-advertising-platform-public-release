@@ -37,7 +37,7 @@ export default function AdminAdsSettingsPage() {
         if (data.settings) {
           setSettings({
             adsEnabled: data.settings.adsEnabled,
-            adsProfitMarginPercent: data.settings.adsProfitMarginPercent ?? 0,
+            adsProfitMarginPercent: data.settings.adsProfitMarginPercent ?? 70,
             publisherAdServingMode: data.settings.publisherAdServingMode || "ROTATE_ALL",
             publisherAdRotateSeconds: data.settings.publisherAdRotateSeconds ?? 8,
             publisherAutoAdsEnabled: data.settings.publisherAutoAdsEnabled ?? true,
@@ -193,9 +193,9 @@ export default function AdminAdsSettingsPage() {
         <CardHeader>
           <CardTitle>Publisher payout rates</CardTitle>
           <CardDescription>
-            Pay publishers by impression (CPM) and by click (CPC). Advertisers are billed the same
-            rates plus your profit margin. Fraud filters discard bots and duplicate events before
-            earnings or spend are applied.
+            Set publisher payout rates, then your profit margin. Default is 70% platform / 30%
+            publisher of every advertiser dollar. Fraud filters discard bots and duplicates before
+            spend or earnings are applied.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -232,7 +232,7 @@ export default function AdminAdsSettingsPage() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="margin">Advertiser margin %</Label>
+            <Label htmlFor="margin">Platform profit margin %</Label>
             <Input
               id="margin"
               type="number"
@@ -251,22 +251,20 @@ export default function AdminAdsSettingsPage() {
               }
             />
             <p className="text-xs text-muted-foreground">
-              Advertiser pays publisher rate ÷ (1 − margin). At {settings.adsProfitMarginPercent}%:
-              CPC $
+              You keep {settings.adsProfitMarginPercent}%, publishers get{" "}
+              {100 - settings.adsProfitMarginPercent}% of advertiser spend. Advertiser rates: CPC $
               {(
-                (settings.publisherCpcCents /
+                settings.publisherCpcCents /
                   100 /
-                  (1 - Math.min(99, settings.adsProfitMarginPercent) / 100 || 1)) ||
-                0
+                  (1 - Math.min(99, Math.max(0, settings.adsProfitMarginPercent)) / 100 || 1) || 0
               ).toFixed(2)}
               , CPM $
               {(
-                (settings.publisherCpmCents /
+                settings.publisherCpmCents /
                   100 /
-                  (1 - Math.min(99, settings.adsProfitMarginPercent) / 100 || 1)) ||
-                0
-              ).toFixed(2)}
-              .
+                  (1 - Math.min(99, Math.max(0, settings.adsProfitMarginPercent)) / 100 || 1) || 0
+              ).toFixed(2)}{" "}
+              (publisher ÷ (1 − margin)).
             </p>
           </div>
           <div className="space-y-2">

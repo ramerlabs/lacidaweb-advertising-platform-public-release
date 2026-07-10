@@ -432,7 +432,7 @@ model IntegrationSettings {
   landingFakeImpressionsPerHour    Float    @default(180)
   landingFakeClicksPerHour         Float    @default(7.2)
   landingFakeStatsStartedAt        DateTime @default(now())
-  adsProfitMarginPercent    Int     @default(0)
+  adsProfitMarginPercent    Int     @default(70)
   adWalletTopUpUsd          Float   @default(25)
   subscriptionProfitMarginPercent Int @default(80)
   googleOAuthEnabled        Boolean @default(true)

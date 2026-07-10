@@ -25,6 +25,10 @@ export async function GET() {
       publisherSites,
       adPlacements,
       placementStats,
+      advertiserSpendAll,
+      publisherPaidAll,
+      advertiserSpendMonth,
+      publisherPaidMonth,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.team.count(),
@@ -51,9 +55,35 @@ export async function GET() {
       prisma.publisherSite.count(),
       prisma.adPlacement.count(),
       prisma.adPlacement.aggregate({ _sum: { impressions: true, clicks: true } }),
+      prisma.walletTransaction.aggregate({
+        _sum: { amountCents: true },
+        where: { type: "AD_SPEND", status: "COMPLETED" },
+      }),
+      prisma.walletTransaction.aggregate({
+        _sum: { amountCents: true },
+        where: { type: "PUBLISHER_EARNING", status: "COMPLETED" },
+      }),
+      prisma.walletTransaction.aggregate({
+        _sum: { amountCents: true },
+        where: { type: "AD_SPEND", status: "COMPLETED", createdAt: { gte: monthStart } },
+      }),
+      prisma.walletTransaction.aggregate({
+        _sum: { amountCents: true },
+        where: {
+          type: "PUBLISHER_EARNING",
+          status: "COMPLETED",
+          createdAt: { gte: monthStart },
+        },
+      }),
     ]);
 
     const walletTotalCents = walletAgg._sum.adWalletBalanceCents ?? 0;
+    const advertiserSpendAllCents = Math.abs(advertiserSpendAll._sum.amountCents ?? 0);
+    const publisherPaidAllCents = Math.abs(publisherPaidAll._sum.amountCents ?? 0);
+    const advertiserSpendMonthCents = Math.abs(advertiserSpendMonth._sum.amountCents ?? 0);
+    const publisherPaidMonthCents = Math.abs(publisherPaidMonth._sum.amountCents ?? 0);
+    const adProfitAllCents = advertiserSpendAllCents - publisherPaidAllCents;
+    const adProfitMonthCents = advertiserSpendMonthCents - publisherPaidMonthCents;
 
     return NextResponse.json({
       users,
@@ -74,6 +104,18 @@ export async function GET() {
       activeCampaigns,
       walletTotalCents,
       walletTotalUsd: formatAdWalletUsd(walletTotalCents),
+      advertiserSpendAllCents,
+      advertiserSpendAllUsd: formatAdWalletUsd(advertiserSpendAllCents),
+      publisherPaidAllCents,
+      publisherPaidAllUsd: formatAdWalletUsd(publisherPaidAllCents),
+      adProfitAllCents,
+      adProfitAllUsd: formatAdWalletUsd(adProfitAllCents),
+      advertiserSpendMonthCents,
+      advertiserSpendMonthUsd: formatAdWalletUsd(advertiserSpendMonthCents),
+      publisherPaidMonthCents,
+      publisherPaidMonthUsd: formatAdWalletUsd(publisherPaidMonthCents),
+      adProfitMonthCents,
+      adProfitMonthUsd: formatAdWalletUsd(adProfitMonthCents),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed";
