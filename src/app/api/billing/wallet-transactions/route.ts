@@ -19,7 +19,6 @@ export async function GET(req: Request) {
         select: {
           adWalletBalanceCents: true,
           publisherBalanceCents: true,
-          accountType: true,
         },
       }),
     ]);
