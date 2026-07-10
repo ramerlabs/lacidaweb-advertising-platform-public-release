@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { getAppOrigin } from "@/lib/publisher-embed";
-import { PERSONAL_AUTO_ADS_KEY } from "@/lib/domain-approval";
+import {
+  PERSONAL_AUTO_ADS_KEY,
+  WP_PLUGIN_AUTO_ADS_KEY,
+} from "@/lib/domain-approval";
 import { parseAdminEmails } from "@/lib/platform-admin";
 import { randomBytes } from "crypto";
 
@@ -8,10 +11,11 @@ function newAutoAdsKey() {
   return randomBytes(12).toString("base64url");
 }
 
-export { PERSONAL_AUTO_ADS_KEY };
+export { PERSONAL_AUTO_ADS_KEY, WP_PLUGIN_AUTO_ADS_KEY };
 
 const PLATFORM_TEAM_SLUG = "lacidaweb-platform";
 const PERSONAL_SITE_DOMAIN = "personal.lacidaweb.internal";
+const WP_PLUGIN_SITE_DOMAIN = "wp-plugin.lacidaweb.internal";
 
 async function getOrCreatePlatformTeam() {
   const existing = await prisma.team.findUnique({ where: { slug: PLATFORM_TEAM_SLUG } });
@@ -40,10 +44,13 @@ async function getOrCreatePlatformTeam() {
   });
 }
 
-/** Platform-owned site used for allowlisted personal domains (not a publisher registration). */
-export async function ensurePersonalAutoAdsSite() {
+async function ensurePlatformKeyedSite(opts: {
+  autoAdsKey: string;
+  name: string;
+  domain: string;
+}) {
   const existing = await prisma.publisherSite.findUnique({
-    where: { autoAdsKey: PERSONAL_AUTO_ADS_KEY },
+    where: { autoAdsKey: opts.autoAdsKey },
   });
   if (existing) {
     if (existing.status !== "ACTIVE" || !existing.autoAdsEnabled) {
@@ -68,11 +75,11 @@ export async function ensurePersonalAutoAdsSite() {
   const site = await prisma.publisherSite.create({
     data: {
       teamId: team.id,
-      name: "Personal allowlist ads",
-      domain: PERSONAL_SITE_DOMAIN,
+      name: opts.name,
+      domain: opts.domain,
       status: "ACTIVE",
       autoAdsEnabled: true,
-      autoAdsKey: PERSONAL_AUTO_ADS_KEY,
+      autoAdsKey: opts.autoAdsKey,
     },
   });
   await ensureAutoPlacements(site.id);
@@ -84,6 +91,24 @@ export async function ensurePersonalAutoAdsSite() {
         orderBy: { createdAt: "asc" },
       },
     },
+  });
+}
+
+/** Platform-owned site used for allowlisted personal domains (not a publisher registration). */
+export async function ensurePersonalAutoAdsSite() {
+  return ensurePlatformKeyedSite({
+    autoAdsKey: PERSONAL_AUTO_ADS_KEY,
+    name: "Personal allowlist ads",
+    domain: PERSONAL_SITE_DOMAIN,
+  });
+}
+
+/** Platform-owned site for WordPress plugin installs on any customer domain. */
+export async function ensureWpPluginAutoAdsSite() {
+  return ensurePlatformKeyedSite({
+    autoAdsKey: WP_PLUGIN_AUTO_ADS_KEY,
+    name: "WordPress plugin network ads",
+    domain: WP_PLUGIN_SITE_DOMAIN,
   });
 }
 
@@ -214,6 +239,7 @@ function configFromSite(
     height: number;
   }>,
   isPersonal = false,
+  isOpenNetwork = false,
 ) {
   const bySlot = new Map<string, (typeof placements)[number]>();
   for (const p of placements) {
@@ -228,6 +254,7 @@ function configFromSite(
     autoAdsEnabled: site.autoAdsEnabled,
     maxAds: MAX_AUTO_ADS_PER_PAGE,
     isPersonal,
+    isOpenNetwork,
     slots: unique.map((p) => ({
       autoSlot: p.autoSlot,
       placementKey: p.placementKey,
@@ -245,6 +272,12 @@ export async function getAutoAdsConfig(autoAdsKey: string) {
     return configFromSite(site, placements, true);
   }
 
+  if (autoAdsKey === WP_PLUGIN_AUTO_ADS_KEY) {
+    const site = await ensureWpPluginAutoAdsSite();
+    const placements = await ensureAutoPlacements(site.id);
+    return configFromSite(site, placements, false, true);
+  }
+
   const site = await prisma.publisherSite.findUnique({
     where: { autoAdsKey },
     include: {
@@ -260,5 +293,5 @@ export async function getAutoAdsConfig(autoAdsKey: string) {
   }
 
   const placements = await ensureAutoPlacements(site.id);
-  return configFromSite(site, placements, false);
+  return configFromSite(site, placements, false, false);
 }

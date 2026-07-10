@@ -57,10 +57,12 @@ function mapSettings(data: Partial<AdsSettings> & Record<string, unknown>): AdsS
 export default function AdminAdsSettingsPage() {
   const [settings, setSettings] = useState<AdsSettings | null>(null);
   const [personalEmbedSnippet, setPersonalEmbedSnippet] = useState("");
+  const [wpPluginEmbedSnippet, setWpPluginEmbedSnippet] = useState("");
+  const [wpPluginPhpSnippet, setWpPluginPhpSnippet] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/admin/settings/ads")
@@ -70,6 +72,8 @@ export default function AdminAdsSettingsPage() {
         if (data.settings) {
           setSettings(mapSettings(data.settings));
           setPersonalEmbedSnippet(data.personalEmbedSnippet || "");
+          setWpPluginEmbedSnippet(data.wpPluginEmbedSnippet || "");
+          setWpPluginPhpSnippet(data.wpPluginPhpSnippet || "");
         }
       });
   }, []);
@@ -91,14 +95,16 @@ export default function AdminAdsSettingsPage() {
     }
     setSettings(mapSettings(data.settings));
     setPersonalEmbedSnippet(data.personalEmbedSnippet || "");
+    setWpPluginEmbedSnippet(data.wpPluginEmbedSnippet || "");
+    setWpPluginPhpSnippet(data.wpPluginPhpSnippet || "");
     setStatus("Publisher ad settings saved.");
   }
 
-  async function copyPersonalSnippet() {
-    if (!personalEmbedSnippet) return;
-    await navigator.clipboard.writeText(personalEmbedSnippet);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  async function copyText(key: string, text: string) {
+    if (!text) return;
+    await navigator.clipboard.writeText(text);
+    setCopied(key);
+    setTimeout(() => setCopied(null), 2000);
   }
 
   if (loading || !settings) {
@@ -185,12 +191,66 @@ export default function AdminAdsSettingsPage() {
               <pre className="overflow-x-auto rounded-lg border bg-muted/40 p-3 text-xs leading-relaxed">
                 {personalEmbedSnippet}
               </pre>
-              <Button type="button" variant="outline" size="sm" onClick={copyPersonalSnippet}>
-                {copied ? "Copied" : "Copy snippet"}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => copyText("personal", personalEmbedSnippet)}
+              >
+                {copied === "personal" ? "Copied" : "Copy snippet"}
               </Button>
               <p className="text-xs text-muted-foreground">
                 Paste on allowlisted domains only. Traffic is tracked on the platform personal site
                 (not paid out as a publisher).
+              </p>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>WordPress plugin network</CardTitle>
+          <CardDescription>
+            Ship this key inside your WordPress plugin. Ads show on any customer domain after
+            install — no registration and no allowlist needed.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {wpPluginEmbedSnippet ? (
+            <div className="space-y-2">
+              <Label>Script embed (any site)</Label>
+              <pre className="overflow-x-auto rounded-lg border bg-muted/40 p-3 text-xs leading-relaxed">
+                {wpPluginEmbedSnippet}
+              </pre>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => copyText("wp-embed", wpPluginEmbedSnippet)}
+              >
+                {copied === "wp-embed" ? "Copied" : "Copy script"}
+              </Button>
+            </div>
+          ) : null}
+
+          {wpPluginPhpSnippet ? (
+            <div className="space-y-2">
+              <Label>PHP for your plugin (wp_footer)</Label>
+              <pre className="overflow-x-auto rounded-lg border bg-muted/40 p-3 text-xs leading-relaxed whitespace-pre-wrap">
+                {wpPluginPhpSnippet}
+              </pre>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => copyText("wp-php", wpPluginPhpSnippet)}
+              >
+                {copied === "wp-php" ? "Copied" : "Copy PHP"}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Put this in your plugin bootstrap. Key is <code>lw-wp-plugin</code>. Revenue
+                attributes to the platform WordPress network site.
               </p>
             </div>
           ) : null}

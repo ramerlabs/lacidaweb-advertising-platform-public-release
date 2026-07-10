@@ -5,6 +5,7 @@ import { brand } from "@/lib/brand";
 import {
   canServeOnHost,
   PERSONAL_AUTO_ADS_KEY,
+  WP_PLUGIN_AUTO_ADS_KEY,
 } from "@/lib/domain-approval";
 import {
   campaignHasDeliveryBudget,
@@ -205,6 +206,9 @@ export async function serveAdsForPlacement(
   const isPersonal =
     placement.site.autoAdsKey === PERSONAL_AUTO_ADS_KEY ||
     placement.site.domain === "personal.lacidaweb.internal";
+  const isOpenNetwork =
+    placement.site.autoAdsKey === WP_PLUGIN_AUTO_ADS_KEY ||
+    placement.site.domain === "wp-plugin.lacidaweb.internal";
 
   if (
     !canServeOnHost({
@@ -213,6 +217,7 @@ export async function serveAdsForPlacement(
       requestHost: opts?.requestHost ?? null,
       siteDomain: placement.site.domain,
       isPersonalKey: isPersonal,
+      isOpenNetworkKey: isOpenNetwork,
     })
   ) {
     return null;

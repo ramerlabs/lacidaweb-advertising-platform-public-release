@@ -4,7 +4,8 @@ import { getAutoAdsConfig } from "@/lib/publisher-auto-ads";
 import { isPlatformLicensed } from "@/lib/license";
 import {
   canServeOnHost,
-  PERSONAL_AUTO_ADS_KEY,
+  isOpenNetworkKey,
+  isPersonalAllowlistKey,
   requestHostFromHeaders,
 } from "@/lib/domain-approval";
 
@@ -34,16 +35,20 @@ export async function GET(req: Request) {
       return NextResponse.json({ enabled: false, slots: [] }, { headers: corsHeaders });
     }
 
-    const isPersonal = siteKey === PERSONAL_AUTO_ADS_KEY;
+    const isPersonal = isPersonalAllowlistKey(siteKey);
+    const isNetwork = isOpenNetworkKey(siteKey);
     const requestHost = requestHostFromHeaders(req);
 
     // Personal key only works on allowlisted hosts (even when approval is off).
-    if (isPersonal && !canServeOnHost({
-      requireDomainApproval: true,
-      allowedAdDomains: platform.allowedAdDomains,
-      requestHost,
-      isPersonalKey: true,
-    })) {
+    if (
+      isPersonal &&
+      !canServeOnHost({
+        requireDomainApproval: true,
+        allowedAdDomains: platform.allowedAdDomains,
+        requestHost,
+        isPersonalKey: true,
+      })
+    ) {
       return NextResponse.json({ enabled: false, slots: [] }, { headers: corsHeaders });
     }
 
@@ -52,17 +57,19 @@ export async function GET(req: Request) {
       return NextResponse.json({ enabled: false, slots: [] }, { headers: corsHeaders });
     }
 
-    if (
-      !isPersonal &&
-      !canServeOnHost({
-        requireDomainApproval: platform.requireDomainApproval,
-        allowedAdDomains: platform.allowedAdDomains,
-        requestHost,
-        siteDomain: config.domain,
-        isPersonalKey: false,
-      })
-    ) {
-      return NextResponse.json({ enabled: false, slots: [] }, { headers: corsHeaders });
+    // WP plugin / open network key: always serve on any domain.
+    if (!isPersonal && !isNetwork) {
+      if (
+        !canServeOnHost({
+          requireDomainApproval: platform.requireDomainApproval,
+          allowedAdDomains: platform.allowedAdDomains,
+          requestHost,
+          siteDomain: config.domain,
+          isPersonalKey: false,
+        })
+      ) {
+        return NextResponse.json({ enabled: false, slots: [] }, { headers: corsHeaders });
+      }
     }
 
     return NextResponse.json(
@@ -73,6 +80,7 @@ export async function GET(req: Request) {
         maxAds: config.maxAds ?? 4,
         slots: config.slots,
         personal: Boolean(config.isPersonal),
+        openNetwork: Boolean(config.isOpenNetwork) || isNetwork,
       },
       { headers: corsHeaders },
     );

@@ -1,6 +1,20 @@
 /** Fixed auto-ads key for personal / allowlisted domains (not a publisher site). */
 export const PERSONAL_AUTO_ADS_KEY = "lw-personal";
 
+/**
+ * Shared key for WordPress (or other) plugins shipped to random customer domains.
+ * Works on any host — no allowlist / registration required.
+ */
+export const WP_PLUGIN_AUTO_ADS_KEY = "lw-wp-plugin";
+
+export function isOpenNetworkKey(key: string | null | undefined): boolean {
+  return key === WP_PLUGIN_AUTO_ADS_KEY;
+}
+
+export function isPersonalAllowlistKey(key: string | null | undefined): boolean {
+  return key === PERSONAL_AUTO_ADS_KEY;
+}
+
 /** Strip protocol, path, port, www — lowercase host. */
 export function normalizeHost(input: string | null | undefined): string {
   if (!input) return "";
@@ -72,6 +86,7 @@ export function domainMatchesSite(
 
 /**
  * Decide whether ads may serve for this request host.
+ * - Open network / WP plugin key: always allow (any install domain).
  * - Personal key: only allowlisted hosts.
  * - Approval off: always allow (any valid key).
  * - Approval on: allowlist OR registered site domain match.
@@ -82,7 +97,9 @@ export function canServeOnHost(opts: {
   requestHost: string | null;
   siteDomain?: string | null;
   isPersonalKey?: boolean;
+  isOpenNetworkKey?: boolean;
 }): boolean {
+  if (opts.isOpenNetworkKey) return true;
   if (opts.isPersonalKey) {
     return isHostAllowlisted(opts.requestHost, opts.allowedAdDomains);
   }
