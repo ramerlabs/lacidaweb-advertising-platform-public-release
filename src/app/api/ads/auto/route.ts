@@ -39,6 +39,7 @@ export async function GET(req: Request) {
         enabled: true,
         domain: config.domain,
         rotationSeconds: platform.publisherAdRotateSeconds,
+        maxAds: config.maxAds ?? 4,
         slots: config.slots,
       },
       { headers: corsHeaders },

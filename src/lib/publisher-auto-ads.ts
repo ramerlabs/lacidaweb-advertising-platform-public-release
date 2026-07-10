@@ -42,6 +42,13 @@ export const AUTO_AD_SLOTS = [
     height: 0,
   },
   {
+    autoSlot: "mid",
+    name: "Auto — lower article",
+    format: "BANNER" as const,
+    width: 300,
+    height: 250,
+  },
+  {
     autoSlot: "anchor",
     name: "Auto — end of content",
     format: "TEXT_INLINE" as const,
@@ -49,6 +56,9 @@ export const AUTO_AD_SLOTS = [
     height: 0,
   },
 ];
+
+/** Max auto-ad units injected on a publisher page. */
+export const MAX_AUTO_ADS_PER_PAGE = 4;
 
 export function buildAutoEmbedSnippet(autoAdsKey: string, origin?: string) {
   const base = getAppOrigin(origin);
@@ -81,8 +91,30 @@ export async function ensureAutoPlacements(siteId: string) {
     });
   }
 
-  return prisma.adPlacement.findMany({
+  // Deactivate duplicate autoSlot rows (keep oldest active).
+  const autos = await prisma.adPlacement.findMany({
     where: { siteId, autoSlot: { not: null } },
+    orderBy: { createdAt: "asc" },
+  });
+  const seen = new Set<string>();
+  const deactivateIds: string[] = [];
+  for (const p of autos) {
+    const key = p.autoSlot as string;
+    if (seen.has(key)) {
+      if (p.isActive) deactivateIds.push(p.id);
+    } else {
+      seen.add(key);
+    }
+  }
+  if (deactivateIds.length) {
+    await prisma.adPlacement.updateMany({
+      where: { id: { in: deactivateIds } },
+      data: { isActive: false },
+    });
+  }
+
+  return prisma.adPlacement.findMany({
+    where: { siteId, autoSlot: { not: null }, isActive: true },
     orderBy: { createdAt: "asc" },
   });
 }
@@ -102,14 +134,23 @@ export async function getAutoAdsConfig(autoAdsKey: string) {
     return null;
   }
 
-  const placements =
-    site.placements.length > 0 ? site.placements : await ensureAutoPlacements(site.id);
+  // Ensure defaults exist and deactivate duplicate autoSlot rows.
+  const placements = await ensureAutoPlacements(site.id);
+
+  // One placement per autoSlot (safety net).
+  const bySlot = new Map<string, (typeof placements)[number]>();
+  for (const p of placements) {
+    const key = p.autoSlot || p.placementKey;
+    if (!bySlot.has(key)) bySlot.set(key, p);
+  }
+  const unique = Array.from(bySlot.values()).slice(0, MAX_AUTO_ADS_PER_PAGE);
 
   return {
     siteId: site.id,
     domain: site.domain,
     autoAdsEnabled: site.autoAdsEnabled,
-    slots: placements.map((p) => ({
+    maxAds: MAX_AUTO_ADS_PER_PAGE,
+    slots: unique.map((p) => ({
       autoSlot: p.autoSlot,
       placementKey: p.placementKey,
       format: p.format,

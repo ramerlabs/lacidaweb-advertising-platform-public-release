@@ -210,10 +210,16 @@ export async function serveAdsForPlacement(
 
   const ads = ordered.map((ad) => toServedAd(ad, placement, placementKey, opts?.origin));
 
+  // ROTATE_ALL: return list for timed swap in one slot. Otherwise serve a single ad.
+  const serveList =
+    settings.publisherAdServingMode === "ROTATE_ALL" ? ads : ads.slice(0, 1);
+
   return {
-    ads,
+    ads: serveList,
     rotationSeconds:
-      settings.publisherAdServingMode === "ROTATE_ALL" ? settings.publisherAdRotateSeconds : 0,
+      settings.publisherAdServingMode === "ROTATE_ALL" && serveList.length > 1
+        ? settings.publisherAdRotateSeconds
+        : 0,
     servingMode: settings.publisherAdServingMode,
   };
 }
