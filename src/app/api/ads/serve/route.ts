@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { serveAdsForPlacement } from "@/services/ad-serving";
+import { clientIpFromRequest } from "@/services/publisher-earnings";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,7 +23,15 @@ export async function GET(req: Request) {
     const origin = url.origin;
     const visitorId = url.searchParams.get("visitor") || undefined;
 
-    const result = await serveAdsForPlacement(placement, { visitorId, origin });
+    const result = await serveAdsForPlacement(placement, {
+      visitorId,
+      origin,
+      meta: {
+        visitorId,
+        ip: clientIpFromRequest(req),
+        userAgent: req.headers.get("user-agent"),
+      },
+    });
     if (!result || !result.ads.length) {
       return NextResponse.json({ ad: null, ads: [] }, { headers: corsHeaders });
     }

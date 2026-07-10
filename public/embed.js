@@ -1,6 +1,11 @@
 (function () {
 
-  function esc(s) {
+  function withVisitor(url, visitor) {
+  if (!visitor || !url) return url || "";
+  return url + (url.indexOf("?") >= 0 ? "&" : "?") + "visitor=" + encodeURIComponent(visitor);
+}
+
+function esc(s) {
 
     if (!s) return "";
 
@@ -18,7 +23,7 @@
 
 
 
-  function renderAd(target, ad) {
+  function renderAd(target, ad, visitor) {
 
     var fmt = ad.format || "BANNER";
 
@@ -32,7 +37,7 @@
 
         'Sponsored · <a href="' +
 
-        esc(ad.clickUrl) +
+        esc(withVisitor(ad.clickUrl, visitor)) +
 
         '" target="_blank" rel="noopener sponsored" style="color:#0891b2;font-weight:600;text-decoration:underline;">' +
 
@@ -54,7 +59,7 @@
 
         '<a href="' +
 
-        esc(ad.clickUrl) +
+        esc(withVisitor(ad.clickUrl, visitor)) +
 
         '" target="_blank" rel="noopener sponsored" style="display:block;max-width:360px;padding:16px;border:1px solid #d4d4d8;border-radius:10px;text-decoration:none;font-family:system-ui,sans-serif;background:#fafafa;">' +
 
@@ -100,7 +105,7 @@
 
       '<a href="' +
 
-      esc(ad.clickUrl) +
+      esc(withVisitor(ad.clickUrl, visitor)) +
 
       '" target="_blank" rel="noopener sponsored" style="display:block;max-width:100%;text-decoration:none;color:inherit;font-family:system-ui,sans-serif;">' +
 
@@ -224,7 +229,7 @@
 
         var index = 0;
 
-        renderAd(target, ads[0]);
+        renderAd(target, ads[0], visitor);
 
 
 
@@ -236,7 +241,7 @@
 
             index = (index + 1) % ads.length;
 
-            renderAd(target, ads[index]);
+            renderAd(target, ads[index], visitor);
 
           }, rotate * 1000);
 

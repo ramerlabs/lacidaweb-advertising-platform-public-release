@@ -101,6 +101,21 @@ enum WalletTransactionType {
   AD_SPEND
   REFUND
   ADJUSTMENT
+  PUBLISHER_EARNING
+  PUBLISHER_PAYOUT
+}
+
+enum AdEventType {
+  IMPRESSION
+  CLICK
+}
+
+enum PublisherPayoutStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+  CANCELED
 }
 
 enum WalletTransactionStatus {
@@ -174,6 +189,7 @@ model User {
   supportTickets      SupportTicket[]  @relation("TicketCreator")
   reviewedCampaigns   AdCampaign[]     @relation("CampaignReviewedBy")
   campaignReviewActions CampaignReview[] @relation("CampaignReviewActor")
+  publisherPayoutReviews PublisherPayout[] @relation("PublisherPayoutReviewer")
 }
 
 model Account {
@@ -220,6 +236,9 @@ model Team {
   aiBalanceCents   Int      @default(0)
   aiTokenBalance   Int      @default(0)
   adWalletBalanceCents Int  @default(0)
+  publisherBalanceCents Int @default(0)
+  publisherLifetimeEarnedCents Int @default(0)
+  publisherLifetimePaidCents Int @default(0)
   lowTokenAlertAt  DateTime?
   businessName        String?
   businessDescription String?  @db.Text
@@ -246,6 +265,8 @@ model Team {
   adCampaigns         AdCampaign[]
   walletTransactions  WalletTransaction[]
   publisherSites      PublisherSite[]
+  publisherPayouts    PublisherPayout[]
+  adEvents            AdEvent[]
 }
 
 model TeamMember {
@@ -565,6 +586,9 @@ model IntegrationSettings {
   publisherAdServingMode    PublisherAdServingMode @default(ROTATE_ALL)
   publisherAdRotateSeconds  Int     @default(8)
   publisherAutoAdsEnabled   Boolean @default(true)
+  publisherCpmCents         Int     @default(100)
+  publisherCpcCents         Int     @default(10)
+  publisherMinPayoutCents   Int     @default(2500)
   adsProfitMarginPercent    Int     @default(0)
   adWalletTopUpUsd          Float   @default(25)
   subscriptionProfitMarginPercent Int @default(80)
@@ -690,6 +714,54 @@ model AdPlacement {
 
   @@index([siteId])
   @@index([placementKey])
+}
+
+/// Per-event impression/click log for earnings + fraud filtering.
+model AdEvent {
+  id           String     @id @default(cuid())
+  type         AdEventType
+  teamId       String
+  placementId  String
+  adId         String?
+  campaignId   String?
+  visitorHash  String?
+  ipHash       String?
+  userAgent    String?    @db.Text
+  isValid      Boolean    @default(true)
+  fraudReason  String?
+  earnedCents  Int        @default(0)
+  createdAt    DateTime   @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, createdAt])
+  @@index([placementId, type, visitorHash, createdAt])
+  @@index([placementId, type, ipHash, createdAt])
+  @@index([isValid, createdAt])
+}
+
+/// Publisher withdrawal request — paid via enabled payment methods.
+model PublisherPayout {
+  id              String                @id @default(cuid())
+  teamId          String
+  amountCents     Int
+  method          PaymentMethod
+  status          PublisherPayoutStatus @default(PENDING)
+  payoutDetails   String                @db.Text
+  notes           String?               @db.Text
+  adminNotes      String?               @db.Text
+  rejectionReason String?
+  reviewedById    String?
+  reviewedAt      DateTime?
+  paidAt          DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  team       Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  reviewedBy User? @relation("PublisherPayoutReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([teamId, status, createdAt])
+  @@index([status, createdAt])
 }
 
 /// Immutable admin review audit trail for campaign moderation.

@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { getAdsSettings, type PublisherAdServingMode } from "@/lib/ads-settings";
+import { getAdsSettings, type AdsSettingsData } from "@/lib/ads-settings";
+import {
+  recordTrackedClick,
+  recordTrackedImpression,
+  type AdEventRequestMeta,
+} from "@/services/publisher-earnings";
 
 export type ServedAd = {
   adId: string;
@@ -17,7 +22,7 @@ export type ServedAd = {
 export type PlacementServeResult = {
   ads: ServedAd[];
   rotationSeconds: number;
-  servingMode: PublisherAdServingMode;
+  servingMode: AdsSettingsData["publisherAdServingMode"];
 };
 
 async function getEligibleAds() {
@@ -80,7 +85,7 @@ function pickPersonalizedIndex(visitorId: string, adCount: number): number {
 
 export async function serveAdsForPlacement(
   placementKey: string,
-  opts?: { visitorId?: string; origin?: string },
+  opts?: { visitorId?: string; origin?: string; meta?: AdEventRequestMeta },
 ): Promise<PlacementServeResult | null> {
   const settings = await getAdsSettings();
   if (!settings.adsEnabled) {
@@ -106,10 +111,18 @@ export async function serveAdsForPlacement(
   }
 
   const ordered = rotateFromIndex(eligible, startIndex);
+  const primary = ordered[0];
 
-  await prisma.adPlacement.update({
-    where: { id: placement.id },
-    data: { impressions: { increment: 1 } },
+  await recordTrackedImpression({
+    placementId: placement.id,
+    teamId: placement.site.teamId,
+    adId: primary.id,
+    campaignId: primary.campaignId,
+    meta: {
+      visitorId: opts?.visitorId || opts?.meta?.visitorId,
+      ip: opts?.meta?.ip,
+      userAgent: opts?.meta?.userAgent,
+    },
   });
 
   const ads = ordered.map((ad) => toServedAd(ad, placement, placementKey, opts?.origin));
@@ -128,20 +141,29 @@ export async function pickAdForPlacement(placementKey: string): Promise<ServedAd
   return result?.ads[0] ?? null;
 }
 
-export async function recordAdClick(adId: string, placementKey: string) {
+export async function recordAdClick(
+  adId: string,
+  placementKey: string,
+  meta?: AdEventRequestMeta,
+) {
   const placement = await prisma.adPlacement.findUnique({
     where: { placementKey, isActive: true },
+    include: { site: true },
   });
-  if (!placement) return null;
+  if (!placement || placement.site.status !== "ACTIVE") return null;
 
   const ad = await prisma.ad.findFirst({
     where: { id: adId, status: { in: ["ACTIVE", "APPROVED"] } },
+    select: { id: true, destinationUrl: true, campaignId: true },
   });
   if (!ad) return null;
 
-  await prisma.adPlacement.update({
-    where: { id: placement.id },
-    data: { clicks: { increment: 1 } },
+  await recordTrackedClick({
+    placementId: placement.id,
+    teamId: placement.site.teamId,
+    adId: ad.id,
+    campaignId: ad.campaignId,
+    meta: meta || {},
   });
 
   return ad.destinationUrl;

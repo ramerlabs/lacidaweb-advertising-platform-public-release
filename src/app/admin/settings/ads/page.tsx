@@ -12,6 +12,9 @@ type AdsSettings = {
   publisherAdServingMode: PublisherAdServingMode;
   publisherAdRotateSeconds: number;
   publisherAutoAdsEnabled: boolean;
+  publisherCpmCents: number;
+  publisherCpcCents: number;
+  publisherMinPayoutCents: number;
 };
 
 export default function AdminAdsSettingsPage() {
@@ -31,6 +34,9 @@ export default function AdminAdsSettingsPage() {
             publisherAdServingMode: data.settings.publisherAdServingMode || "ROTATE_ALL",
             publisherAdRotateSeconds: data.settings.publisherAdRotateSeconds ?? 8,
             publisherAutoAdsEnabled: data.settings.publisherAutoAdsEnabled ?? true,
+            publisherCpmCents: data.settings.publisherCpmCents ?? 100,
+            publisherCpcCents: data.settings.publisherCpcCents ?? 10,
+            publisherMinPayoutCents: data.settings.publisherMinPayoutCents ?? 2500,
           });
         }
       });
@@ -56,6 +62,9 @@ export default function AdminAdsSettingsPage() {
       publisherAdServingMode: data.settings.publisherAdServingMode,
       publisherAdRotateSeconds: data.settings.publisherAdRotateSeconds,
       publisherAutoAdsEnabled: data.settings.publisherAutoAdsEnabled,
+      publisherCpmCents: data.settings.publisherCpmCents,
+      publisherCpcCents: data.settings.publisherCpcCents,
+      publisherMinPayoutCents: data.settings.publisherMinPayoutCents,
     });
     setStatus("Publisher ad settings saved.");
   }
@@ -159,6 +168,68 @@ export default function AdminAdsSettingsPage() {
               </p>
             </div>
           ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Publisher payout rates</CardTitle>
+          <CardDescription>
+            Pay publishers by impression (CPM) and by click (CPC). Fraud filters discard bots and
+            duplicate events before earnings are credited.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-3">
+          <div className="space-y-2">
+            <Label htmlFor="cpm">CPM (USD per 1,000 views)</Label>
+            <Input
+              id="cpm"
+              type="number"
+              min={0}
+              step="0.01"
+              value={(settings.publisherCpmCents / 100).toFixed(2)}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  publisherCpmCents: Math.round(Math.max(0, Number(e.target.value) || 0) * 100),
+                })
+              }
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="cpc">CPC (USD per click)</Label>
+            <Input
+              id="cpc"
+              type="number"
+              min={0}
+              step="0.01"
+              value={(settings.publisherCpcCents / 100).toFixed(2)}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  publisherCpcCents: Math.round(Math.max(0, Number(e.target.value) || 0) * 100),
+                })
+              }
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="min-payout">Minimum payout (USD)</Label>
+            <Input
+              id="min-payout"
+              type="number"
+              min={1}
+              step="0.01"
+              value={(settings.publisherMinPayoutCents / 100).toFixed(2)}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  publisherMinPayoutCents: Math.round(
+                    Math.max(1, Number(e.target.value) || 1) * 100,
+                  ),
+                })
+              }
+            />
+          </div>
         </CardContent>
       </Card>
 

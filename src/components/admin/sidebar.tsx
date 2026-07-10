@@ -29,6 +29,7 @@ const platformLinks = [
   { href: "/admin/campaigns", label: "Campaigns", icon: Megaphone, countKey: "pendingReview" as const },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/payments", label: "Payments", icon: CreditCard, countKey: "pendingPayments" as const },
+  { href: "/admin/payouts", label: "Publisher payouts", icon: Wallet },
   { href: "/admin/support", label: "Support", icon: Headset, countKey: "openTickets" as const },
 ];
 

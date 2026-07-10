@@ -37,6 +37,7 @@ const publisherLinks = [
   { href: "/dashboard/publisher/templates", label: "Ad templates", icon: LayoutTemplate },
   { href: "/dashboard/publisher/sites", label: "Websites & embed", icon: Code2 },
   { href: "/dashboard/publisher/performance", label: "Performance", icon: BarChart3 },
+  { href: "/dashboard/publisher/earnings", label: "Earnings", icon: Wallet },
   { href: "/dashboard/support", label: "Support", icon: Headset },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
