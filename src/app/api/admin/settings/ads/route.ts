@@ -16,8 +16,6 @@ const schema = z.object({
   publisherAdServingMode: z.enum(["ROTATE_ALL", "PERSONALIZED"]).optional(),
   publisherAdRotateSeconds: z.number().int().min(0).max(120).optional(),
   publisherAutoAdsEnabled: z.boolean().optional(),
-  requireDomainApproval: z.boolean().optional(),
-  allowedAdDomains: z.string().max(4000).optional(),
   publisherCpmCents: z.number().int().min(0).max(100_000).optional(),
   publisherCpcCents: z.number().int().min(0).max(10_000).optional(),
   publisherMinPayoutCents: z.number().int().min(100).max(1_000_000).optional(),

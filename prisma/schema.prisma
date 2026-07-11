@@ -225,6 +225,10 @@ model Team {
   businessWebsite     String?
   businessLocation    String?
   brandVoice          String?
+  /// When true, this team's embeds only serve if page host matches a registered site (or allowlist).
+  requireDomainApproval Boolean @default(true)
+  /// Newline/comma-separated hosts allowed for this team without a matching PublisherSite domain.
+  allowedAdDomains    String?  @db.Text
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -422,10 +426,6 @@ model IntegrationSettings {
   publisherAdServingMode    PublisherAdServingMode @default(ROTATE_ALL)
   publisherAdRotateSeconds  Int     @default(8)
   publisherAutoAdsEnabled   Boolean @default(true)
-  /// When true, embed host must match the registered site domain or the allowlist.
-  requireDomainApproval     Boolean @default(true)
-  /// Newline/comma-separated hosts that may receive ads without a PublisherSite row.
-  allowedAdDomains          String? @db.Text
   publisherCpmCents         Int     @default(100)
   publisherCpcCents         Int     @default(10)
   publisherMinPayoutCents   Int     @default(2500)

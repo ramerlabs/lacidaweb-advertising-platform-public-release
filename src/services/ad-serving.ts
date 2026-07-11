@@ -187,6 +187,8 @@ export async function serveAdsForPlacement(
     slotIndex?: number;
     /** Request page host (Origin/Referer) for domain approval checks. */
     requestHost?: string | null;
+    /** How many TEXT_BOX units to fill (from client container width). */
+    count?: number;
   },
 ): Promise<PlacementServeResult | null> {
   const settings = await getAdsSettings();
@@ -196,7 +198,18 @@ export async function serveAdsForPlacement(
 
   const placement = await prisma.adPlacement.findUnique({
     where: { placementKey, isActive: true },
-    include: { site: true },
+    include: {
+      site: {
+        include: {
+          team: {
+            select: {
+              requireDomainApproval: true,
+              allowedAdDomains: true,
+            },
+          },
+        },
+      },
+    },
   });
 
   if (!placement || placement.site.status !== "ACTIVE") {
@@ -210,10 +223,11 @@ export async function serveAdsForPlacement(
     placement.site.autoAdsKey === WP_PLUGIN_AUTO_ADS_KEY ||
     placement.site.domain === "wp-plugin.lacidaweb.internal";
 
+  const teamPolicy = placement.site.team;
   if (
     !canServeOnHost({
-      requireDomainApproval: settings.requireDomainApproval,
-      allowedAdDomains: settings.allowedAdDomains,
+      requireDomainApproval: teamPolicy?.requireDomainApproval ?? true,
+      allowedAdDomains: teamPolicy?.allowedAdDomains || "",
       requestHost: opts?.requestHost ?? null,
       siteDomain: placement.site.domain,
       isPersonalKey: isPersonal,
@@ -255,12 +269,20 @@ export async function serveAdsForPlacement(
     return Math.floor((placement?.impressions ?? 0) / Math.max(1, windowSize)) % count;
   }
 
-  // Text box template: always show 4 compact creatives side-by-side (pad with house promo).
+  // Text box: fill the row with N compact creatives (N from client width, or inventory size).
   if (isTextBox) {
-    const TEXT_BOX_COUNT = 4;
+    const TEXT_BOX_MAX = 8;
+    const TEXT_BOX_FALLBACK = 4;
+    const requested =
+      typeof opts?.count === "number" && Number.isFinite(opts.count)
+        ? Math.max(1, Math.min(TEXT_BOX_MAX, Math.floor(opts.count)))
+        : eligible.length > 0
+          ? Math.min(TEXT_BOX_MAX, eligible.length)
+          : TEXT_BOX_FALLBACK;
+
     if (!eligible.length) {
       const houses = await Promise.all(
-        Array.from({ length: TEXT_BOX_COUNT }, () =>
+        Array.from({ length: requested }, () =>
           buildHouseAd(placement, opts?.origin, settings),
         ),
       );
@@ -271,9 +293,9 @@ export async function serveAdsForPlacement(
       };
     }
 
-    const startIndex = pickStartIndex(eligible.length, TEXT_BOX_COUNT);
+    const startIndex = pickStartIndex(eligible.length, requested);
     const ordered = rotateFromIndex(eligible, startIndex);
-    const picked = ordered.slice(0, Math.min(TEXT_BOX_COUNT, ordered.length));
+    const picked = ordered.slice(0, Math.min(requested, ordered.length));
 
     for (const ad of picked) {
       await recordTrackedImpression({
@@ -291,7 +313,7 @@ export async function serveAdsForPlacement(
     }
 
     const served = picked.map((ad) => toServedAd(ad, placement, placementKey, opts?.origin));
-    while (served.length < TEXT_BOX_COUNT) {
+    while (served.length < requested) {
       served.push(await buildHouseAd(placement, opts?.origin, settings));
     }
 

@@ -29,20 +29,24 @@ export function AdTemplatePreview({
       "Grow with lacidaweb",
       "Advertise with us",
       "Reach more customers",
+      "Launch in minutes",
+      "Wallet-ready campaigns",
     ];
     const bodies = [
       sample.primaryText,
       "Self-serve campaigns with wallet billing and fast review.",
       "Reach customers across the network. Visit lacidaweb.com",
       "Compact sponsored units that fit neatly in your content.",
+      "Create an ad, set a budget, and go live quickly.",
+      "Pay as you go with transparent wallet billing.",
     ];
     return (
       <div className="w-full space-y-2">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="flex w-full gap-2">
           {headlines.map((headline, i) => (
             <div
               key={i}
-              className="rounded-md border border-emerald-500/30 bg-zinc-900/80 p-2.5"
+              className="min-w-0 flex-1 rounded-md border border-emerald-500/30 bg-zinc-900/80 p-2.5"
             >
               <p className="text-[8px] font-semibold uppercase tracking-wider text-zinc-500">
                 Sponsored
@@ -61,7 +65,9 @@ export function AdTemplatePreview({
             </div>
           ))}
         </div>
-        <p className="text-[10px] text-zinc-500">4 compact text box ads · Ads by lacidaweb</p>
+        <p className="text-[10px] text-zinc-500">
+          Fills the row (4–6+ units by width) · Ads by lacidaweb
+        </p>
       </div>
     );
   }

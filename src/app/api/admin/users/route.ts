@@ -72,6 +72,8 @@ export async function GET(req: Request) {
                 aiEnabled: team.aiEnabled,
                 aiTokenBalance: team.aiTokenBalance,
                 adWalletBalanceCents: team.adWalletBalanceCents,
+                requireDomainApproval: team.requireDomainApproval,
+                allowedAdDomains: team.allowedAdDomains || "",
                 campaigns: team._count.adCampaigns,
                 publisherSites: team._count.publisherSites,
               }

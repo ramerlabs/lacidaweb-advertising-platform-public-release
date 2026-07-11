@@ -32,11 +32,17 @@ export async function GET(req: Request) {
       slotRaw != null && slotRaw !== "" && Number.isFinite(Number(slotRaw))
         ? Number(slotRaw)
         : undefined;
+    const countRaw = url.searchParams.get("count");
+    const count =
+      countRaw != null && countRaw !== "" && Number.isFinite(Number(countRaw))
+        ? Number(countRaw)
+        : undefined;
 
     const result = await serveAdsForPlacement(placement, {
       visitorId,
       origin,
       slotIndex,
+      count,
       requestHost: requestHostFromHeaders(req),
       meta: {
         visitorId,

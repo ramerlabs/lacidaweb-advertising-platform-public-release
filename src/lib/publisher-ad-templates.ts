@@ -91,7 +91,7 @@ export const PUBLISHER_AD_TEMPLATES: PublisherAdTemplate[] = [
   {
     id: "text-box",
     name: "Text box ad",
-    description: "4 compact text units in a row — headline, short body, and CTA",
+    description: "Compact text units that fill the row — headline, short body, and CTA",
     category: "text",
     format: "TEXT_BOX",
     width: 300,

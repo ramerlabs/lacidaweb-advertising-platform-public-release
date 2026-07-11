@@ -16,6 +16,8 @@ const updateSchema = z.object({
   addAiTokens: z.number().int().min(0).optional(),
   addAdWalletUsd: z.number().positive().max(1_000_000).optional(),
   setAdWalletUsd: z.number().min(0).max(1_000_000).optional(),
+  requireDomainApproval: z.boolean().optional(),
+  allowedAdDomains: z.string().max(4000).optional(),
   teamId: z.string().min(1).optional(),
   subscriptionStatus: z.enum(["TRIAL", "ACTIVE", "PAST_DUE", "CANCELED"]).optional(),
   interval: z.enum(["MONTHLY", "YEARLY"]).optional(),
@@ -117,11 +119,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ userId
         body.addAiTokens !== undefined ||
         body.aiEnabled !== undefined ||
         body.addAdWalletUsd !== undefined ||
-        body.setAdWalletUsd !== undefined)
+        body.setAdWalletUsd !== undefined ||
+        body.requireDomainApproval !== undefined ||
+        body.allowedAdDomains !== undefined)
     ) {
       const current = await prisma.team.findUnique({
         where: { id: team.id },
-        select: { aiTokenBalance: true, aiEnabled: true, adWalletBalanceCents: true },
+        select: {
+          aiTokenBalance: true,
+          aiEnabled: true,
+          adWalletBalanceCents: true,
+          requireDomainApproval: true,
+          allowedAdDomains: true,
+        },
       });
       const nextBalance =
         body.aiTokenBalance !== undefined
@@ -137,6 +147,23 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ userId
         nextWallet = nextWallet + Math.round(body.addAdWalletUsd * 100);
       }
 
+      const allowedNormalized =
+        body.allowedAdDomains !== undefined
+          ? body.allowedAdDomains
+              .split(/[\n,]+/)
+              .map((d) =>
+                d
+                  .trim()
+                  .toLowerCase()
+                  .replace(/^https?:\/\//, "")
+                  .replace(/^www\./, "")
+                  .replace(/\/.*$/, ""),
+              )
+              .filter(Boolean)
+              .join("\n")
+              .slice(0, 4000)
+          : undefined;
+
       const updatedTeam = await prisma.team.update({
         where: { id: team.id },
         data: {
@@ -149,8 +176,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ userId
             body.addAdWalletUsd !== undefined || body.setAdWalletUsd !== undefined
               ? nextWallet
               : undefined,
+          requireDomainApproval:
+            body.requireDomainApproval !== undefined ? body.requireDomainApproval : undefined,
+          allowedAdDomains:
+            body.allowedAdDomains !== undefined ? allowedNormalized || null : undefined,
         },
-        select: { aiTokenBalance: true, aiEnabled: true, adWalletBalanceCents: true },
+        select: {
+          aiTokenBalance: true,
+          aiEnabled: true,
+          adWalletBalanceCents: true,
+          requireDomainApproval: true,
+          allowedAdDomains: true,
+        },
       });
       aiTokenBalance = updatedTeam.aiTokenBalance;
       adWalletBalanceCents = updatedTeam.adWalletBalanceCents;

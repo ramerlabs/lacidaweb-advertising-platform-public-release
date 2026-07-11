@@ -21,7 +21,7 @@
     return (
       '<a href="' +
       esc(withVisitor(ad.clickUrl, visitor)) +
-      '" target="_blank" rel="noopener sponsored" style="display:block;flex:1 1 140px;max-width:200px;min-width:130px;padding:10px 12px;border:1px solid #e4e4e7;border-radius:8px;text-decoration:none;font-family:system-ui,sans-serif;background:#fafafa;box-sizing:border-box;">' +
+      '" target="_blank" rel="noopener sponsored" style="display:block;flex:1 1 0;min-width:0;width:100%;padding:10px 12px;border:1px solid #e4e4e7;border-radius:8px;text-decoration:none;font-family:system-ui,sans-serif;background:#fafafa;box-sizing:border-box;">' +
       '<span style="font-size:8px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#a1a1aa;">Sponsored</span>' +
       '<div style="margin-top:4px;font-weight:700;font-size:12px;line-height:1.3;color:#18181b;">' +
       esc(ad.headline) +
@@ -35,6 +35,24 @@
       esc(ad.ctaLabel || "Learn more") +
       " →</span></a>"
     );
+  }
+
+  /** How many text-box units fit in the container (fills full width). */
+  function textBoxSlotCount(el) {
+    var w = 0;
+    try {
+      w = (el && (el.clientWidth || el.offsetWidth)) || 0;
+      if (!w && el && el.parentElement) {
+        w = el.parentElement.clientWidth || el.parentElement.offsetWidth || 0;
+      }
+    } catch (e) {
+      w = 0;
+    }
+    if (!w) w = 720;
+    var minCard = 120;
+    var gap = 8;
+    var n = Math.floor((w + gap) / (minCard + gap));
+    return Math.max(2, Math.min(8, n || 4));
   }
 
   function renderAd(target, ad, visitor) {
@@ -92,14 +110,13 @@
   }
 
   function renderTextBoxRow(target, ads, visitor) {
-    var cards = ads
-      .slice(0, 4)
+    var cards = (ads || [])
       .map(function (ad) {
         return renderTextBoxCard(ad, visitor);
       })
       .join("");
     target.innerHTML =
-      '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;width:100%;">' +
+      '<div style="display:flex;flex-wrap:nowrap;gap:8px;align-items:stretch;width:100%;box-sizing:border-box;">' +
       cards +
       "</div>" +
       '<p style="margin:6px 0 0;font:8px system-ui,sans-serif;color:#a1a1aa;">Ads by lacidaweb</p>';
@@ -126,17 +143,26 @@
   function mountAd(base, placementKey, target, rotationSeconds, slotIndex) {
     if (!target || target.getAttribute("data-lw-mounted") === "1") return;
     target.setAttribute("data-lw-mounted", "1");
+    try {
+      if (!target.style.width) target.style.width = "100%";
+      if (!target.style.display) target.style.display = "block";
+      if (!target.style.boxSizing) target.style.boxSizing = "border-box";
+    } catch (e) {}
 
     var visitor = getVisitorId();
     var rotateFallback = Number(rotationSeconds || 0);
+    var textBoxCount = textBoxSlotCount(target);
 
     function serveUrl() {
+      textBoxCount = textBoxSlotCount(target);
       return (
         base +
         "/api/ads/serve?placement=" +
         encodeURIComponent(placementKey) +
         (visitor ? "&visitor=" + encodeURIComponent(visitor) : "") +
         (typeof slotIndex === "number" ? "&slotIndex=" + encodeURIComponent(String(slotIndex)) : "") +
+        "&count=" +
+        encodeURIComponent(String(textBoxCount)) +
         "&_=" +
         Date.now()
       );

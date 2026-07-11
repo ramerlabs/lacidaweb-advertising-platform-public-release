@@ -24,6 +24,8 @@ type AdminUser = {
     aiEnabled: boolean;
     aiTokenBalance: number;
     adWalletBalanceCents: number;
+    requireDomainApproval: boolean;
+    allowedAdDomains: string;
     campaigns: number;
     publisherSites: number;
   } | null;
@@ -65,6 +67,8 @@ export default function AdminUsersPage() {
   const [aiTokenBalance, setAiTokenBalance] = useState("");
   const [addAiTokens, setAddAiTokens] = useState("");
   const [addWalletUsd, setAddWalletUsd] = useState("");
+  const [requireDomainApproval, setRequireDomainApproval] = useState(true);
+  const [allowedAdDomains, setAllowedAdDomains] = useState("");
 
   const selected = useMemo(
     () => users.find((u) => u.id === selectedId) || bannedUsers.find((u) => u.id === selectedId) || null,
@@ -113,6 +117,8 @@ export default function AdminUsersPage() {
     setAccountType(selected.accountType || "ADVERTISER");
     setAiEnabled(selected.team?.aiEnabled ?? false);
     setBanReason(selected.banReason || "");
+    setRequireDomainApproval(selected.team?.requireDomainApproval ?? true);
+    setAllowedAdDomains(selected.team?.allowedAdDomains || "");
     setNewPassword("");
     setAiTokenBalance("");
     setAddAiTokens("");
@@ -194,6 +200,18 @@ export default function AdminUsersPage() {
 
   async function saveProfile() {
     await save({ name, email, accountType });
+  }
+
+  async function saveDomainPolicy() {
+    if (!selected?.team?.id) {
+      setStatus("This user has no workspace to update.");
+      return;
+    }
+    await save({
+      teamId: selected.team.id,
+      requireDomainApproval,
+      allowedAdDomains,
+    });
   }
 
   async function changePassword() {
@@ -466,10 +484,53 @@ export default function AdminUsersPage() {
                   <Card>
                     <CardHeader>
                       <CardTitle>Publisher workspace</CardTitle>
-                      <CardDescription>Websites registered for ad embeds</CardDescription>
+                      <CardDescription>
+                        Websites and per-user domain approval for this publisher
+                      </CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      <Stat label="Publisher sites" value={String(selected.team?.publisherSites ?? 0)} />
+                    <CardContent className="space-y-4">
+                      <Stat
+                        label="Publisher sites"
+                        value={String(selected.team?.publisherSites ?? 0)}
+                      />
+                      <label className="flex items-start gap-3 rounded-lg border p-3 text-sm">
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={requireDomainApproval}
+                          onChange={(e) => setRequireDomainApproval(e.target.checked)}
+                          disabled={!selected.team?.id}
+                        />
+                        <span>
+                          <span className="font-medium">Require domain approval</span>
+                          <span className="mt-1 block text-muted-foreground">
+                            When on, this user&apos;s embeds only serve if the page host matches a
+                            registered site domain (or their allowlist). When off, their embed keys
+                            work on any domain.
+                          </span>
+                        </span>
+                      </label>
+                      <div className="space-y-2">
+                        <Label htmlFor={`allowed-domains-${selected.id}`}>Allowed domains</Label>
+                        <textarea
+                          id={`allowed-domains-${selected.id}`}
+                          className="min-h-[88px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          placeholder={"myblog.com\nshop.example.com"}
+                          value={allowedAdDomains}
+                          onChange={(e) => setAllowedAdDomains(e.target.value)}
+                          disabled={!selected.team?.id}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Optional. One domain per line. These hosts can show this user&apos;s ads
+                          even if not registered as a publisher site.
+                        </p>
+                      </div>
+                      <Button
+                        onClick={saveDomainPolicy}
+                        disabled={saving || !selected.team?.id}
+                      >
+                        {saving ? "Saving..." : "Save domain settings"}
+                      </Button>
                     </CardContent>
                   </Card>
                 )}

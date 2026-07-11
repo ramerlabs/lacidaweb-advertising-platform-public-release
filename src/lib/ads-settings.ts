@@ -5,13 +5,8 @@ import {
   displayLandingAdStats,
   type LandingFakeStatsConfig,
 } from "@/lib/landing-stats";
-import { formatAllowedDomains, parseAllowedDomains } from "@/lib/domain-approval";
 
 export type { PublisherAdServingMode };
-
-function normalizeAllowedDomainsInput(raw: string): string {
-  return formatAllowedDomains(parseAllowedDomains(raw)).slice(0, 4000);
-}
 
 export type AdsSettingsData = {
   adsEnabled: boolean;
@@ -20,10 +15,6 @@ export type AdsSettingsData = {
   publisherAdServingMode: PublisherAdServingMode;
   publisherAdRotateSeconds: number;
   publisherAutoAdsEnabled: boolean;
-  /** When true, embed host must match registered site domain or allowlist. */
-  requireDomainApproval: boolean;
-  /** Newline/comma-separated hosts allowed without a PublisherSite row. */
-  allowedAdDomains: string;
   /** Publisher earn rate: cents per 1000 valid impressions */
   publisherCpmCents: number;
   /** Publisher earn rate: cents per valid click */
@@ -55,8 +46,6 @@ const DEFAULTS: AdsSettingsData = {
   publisherAdServingMode: "ROTATE_ALL",
   publisherAdRotateSeconds: 8,
   publisherAutoAdsEnabled: true,
-  requireDomainApproval: true,
-  allowedAdDomains: "",
   publisherCpmCents: 100,
   publisherCpcCents: 10,
   publisherMinPayoutCents: 2500,
@@ -109,8 +98,6 @@ export async function getAdsSettings(): Promise<AdsSettingsData> {
         row?.publisherAdServingMode === "PERSONALIZED" ? "PERSONALIZED" : "ROTATE_ALL",
       publisherAdRotateSeconds: row?.publisherAdRotateSeconds ?? DEFAULTS.publisherAdRotateSeconds,
       publisherAutoAdsEnabled: row?.publisherAutoAdsEnabled ?? DEFAULTS.publisherAutoAdsEnabled,
-      requireDomainApproval: row?.requireDomainApproval ?? DEFAULTS.requireDomainApproval,
-      allowedAdDomains: row?.allowedAdDomains?.trim() || DEFAULTS.allowedAdDomains,
       publisherCpmCents: row?.publisherCpmCents ?? DEFAULTS.publisherCpmCents,
       publisherCpcCents: row?.publisherCpcCents ?? DEFAULTS.publisherCpcCents,
       publisherMinPayoutCents: row?.publisherMinPayoutCents ?? DEFAULTS.publisherMinPayoutCents,
@@ -150,10 +137,6 @@ export async function updateAdsSettings(input: Partial<AdsSettingsData>): Promis
       Math.max(0, input.publisherAdRotateSeconds ?? current.publisherAdRotateSeconds),
     ),
     publisherAutoAdsEnabled: input.publisherAutoAdsEnabled ?? current.publisherAutoAdsEnabled,
-    requireDomainApproval: input.requireDomainApproval ?? current.requireDomainApproval,
-    allowedAdDomains: normalizeAllowedDomainsInput(
-      input.allowedAdDomains ?? current.allowedAdDomains,
-    ),
     publisherCpmCents: Math.max(0, input.publisherCpmCents ?? current.publisherCpmCents),
     publisherCpcCents: Math.max(0, input.publisherCpcCents ?? current.publisherCpcCents),
     publisherMinPayoutCents: Math.max(
@@ -200,8 +183,6 @@ export async function updateAdsSettings(input: Partial<AdsSettingsData>): Promis
       publisherAdServingMode: next.publisherAdServingMode,
       publisherAdRotateSeconds: next.publisherAdRotateSeconds,
       publisherAutoAdsEnabled: next.publisherAutoAdsEnabled,
-      requireDomainApproval: next.requireDomainApproval,
-      allowedAdDomains: next.allowedAdDomains || null,
       publisherCpmCents: next.publisherCpmCents,
       publisherCpcCents: next.publisherCpcCents,
       publisherMinPayoutCents: next.publisherMinPayoutCents,
@@ -223,8 +204,6 @@ export async function updateAdsSettings(input: Partial<AdsSettingsData>): Promis
       publisherAdServingMode: next.publisherAdServingMode,
       publisherAdRotateSeconds: next.publisherAdRotateSeconds,
       publisherAutoAdsEnabled: next.publisherAutoAdsEnabled,
-      requireDomainApproval: next.requireDomainApproval,
-      allowedAdDomains: next.allowedAdDomains || null,
       publisherCpmCents: next.publisherCpmCents,
       publisherCpcCents: next.publisherCpcCents,
       publisherMinPayoutCents: next.publisherMinPayoutCents,

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdsSettings } from "@/lib/ads-settings";
 import { getAutoAdsConfig } from "@/lib/publisher-auto-ads";
 import { isPlatformLicensed } from "@/lib/license";
+import { prisma } from "@/lib/prisma";
 import {
   canServeOnHost,
   isOpenNetworkKey,
@@ -39,32 +40,43 @@ export async function GET(req: Request) {
     const isNetwork = isOpenNetworkKey(siteKey);
     const requestHost = requestHostFromHeaders(req);
 
-    // Personal key only works on allowlisted hosts (even when approval is off).
-    if (
-      isPersonal &&
-      !canServeOnHost({
-        requireDomainApproval: true,
-        allowedAdDomains: platform.allowedAdDomains,
-        requestHost,
-        isPersonalKey: true,
-      })
-    ) {
-      return NextResponse.json({ enabled: false, slots: [] }, { headers: corsHeaders });
-    }
-
     const config = await getAutoAdsConfig(siteKey);
     if (!config || !config.autoAdsEnabled) {
       return NextResponse.json({ enabled: false, slots: [] }, { headers: corsHeaders });
     }
 
-    // WP plugin / open network key: always serve on any domain.
-    if (!isPersonal && !isNetwork) {
+    // Load per-team domain policy for this site (platform keys use their team too).
+    const siteRow = await prisma.publisherSite.findUnique({
+      where: { id: config.siteId },
+      select: {
+        domain: true,
+        team: {
+          select: { requireDomainApproval: true, allowedAdDomains: true },
+        },
+      },
+    });
+    const teamPolicy = siteRow?.team;
+    const requireDomainApproval = teamPolicy?.requireDomainApproval ?? true;
+    const allowedAdDomains = teamPolicy?.allowedAdDomains || "";
+
+    if (isPersonal) {
       if (
         !canServeOnHost({
-          requireDomainApproval: platform.requireDomainApproval,
-          allowedAdDomains: platform.allowedAdDomains,
+          requireDomainApproval: true,
+          allowedAdDomains,
           requestHost,
-          siteDomain: config.domain,
+          isPersonalKey: true,
+        })
+      ) {
+        return NextResponse.json({ enabled: false, slots: [] }, { headers: corsHeaders });
+      }
+    } else if (!isNetwork) {
+      if (
+        !canServeOnHost({
+          requireDomainApproval,
+          allowedAdDomains,
+          requestHost,
+          siteDomain: siteRow?.domain || config.domain,
           isPersonalKey: false,
         })
       ) {

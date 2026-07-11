@@ -232,7 +232,8 @@ export default function PublisherSitesPage() {
                       want that ad to appear on <strong className="text-foreground">{site.domain}</strong>.
                     </li>
                     <li>
-                      Domain approval is required: the page host must match this registered domain.
+                      If your account requires domain approval, the page host must match this
+                      registered domain (or an allowlisted host set by admin).
                     </li>
                     <li>
                       Check{" "}
