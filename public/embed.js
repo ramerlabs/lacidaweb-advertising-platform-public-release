@@ -49,10 +49,10 @@
       w = 0;
     }
     if (!w) w = 720;
-    var minCard = 120;
+    var minCard = 140;
     var gap = 8;
     var n = Math.floor((w + gap) / (minCard + gap));
-    return Math.max(2, Math.min(8, n || 4));
+    return Math.max(2, Math.min(6, n || 4));
   }
 
   function renderAd(target, ad, visitor) {

@@ -271,7 +271,7 @@ export async function serveAdsForPlacement(
 
   // Text box: fill the row with N compact creatives (N from client width, or inventory size).
   if (isTextBox) {
-    const TEXT_BOX_MAX = 8;
+    const TEXT_BOX_MAX = 6;
     const TEXT_BOX_FALLBACK = 4;
     const requested =
       typeof opts?.count === "number" && Number.isFinite(opts.count)

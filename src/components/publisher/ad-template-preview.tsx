@@ -66,7 +66,7 @@ export function AdTemplatePreview({
           ))}
         </div>
         <p className="text-[10px] text-zinc-500">
-          Fills the row (4–6+ units by width) · Ads by lacidaweb
+          Fills the row (up to 6 units) · Ads by lacidaweb
         </p>
       </div>
     );
