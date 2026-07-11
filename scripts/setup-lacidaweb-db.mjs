@@ -114,7 +114,7 @@ async function main() {
       {
         question: "How do publishers earn?",
         answer:
-          "Publishers embed lacidaweb ads on their sites and earn on valid impressions (CPM) and clicks (CPC). Current rates and your share of network ad spend are shown on the homepage Publishers section. Fraud filters discard bots and duplicates before earnings are credited.",
+          "Publishers embed lacidaweb ads and earn on valid impressions (CPM) and clicks (CPC). You receive 68% of advertiser gross spend: the platform takes a 15% buy-side fee, then 80% of the remaining net goes to publishers (platform keeps 32% overall). Current CPM/CPC earn rates are shown on the homepage. Fraud filters discard bots and duplicates before earnings are credited.",
         sortOrder: 5,
         isPublished: true,
       },

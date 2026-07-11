@@ -20,6 +20,13 @@ import { LandingAdStats } from "@/components/landing/landing-ad-stats";
 import { LACIDAWEB_FAQS } from "@/lib/lacidaweb-faqs";
 import { getAdsSettings, getLandingAdStatsDisplay } from "@/lib/ads-settings";
 import { formatAdWalletUsd } from "@/lib/ad-wallet";
+import {
+  BUY_SIDE_FEE_PERCENT,
+  PLATFORM_SHARE_OF_GROSS_PERCENT,
+  PUBLISHER_SHARE_OF_GROSS_PERCENT,
+  PUBLISHER_SHARE_OF_NET_PERCENT,
+  publisherRateFromAdvertiserGross,
+} from "@/lib/revenue-share";
 
 const FEATURES = [
   {
@@ -72,12 +79,14 @@ export default async function HomePage() {
     getAdsSettings(),
   ]);
   const serverTime = new Date().toISOString();
-  const publisherSharePercent = Math.max(
-    0,
-    100 - Math.min(99, Math.max(0, adsSettings.adsProfitMarginPercent)),
+  const publisherSharePercent = PUBLISHER_SHARE_OF_GROSS_PERCENT;
+  const platformSharePercent = PLATFORM_SHARE_OF_GROSS_PERCENT;
+  const publisherCpmUsd = formatAdWalletUsd(
+    publisherRateFromAdvertiserGross(adsSettings.publisherCpmCents),
   );
-  const publisherCpmUsd = formatAdWalletUsd(adsSettings.publisherCpmCents);
-  const publisherCpcUsd = formatAdWalletUsd(adsSettings.publisherCpcCents);
+  const publisherCpcUsd = formatAdWalletUsd(
+    publisherRateFromAdvertiserGross(adsSettings.publisherCpcCents),
+  );
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -265,36 +274,47 @@ export default async function HomePage() {
             For publishers
           </p>
           <h2 className="mt-2 max-w-xl text-3xl font-bold tracking-tight md:text-4xl">
-            Monetize your site with transparent rates
+            Monetize your site with transparent earnings
           </h2>
           <p className="mt-4 max-w-2xl text-zinc-400">
-            Embed lacidaweb ads and earn on every valid view and click. Publishers receive{" "}
+            Embed lacidaweb ads and earn on every valid view and click. You receive{" "}
             <span className="font-medium text-emerald-400">{publisherSharePercent}%</span> of
-            network ad spend — paid at the rates below.
+            advertiser gross spend — after a {BUY_SIDE_FEE_PERCENT}% platform fee,{" "}
+            {PUBLISHER_SHARE_OF_NET_PERCENT}% of the remaining net goes to publishers.
           </p>
 
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6">
-              <p className="text-sm text-zinc-400">Your share of ad spend</p>
+              <p className="text-sm text-zinc-400">Publisher share</p>
               <p className="mt-2 text-4xl font-bold tabular-nums text-emerald-400">
                 {publisherSharePercent}%
               </p>
               <p className="mt-2 text-sm text-zinc-500">
-                Credited to your publisher balance as traffic converts.
+                Of every advertiser dollar spent on your traffic.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6">
+              <p className="text-sm text-zinc-400">Platform fee</p>
+              <p className="mt-2 text-4xl font-bold tabular-nums text-white">
+                {platformSharePercent}%
+              </p>
+              <p className="mt-2 text-sm text-zinc-500">
+                {BUY_SIDE_FEE_PERCENT}% buy-side + remainder of net — max {platformSharePercent}% of
+                gross.
               </p>
             </div>
             <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6">
               <p className="text-sm text-zinc-400">CPM — per 1,000 views</p>
               <p className="mt-2 text-4xl font-bold tabular-nums text-white">${publisherCpmUsd}</p>
               <p className="mt-2 text-sm text-zinc-500">
-                Paid in batches for every 1,000 valid impressions.
+                Your earn rate after the revenue share (per 1,000 valid impressions).
               </p>
             </div>
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 sm:col-span-2 lg:col-span-1">
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6">
               <p className="text-sm text-zinc-400">CPC — per valid click</p>
               <p className="mt-2 text-4xl font-bold tabular-nums text-white">${publisherCpcUsd}</p>
               <p className="mt-2 text-sm text-zinc-500">
-                Credited immediately on each valid click (bots filtered).
+                Credited on each valid click after bots and duplicates are filtered.
               </p>
             </div>
           </div>

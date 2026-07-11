@@ -438,25 +438,24 @@ function ImageFields({
 
 
       <div className="space-y-2">
-
         <Label htmlFor="primary-text">Primary text</Label>
-
         <Textarea
-
           id="primary-text"
-
           rows={4}
-
-          placeholder="Describe your offer and why people should click"
-
+          placeholder="Describe your offer and why people should click (at least 80 characters)"
           value={ad.primaryText}
-
           onChange={(e) => updateAd({ primaryText: e.target.value })}
-
           maxLength={2000}
-
         />
-
+        <p
+          className={`text-xs ${
+            ad.primaryText.trim().length > 0 && ad.primaryText.trim().length < 80
+              ? "text-amber-600"
+              : "text-muted-foreground"
+          }`}
+        >
+          {ad.primaryText.length}/2000 · minimum 80 characters
+        </p>
       </div>
 
 
@@ -602,27 +601,24 @@ function TextBoxFields({
 
 
       <div className="space-y-2">
-
         <Label htmlFor="primary-text">Description</Label>
-
         <Textarea
-
           id="primary-text"
-
-          rows={4}
-
-          placeholder="Supporting text shown inside the text box unit"
-
+          rows={5}
+          placeholder="Write at least 80 characters describing your offer — this text is shown on publisher sites"
           value={ad.primaryText}
-
           onChange={(e) => updateAd({ primaryText: e.target.value })}
-
           maxLength={300}
-
         />
-
-        <p className="text-xs text-muted-foreground">{ad.primaryText.length}/300</p>
-
+        <p
+          className={`text-xs ${
+            ad.primaryText.trim().length > 0 && ad.primaryText.trim().length < 80
+              ? "text-amber-600"
+              : "text-muted-foreground"
+          }`}
+        >
+          {ad.primaryText.length}/300 · minimum 80 characters
+        </p>
       </div>
 
 
@@ -736,23 +732,24 @@ function VideoFields({
 
 
       <div className="space-y-2">
-
         <Label htmlFor="primary-text">Primary text</Label>
-
         <Textarea
-
           id="primary-text"
-
           rows={3}
-
+          placeholder="At least 80 characters"
           value={ad.primaryText}
-
           onChange={(e) => updateAd({ primaryText: e.target.value })}
-
           maxLength={2000}
-
         />
-
+        <p
+          className={`text-xs ${
+            ad.primaryText.trim().length > 0 && ad.primaryText.trim().length < 80
+              ? "text-amber-600"
+              : "text-muted-foreground"
+          }`}
+        >
+          {ad.primaryText.length}/2000 · minimum 80 characters
+        </p>
       </div>
 
 

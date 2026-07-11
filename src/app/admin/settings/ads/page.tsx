@@ -30,7 +30,7 @@ type AdsSettings = {
 function mapSettings(data: Partial<AdsSettings> & Record<string, unknown>): AdsSettings {
   return {
     adsEnabled: Boolean(data.adsEnabled ?? true),
-    adsProfitMarginPercent: Number(data.adsProfitMarginPercent ?? 55),
+    adsProfitMarginPercent: Number(data.adsProfitMarginPercent ?? 32),
     publisherAdServingMode:
       data.publisherAdServingMode === "PERSONALIZED" ? "PERSONALIZED" : "ROTATE_ALL",
     publisherAdRotateSeconds: Number(data.publisherAdRotateSeconds ?? 8),
@@ -254,16 +254,16 @@ export default function AdminAdsSettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Publisher payout rates</CardTitle>
+          <CardTitle>Fee & revenue share</CardTitle>
           <CardDescription>
-            Set publisher payout rates and your platform profit margin. Default is 55% platform /
-            45% publisher — change the percent anytime below. Fraud filters discard bots and
-            duplicates before spend or earnings are applied.
+            Two-step split on every advertiser charge: 15% platform buy-side fee, then publishers
+            receive 80% of the remaining net (68% of gross). Platform keeps 32% of gross spend.
+            Fraud filters discard bots and duplicates before spend or earnings are applied.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-2">
-            <Label htmlFor="cpm">Publisher CPM (USD / 1,000)</Label>
+            <Label htmlFor="cpm">Advertiser CPM (USD / 1,000)</Label>
             <Input
               id="cpm"
               type="number"
@@ -277,9 +277,13 @@ export default function AdminAdsSettingsPage() {
                 })
               }
             />
+            <p className="text-xs text-muted-foreground">
+              Gross charge to advertisers. Publisher earn ≈ $
+              {((settings.publisherCpmCents * 0.68) / 100).toFixed(2)} / 1,000.
+            </p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="cpc">Publisher CPC (USD / click)</Label>
+            <Label htmlFor="cpc">Advertiser CPC (USD / click)</Label>
             <Input
               id="cpc"
               type="number"
@@ -293,41 +297,16 @@ export default function AdminAdsSettingsPage() {
                 })
               }
             />
+            <p className="text-xs text-muted-foreground">
+              Gross charge to advertisers. Publisher earn ≈ $
+              {((settings.publisherCpcCents * 0.68) / 100).toFixed(2)} / click.
+            </p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="margin">Platform profit margin % (editable anytime)</Label>
-            <Input
-              id="margin"
-              type="number"
-              min={0}
-              max={99}
-              step="1"
-              value={settings.adsProfitMarginPercent}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  adsProfitMarginPercent: Math.min(
-                    99,
-                    Math.max(0, Math.floor(Number(e.target.value) || 0)),
-                  ),
-                })
-              }
-            />
+            <Label>Platform share (fixed)</Label>
+            <Input value="32%" disabled readOnly />
             <p className="text-xs text-muted-foreground">
-              You keep {settings.adsProfitMarginPercent}%, publishers get{" "}
-              {100 - settings.adsProfitMarginPercent}% of advertiser spend. Advertiser rates: CPC $
-              {(
-                settings.publisherCpcCents /
-                  100 /
-                  (1 - Math.min(99, Math.max(0, settings.adsProfitMarginPercent)) / 100 || 1) || 0
-              ).toFixed(2)}
-              , CPM $
-              {(
-                settings.publisherCpmCents /
-                  100 /
-                  (1 - Math.min(99, Math.max(0, settings.adsProfitMarginPercent)) / 100 || 1) || 0
-              ).toFixed(2)}{" "}
-              (publisher ÷ (1 − margin)).
+              15% buy-side fee + 20% of net auction revenue = 32% of gross.
             </p>
           </div>
           <div className="space-y-2">

@@ -381,7 +381,7 @@ export async function generateAdCreative(input: {
     "You write paid social ad copy.",
     `Platform: ${platform}. Campaign goal: ${goal}. Tone: ${tone}.`,
     "Return ONLY valid JSON with keys primaryText and headline.",
-    "primaryText: main ad copy, max 125 characters.",
+    "primaryText: main ad copy, at least 80 characters, max 300 characters.",
     "headline: short hook, max 40 characters.",
     "No markdown, no extra keys.",
   ];
@@ -400,11 +400,11 @@ export async function generateAdCreative(input: {
   let headline = "";
   try {
     const parsed = JSON.parse(text) as { primaryText?: string; headline?: string };
-    primaryText = String(parsed.primaryText || "").slice(0, 125);
+    primaryText = String(parsed.primaryText || "").slice(0, 300);
     headline = String(parsed.headline || "").slice(0, 40);
   } catch {
     const lines = text.split("\n").map((l: string) => l.trim()).filter(Boolean);
-    primaryText = (lines[0] || text).slice(0, 125);
+    primaryText = (lines[0] || text).slice(0, 300);
     headline = (lines[1] || lines[0] || "Learn more").slice(0, 40);
   }
 
@@ -515,7 +515,7 @@ export async function generateCampaignAssist(input: {
       system: [
         "You write lacidaweb ad creatives.",
         "Return ONLY valid JSON with keys:",
-        "format (IMAGE|TEXT_BOX|TEXT_INLINE), headline (max 40 chars), primaryText (max 125 chars),",
+        "format (IMAGE|TEXT_BOX|TEXT_INLINE|VIDEO), headline (max 40 chars), primaryText (min 80, max 300 chars),",
         "destinationUrl (https URL or empty), cta (LEARN_MORE|SHOP_NOW|SIGN_UP|CONTACT_US|DOWNLOAD|BOOK_NOW|GET_OFFER|WATCH_MORE),",
         "imagePrompt (short visual description for an ad image), rationale (short string).",
         "No markdown.",

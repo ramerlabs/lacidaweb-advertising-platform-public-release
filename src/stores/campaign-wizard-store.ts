@@ -118,6 +118,9 @@ export function validateWizardStep(step: WizardStep, state: CampaignWizardState)
     }
 
     if (!ad.primaryText.trim()) return "Enter primary text";
+    if (ad.primaryText.trim().length < 80) {
+      return "Description must be at least 80 characters";
+    }
 
     if (ad.format === "IMAGE" && !ad.imageUrl?.trim()) {
       return "Upload an image for image ads";

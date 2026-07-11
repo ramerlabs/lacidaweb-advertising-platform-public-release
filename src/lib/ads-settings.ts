@@ -5,19 +5,30 @@ import {
   displayLandingAdStats,
   type LandingFakeStatsConfig,
 } from "@/lib/landing-stats";
+import { PLATFORM_SHARE_OF_GROSS_PERCENT } from "@/lib/revenue-share";
 
 export type { PublisherAdServingMode };
 
 export type AdsSettingsData = {
   adsEnabled: boolean;
+  /**
+   * Platform cumulative share of advertiser gross spend (fixed at 32% by revenue-share formula).
+   * Kept for budget pricing helpers and display; settlement uses the two-step split.
+   */
   adsProfitMarginPercent: number;
   adWalletTopUpUsd: number;
   publisherAdServingMode: PublisherAdServingMode;
   publisherAdRotateSeconds: number;
   publisherAutoAdsEnabled: boolean;
-  /** Publisher earn rate: cents per 1000 valid impressions */
+  /**
+   * Advertiser gross CPM (cents / 1,000 impressions).
+   * Publisher earn = 68% of this via revenue share at settlement.
+   */
   publisherCpmCents: number;
-  /** Publisher earn rate: cents per valid click */
+  /**
+   * Advertiser gross CPC (cents / click).
+   * Publisher earn = 68% of this via revenue share at settlement.
+   */
   publisherCpcCents: number;
   /** Minimum balance required to request a payout (cents) */
   publisherMinPayoutCents: number;
@@ -37,15 +48,12 @@ export type AdsSettingsData = {
 
 const DEFAULTS: AdsSettingsData = {
   adsEnabled: true,
-  /**
-   * Platform keeps this % of advertiser spend; publisher share = 100 − margin.
-   * Default 55% balances profit with competitive advertiser CPC/CPM (editable in admin).
-   */
-  adsProfitMarginPercent: 55,
+  adsProfitMarginPercent: PLATFORM_SHARE_OF_GROSS_PERCENT,
   adWalletTopUpUsd: 25,
   publisherAdServingMode: "ROTATE_ALL",
   publisherAdRotateSeconds: 8,
   publisherAutoAdsEnabled: true,
+  // Advertiser gross defaults ($1.00 CPM / $0.10 CPC) → publisher ~$0.68 / $0.07
   publisherCpmCents: 100,
   publisherCpcCents: 10,
   publisherMinPayoutCents: 2500,
@@ -75,31 +83,87 @@ function toFakeConfig(settings: AdsSettingsData): LandingFakeStatsConfig {
   };
 }
 
+/**
+ * One-time migrate from legacy "publisher rate + margin markup" to advertiser-gross rates
+ * under the fixed 32% platform / 68% publisher revenue share.
+ */
+async function migrateLegacyMarginRates(row: {
+  adsProfitMarginPercent: number | null;
+  publisherCpmCents: number | null;
+  publisherCpcCents: number | null;
+}): Promise<{
+  margin: number;
+  cpmCents: number;
+  cpcCents: number;
+} | null> {
+  const margin = row.adsProfitMarginPercent;
+  if (margin == null || margin === PLATFORM_SHARE_OF_GROSS_PERCENT) return null;
+  // Legacy 0 was coerced to 55; treat both as old publisher-centric rates.
+  const oldMarginPercent = margin === 0 ? 55 : margin;
+  if (oldMarginPercent === PLATFORM_SHARE_OF_GROSS_PERCENT) return null;
+
+  const oldM = Math.min(99, Math.max(0, oldMarginPercent)) / 100;
+  const cpm = row.publisherCpmCents ?? DEFAULTS.publisherCpmCents;
+  const cpc = row.publisherCpcCents ?? DEFAULTS.publisherCpcCents;
+  // Old model stored publisher earn rates; convert to advertiser gross.
+  const nextCpm =
+    oldM > 0 && oldM < 1 ? Math.max(0, Math.ceil(cpm / (1 - oldM))) : cpm;
+  const nextCpc =
+    oldM > 0 && oldM < 1 ? Math.max(0, Math.ceil(cpc / (1 - oldM))) : cpc;
+
+  await prisma.integrationSettings.update({
+    where: { id: "default" },
+    data: {
+      adsProfitMarginPercent: PLATFORM_SHARE_OF_GROSS_PERCENT,
+      publisherCpmCents: nextCpm,
+      publisherCpcCents: nextCpc,
+    },
+  });
+
+  return {
+    margin: PLATFORM_SHARE_OF_GROSS_PERCENT,
+    cpmCents: nextCpm,
+    cpcCents: nextCpc,
+  };
+}
+
 export async function getAdsSettings(): Promise<AdsSettingsData> {
   try {
     const row = await prisma.integrationSettings.findUnique({ where: { id: "default" } });
 
-    // Legacy installs stored 0; apply the competitive 55% default once.
-    // After that, Admin → Publisher ads is the source of truth (any percent you save sticks).
-    let margin = row?.adsProfitMarginPercent;
-    if (row && (margin == null || margin === 0)) {
-      await prisma.integrationSettings.update({
-        where: { id: "default" },
-        data: { adsProfitMarginPercent: DEFAULTS.adsProfitMarginPercent },
+    let margin = row?.adsProfitMarginPercent ?? DEFAULTS.adsProfitMarginPercent;
+    let cpmCents = row?.publisherCpmCents ?? DEFAULTS.publisherCpmCents;
+    let cpcCents = row?.publisherCpcCents ?? DEFAULTS.publisherCpcCents;
+
+    if (row) {
+      const migrated = await migrateLegacyMarginRates({
+        adsProfitMarginPercent: row.adsProfitMarginPercent,
+        publisherCpmCents: row.publisherCpmCents,
+        publisherCpcCents: row.publisherCpcCents,
       });
-      margin = DEFAULTS.adsProfitMarginPercent;
+      if (migrated) {
+        margin = migrated.margin;
+        cpmCents = migrated.cpmCents;
+        cpcCents = migrated.cpcCents;
+      } else if (margin !== PLATFORM_SHARE_OF_GROSS_PERCENT) {
+        await prisma.integrationSettings.update({
+          where: { id: "default" },
+          data: { adsProfitMarginPercent: PLATFORM_SHARE_OF_GROSS_PERCENT },
+        });
+        margin = PLATFORM_SHARE_OF_GROSS_PERCENT;
+      }
     }
 
     return {
       adsEnabled: row?.adsEnabled ?? DEFAULTS.adsEnabled,
-      adsProfitMarginPercent: margin ?? DEFAULTS.adsProfitMarginPercent,
+      adsProfitMarginPercent: margin,
       adWalletTopUpUsd: row?.adWalletTopUpUsd ?? DEFAULTS.adWalletTopUpUsd,
       publisherAdServingMode:
         row?.publisherAdServingMode === "PERSONALIZED" ? "PERSONALIZED" : "ROTATE_ALL",
       publisherAdRotateSeconds: row?.publisherAdRotateSeconds ?? DEFAULTS.publisherAdRotateSeconds,
       publisherAutoAdsEnabled: row?.publisherAutoAdsEnabled ?? DEFAULTS.publisherAutoAdsEnabled,
-      publisherCpmCents: row?.publisherCpmCents ?? DEFAULTS.publisherCpmCents,
-      publisherCpcCents: row?.publisherCpcCents ?? DEFAULTS.publisherCpcCents,
+      publisherCpmCents: cpmCents,
+      publisherCpcCents: cpcCents,
       publisherMinPayoutCents: row?.publisherMinPayoutCents ?? DEFAULTS.publisherMinPayoutCents,
       landingFakeStatsEnabled: row?.landingFakeStatsEnabled ?? DEFAULTS.landingFakeStatsEnabled,
       landingFakeImpressionsBase:
@@ -125,10 +189,7 @@ export async function updateAdsSettings(input: Partial<AdsSettingsData>): Promis
   const current = await getAdsSettings();
   const next: AdsSettingsData = {
     adsEnabled: input.adsEnabled ?? current.adsEnabled,
-    adsProfitMarginPercent: Math.min(
-      99,
-      Math.max(0, input.adsProfitMarginPercent ?? current.adsProfitMarginPercent),
-    ),
+    adsProfitMarginPercent: PLATFORM_SHARE_OF_GROSS_PERCENT,
     adWalletTopUpUsd: input.adWalletTopUpUsd ?? current.adWalletTopUpUsd,
     publisherAdServingMode:
       input.publisherAdServingMode === "PERSONALIZED" ? "PERSONALIZED" : "ROTATE_ALL",

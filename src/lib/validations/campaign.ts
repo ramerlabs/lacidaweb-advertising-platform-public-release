@@ -111,17 +111,17 @@ export const adCreativeSchema = z
 
 
     if (!ad.primaryText.trim()) {
-
       ctx.addIssue({
-
         code: z.ZodIssueCode.custom,
-
         message: "Primary text is required",
-
         path: ["primaryText"],
-
       });
-
+    } else if (ad.primaryText.trim().length < 80) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Description must be at least 80 characters",
+        path: ["primaryText"],
+      });
     }
 
 

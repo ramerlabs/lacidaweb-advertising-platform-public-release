@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getAdsSettings } from "@/lib/ads-settings";
 import { getPaymentSettings } from "@/lib/payment-settings";
 import { paymentMethodLabel, type ClientPaymentMethod } from "@/lib/payment-methods";
+import { publisherRateFromAdvertiserGross } from "@/lib/revenue-share";
 
 export type PayoutMethodOption = {
   method: ClientPaymentMethod;
@@ -85,8 +86,8 @@ export async function getPublisherEarningsSummary(teamId: string) {
     validClicks,
     fraudBlocked,
     rates: {
-      cpmCents: settings.publisherCpmCents,
-      cpcCents: settings.publisherCpcCents,
+      cpmCents: publisherRateFromAdvertiserGross(settings.publisherCpmCents),
+      cpcCents: publisherRateFromAdvertiserGross(settings.publisherCpcCents),
       minPayoutCents: settings.publisherMinPayoutCents,
     },
     canRequestPayout: availableToRequestCents >= settings.publisherMinPayoutCents,

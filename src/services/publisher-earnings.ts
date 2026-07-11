@@ -3,6 +3,7 @@ import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getAdsSettings } from "@/lib/ads-settings";
+import { splitAdvertiserGrossCharge } from "@/lib/revenue-share";
 import {
   chargeAdvertiserClick,
   getAdvertiserRates,
@@ -113,27 +114,23 @@ export async function recordTrackedImpression(input: {
     adId: input.adId,
     cpmCents: rates.cpmCents,
   });
-  const earnedCents = await maybeCreditCpmBatch(input.teamId, settings.publisherCpmCents);
+
+  let earnedCents = 0;
+  if (chargedCents > 0) {
+    const split = splitAdvertiserGrossCharge(chargedCents);
+    earnedCents = await creditPublisherEarning({
+      teamId: input.teamId,
+      amountCents: split.publisherPayoutCents,
+      description: `CPM earnings for 1,000 impressions`,
+      metadata: {
+        kind: "CPM",
+        rateCents: rates.cpmCents,
+        ...split,
+      },
+    });
+  }
 
   return { counted: true, earnedCents, chargedCents };
-}
-
-async function maybeCreditCpmBatch(teamId: string, cpmCents: number): Promise<number> {
-  if (cpmCents <= 0) return 0;
-
-  const validCount = await prisma.adEvent.count({
-    where: { teamId, type: "IMPRESSION", isValid: true },
-  });
-
-  // Credit once per exact multiple of 1000 valid impressions.
-  if (validCount === 0 || validCount % 1000 !== 0) return 0;
-
-  return creditPublisherEarning({
-    teamId,
-    amountCents: cpmCents,
-    description: `CPM earnings for 1,000 impressions`,
-    metadata: { kind: "CPM", impressions: validCount, rateCents: cpmCents },
-  });
 }
 
 export async function recordTrackedClick(input: {
@@ -195,6 +192,7 @@ export async function recordTrackedClick(input: {
   });
 
   let chargedCents = 0;
+  let earnedCents = 0;
   const rates = getAdvertiserRates(settings);
   if (input.campaignId && input.advertiserTeamId && rates.cpcCents > 0) {
     chargedCents = await chargeAdvertiserClick({
@@ -203,9 +201,10 @@ export async function recordTrackedClick(input: {
       adId: input.adId,
       cpcCents: rates.cpcCents,
     });
+    if (chargedCents > 0) {
+      earnedCents = splitAdvertiserGrossCharge(chargedCents).publisherPayoutCents;
+    }
   }
-
-  const earnedCents = settings.publisherCpcCents > 0 ? settings.publisherCpcCents : 0;
 
   await prisma.adEvent.create({
     data: {
@@ -224,11 +223,17 @@ export async function recordTrackedClick(input: {
   });
 
   if (earnedCents > 0) {
+    const split = splitAdvertiserGrossCharge(chargedCents);
     await creditPublisherEarning({
       teamId: input.teamId,
       amountCents: earnedCents,
       description: "CPC earning for valid click",
-      metadata: { kind: "CPC", adId: input.adId, rateCents: earnedCents },
+      metadata: {
+        kind: "CPC",
+        adId: input.adId,
+        rateCents: rates.cpcCents,
+        ...split,
+      },
     });
   }
 

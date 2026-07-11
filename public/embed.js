@@ -27,8 +27,8 @@
       esc(ad.headline) +
       "</div>" +
       (ad.primaryText
-        ? '<div style="margin-top:4px;font-size:11px;color:#71717a;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">' +
-          esc(ad.primaryText).slice(0, 90) +
+        ? '<div style="margin-top:4px;font-size:11px;color:#52525b;line-height:1.4;display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;">' +
+          esc(ad.primaryText).slice(0, 400) +
           "</div>"
         : "") +
       '<span style="display:inline-block;margin-top:8px;font-size:11px;font-weight:600;color:#059669;">' +
@@ -100,7 +100,7 @@
       esc(ad.headline) +
       "</div>" +
       '<div style="font-size:12px;color:#52525b;margin-top:4px;">' +
-      esc(ad.primaryText || "").slice(0, 120) +
+      esc(ad.primaryText || "").slice(0, 400) +
       "</div>" +
       '<span style="display:inline-block;margin-top:8px;padding:6px 12px;background:#06b6d4;color:#fff;font-size:12px;font-weight:600;border-radius:6px;">' +
       esc(ad.ctaLabel || "Learn more") +

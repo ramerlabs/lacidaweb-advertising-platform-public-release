@@ -116,8 +116,8 @@ export default function AdminOverviewPage() {
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              Profit = advertiser ad spend − publisher earnings. Default is 55% platform / 45%
-              publisher — change anytime under{" "}
+              Profit = advertiser ad spend − publisher earnings. Fixed split: 32% platform / 68%
+              publisher (15% buy-side fee, then 80% of net to publishers). Configure rates under{" "}
               <Link href="/admin/settings/ads" className="underline underline-offset-2">
                 Publisher ads
               </Link>

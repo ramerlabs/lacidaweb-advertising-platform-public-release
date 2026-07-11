@@ -2,22 +2,28 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { usdToCents } from "@/lib/ad-wallet";
 import type { AdsSettingsData } from "@/lib/ads-settings";
+import { PLATFORM_SHARE_OF_GROSS_PERCENT } from "@/lib/revenue-share";
 import { isCampaignPrepaid } from "@/services/wallet-ledger";
 
 export type AdvertiserRates = {
+  /** Advertiser gross CPM (cents / 1,000 impressions) */
   cpmCents: number;
+  /** Advertiser gross CPC (cents / click) */
   cpcCents: number;
+  /** Platform cumulative share of gross (fixed 32% under revenue-share formula) */
   marginPercent: number;
 };
 
-/** Advertiser pays publisher rate marked up by ads profit margin. */
+/**
+ * Advertiser list rates = configured gross CPM/CPC.
+ * Publisher payout is derived at settlement via the two-step revenue share
+ * (15% buy-side fee, then 80% of net → 68% of gross to publisher).
+ */
 export function getAdvertiserRates(settings: AdsSettingsData): AdvertiserRates {
-  const margin = Math.min(99, Math.max(0, settings.adsProfitMarginPercent)) / 100;
-  const markup = margin >= 1 ? 1 : 1 / (1 - margin);
   return {
-    cpmCents: Math.max(0, Math.ceil(settings.publisherCpmCents * markup)),
-    cpcCents: Math.max(0, Math.ceil(settings.publisherCpcCents * markup)),
-    marginPercent: settings.adsProfitMarginPercent,
+    cpmCents: Math.max(0, settings.publisherCpmCents),
+    cpcCents: Math.max(0, settings.publisherCpcCents),
+    marginPercent: PLATFORM_SHARE_OF_GROSS_PERCENT,
   };
 }
 
